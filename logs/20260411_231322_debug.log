@@ -1,0 +1,2 @@
+2026-04-11 23:13:22 [INFO] | zsim.Core.Test | line:55 | 准备抛出 ActionExecutionError 进行测试。
+2026-04-11 23:13:22 [ERROR] | zsim.Core.Test | line:59 | 捕获到预期的自定义异常: 前置条件不足，动作无法释放。

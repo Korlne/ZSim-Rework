@@ -1,17 +1,10 @@
-# Python 缓存
+# Python-generated files
 __pycache__/
-*.py[cod]
-*$py.class
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
 
-# 虚拟环境 (uv 默认生成的环境)
-.venv/
-
-# 项目产生的日志
-logs/
-*.log
-
-# 环境变量文件 (如有)
-.env
-
-# 测试缓存
-.pytest_cache/
+# Virtual environments
+.venv
