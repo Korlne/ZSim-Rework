@@ -67,3 +67,6 @@ class SkillData(BaseModel):
 
     # 消耗
     hp_cost: float = Field(default=0.0, description="生命值消耗（>0表示施放需要消耗HP）")
+    energy_cost: float = Field(default=0.0, description="能量消耗（>0表示施放需要消耗能量）")
+    cooldown_ticks: int = Field(default=0, description="技能冷却帧数（>0表示施放后进入冷却）")
+    special_resource_cost: float = Field(default=0.0, description="特殊资源消耗（>0表示施放需要消耗特殊资源）")

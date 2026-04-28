@@ -7,16 +7,8 @@ from core_control.logger import setup_logging
 from core_control.game_state import GameState
 from core_control.event_bus import EventBus
 from core_control.apl_manager import APLManager
-from core_control.interfaces import IResourceValidator
 from core_control.dispatcher import on_tick
-
-# 1. 定义一个简单的资源验证器
-class SimpleValidator(IResourceValidator):
-    def can_execute(self, action_id: str, state: GameState) -> bool:
-        # 模拟：允许普攻，但遇到技能时直接拒绝，以此触发我们的错误捕获机制
-        if "Attack" in action_id:
-            return True
-        return False
+from combat.resource_validator import ResourceValidator
 
 def main():
     # 2. 初始化集中式日志
@@ -27,7 +19,7 @@ def main():
     # 3. 初始化核心组件，设置最多跑 10 Tick
     state = GameState(max_ticks=10)
     bus = EventBus(state)
-    validator = SimpleValidator()
+    validator = ResourceValidator()
     manager = APLManager(validator)
 
     # 4. 加载我们刚刚创建的 JSON 排轴文件

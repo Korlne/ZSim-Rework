@@ -4,11 +4,14 @@ APL解析与动作管理器模块
 """
 import json
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, TYPE_CHECKING
 from .interfaces import IResourceValidator
 from .dispatcher import on_action_request, on_action_start
 from .decorators import emit_on_error
-from .exceptions import ActionExecutionError
+from .exceptions import ActionExecutionError, ResourceValidationError
+
+if TYPE_CHECKING:
+    from .game_state import GameState
 
 logger = logging.getLogger("zsim.Core.APLManager")
 
@@ -44,14 +47,21 @@ class APLManager:
 
         # 弹出序列首个动作并获取标识ID
         next_action = self.action_queue.pop(0)
-        action_id = next_action.get("id")
-        
+        action_id: str = next_action.get("id", "")
+
         logger.debug(f"Requesting action execution: {action_id}")
         # 发送动作请求信号
         on_action_request.send(self, action_id=action_id)
 
         # 向注入的判断类发起资源与逻辑可行性判定
-        if self.validator.can_execute(action_id, state):
+        try:
+            passed = self.validator.can_execute(action_id, state)
+        except ResourceValidationError as e:
+            # 注入上一成功指令上下文后重新抛出
+            e.last_successful_action = self.last_successful_action_id or "N/A"
+            raise e
+
+        if passed:
             # 判定通过，更新状态并广播开始执行信号
             self.last_successful_action_id = action_id
             logger.info(f"Action validated and started: {action_id}")

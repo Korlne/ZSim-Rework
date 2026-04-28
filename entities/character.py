@@ -35,6 +35,13 @@ class Character:
         self.constellations = {i: False for i in range(1, 7)} # 1-6命座/潜能开关
         self.realtime_modifiers: Dict[str, float] = {} # 实时Buff修饰器容器
 
+        # 战斗资源
+        self.energy: float = 120.0  # 当前能量值
+        self.max_energy: float = 120.0  # 最大能量上限
+        self.special_resource: float = 0.0  # 当前特殊资源值
+        self.max_special_resource: float = 0.0  # 最大特殊资源上限（0表示无特殊资源）
+        self.current_hp: float = base_stats.hp  # 当前生命值
+
     @emit_on_error
     def change_state(self, new_state: CharacterState):
         """
