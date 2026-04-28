@@ -80,3 +80,22 @@ Started: Tue Apr 28 14:51:24     2026
   - blinker 信号处理函数签名需使用 `**kwargs` 接收任意事件参数
 ---
 
+## 2026-04-28 17:00 - US-017
+- 创建 `data/` 目录及示例数据：characters.json (1角色)、enemies.json (1敌人)、skills.json (8技能)、equipment.json (空)、sample_apl.json (10动作序列)
+- 重写 `run_simulation.py`：完整端到端流程，集成 DataLoader → Character/EnemyState → TeamManager → GameState → ResourceValidator → RNGManager → APLManager → StructuredLogger → EventBus 全链路
+- 实现伤害结算管线：在 on_action_start 上计算完整 RegularMul 公式（9个乘区），通过 RNGManager 判定暴击，发出 on_damage_dealt 和 on_damage_applied 事件
+- 实现资源消耗：动作执行时扣除能量/HP/特殊资源，设置技能冷却
+- 实现失衡值累积：使用 StunMul 计算并调用 EnemyState.add_daze()
+- StructuredLogger 新增 `disconnect_event_handlers()` 方法，支持模拟后完全清理 blinker 信号连接
+- 修复 `data_io/` 包名冲突：原 `io/` 与 Python stdlib 冲突，已重命名为 `data_io/`
+- 创建 8 个集成测试：模拟完成/日志生成/事件类型/报表完整/伤害字段/Seed复现/不同Seed差异
+- 全部 100 个测试通过，mypy typecheck 通过
+- Files changed: `run_simulation.py`, `data_io/structured_logger.py`, `data/` (characters, enemies, skills, equipment, apl), `tests/test_e2e_simulation.py`, `scripts/ralph/prd.json`
+- **Learnings for future iterations:**
+  - `io/` 目录名与 Python stdlib 冲突，项目已使用 `data_io/`
+  - blinker 信号连接（weak=False）需要在模拟后手动 disconnect，否则重复运行会累积重复 handler
+  - Pydantic 严格模式下，字符串不会自动转换为枚举，需手动转换后再传入 model_validate
+  - EnemyState 的防御字段使用 alias="def"，因 `def` 是 Python 关键字，构造函数中需通过 `model_validate({"def": value})` 或直接赋值属性
+  - APLManager.load_from_json() 的 JSON 路径需使用完整相对路径（如 `data/apl/sample_apl.json`）
+---
+

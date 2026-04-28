@@ -1,0 +1,18 @@
+{
+  "enemies": [
+    {
+      "enemy_id": "test_dummy",
+      "enemy_type": "Normal",
+      "atk": 500.0,
+      "hp": 100000.0,
+      "def": 600.0,
+      "daze_max": 1500.0,
+      "res_physical": 0.0,
+      "res_fire": 0.0,
+      "res_ice": 0.0,
+      "res_electric": 0.0,
+      "res_ether": 0.0,
+      "res_wind": 0.0
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "timestamp": 1777018783749,
+  "version": "1.0.0",
+  "scenarioList": [
+    {
+      "id": "sample_scenario",
+      "name": "Sample Rotation",
+      "data": {
+        "tracks": [
+          {
+            "id": "anson_01",
+            "actions": [
+              {"id": "anson_A1", "type": "basic_attack", "name": "A1", "kind": "attack_segment", "duration": 25, "instanceId": "inst_001", "librarySource": "character", "logicalStartTime": 0, "startTime": 0},
+              {"id": "anson_A2", "type": "basic_attack", "name": "A2", "kind": "attack_segment", "duration": 30, "instanceId": "inst_002", "librarySource": "character", "logicalStartTime": 26, "startTime": 26},
+              {"id": "anson_A3", "type": "basic_attack", "name": "A3", "kind": "attack_segment", "duration": 28, "instanceId": "inst_003", "librarySource": "character", "logicalStartTime": 57, "startTime": 57},
+              {"id": "anson_A4", "type": "basic_attack", "name": "A4", "kind": "attack_segment", "duration": 50, "instanceId": "inst_004", "librarySource": "character", "logicalStartTime": 86, "startTime": 86},
+              {"id": "anson_special", "type": "special_attack", "name": "Special", "kind": "attack_segment", "duration": 45, "instanceId": "inst_005", "librarySource": "character", "logicalStartTime": 137, "startTime": 137},
+              {"id": "anson_ex_special", "type": "ex_special", "name": "EX Special", "kind": "attack_segment", "duration": 65, "instanceId": "inst_006", "librarySource": "character", "logicalStartTime": 183, "startTime": 183},
+              {"id": "anson_A1", "type": "basic_attack", "name": "A1", "kind": "attack_segment", "duration": 25, "instanceId": "inst_007", "librarySource": "character", "logicalStartTime": 249, "startTime": 249},
+              {"id": "anson_A2", "type": "basic_attack", "name": "A2", "kind": "attack_segment", "duration": 30, "instanceId": "inst_008", "librarySource": "character", "logicalStartTime": 275, "startTime": 275},
+              {"id": "anson_A3", "type": "basic_attack", "name": "A3", "kind": "attack_segment", "duration": 28, "instanceId": "inst_009", "librarySource": "character", "logicalStartTime": 306, "startTime": 306},
+              {"id": "anson_A4", "type": "basic_attack", "name": "A4", "kind": "attack_segment", "duration": 50, "instanceId": "inst_010", "librarySource": "character", "logicalStartTime": 335, "startTime": 335}
+            ]
+          },
+          {"id": null, "actions": []},
+          {"id": null, "actions": []},
+          {"id": null, "actions": []}
+        ],
+        "characterOverrides": {},
+        "prepDuration": 300,
+        "prepExpanded": true
+      }
+    }
+  ],
+  "activeScenarioId": "sample_scenario"
+}

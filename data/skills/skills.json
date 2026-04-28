@@ -1,0 +1,68 @@
+{
+  "skills": [
+    {
+      "action_id": "anson_A1", "action_type": "Basic", "trigger_type": "Active",
+      "damage_multipliers": [[0, 1.2]], "daze_multiplier": 0.3, "anomaly_multiplier": 0.0,
+      "hit_frames": [10, 20], "invincible_frames": [], "interruptible_frame": 25,
+      "allows_background_completion": false, "is_snapshot": false, "charge_branches": {},
+      "prerequisite_action_id": null, "hp_cost": 0.0, "energy_cost": 0.0,
+      "cooldown_ticks": 0, "special_resource_cost": 0.0
+    },
+    {
+      "action_id": "anson_A2", "action_type": "Basic", "trigger_type": "Active",
+      "damage_multipliers": [[0, 1.5]], "daze_multiplier": 0.4, "anomaly_multiplier": 0.0,
+      "hit_frames": [12, 24], "invincible_frames": [], "interruptible_frame": 30,
+      "allows_background_completion": false, "is_snapshot": false, "charge_branches": {},
+      "prerequisite_action_id": null, "hp_cost": 0.0, "energy_cost": 0.0,
+      "cooldown_ticks": 0, "special_resource_cost": 0.0
+    },
+    {
+      "action_id": "anson_A3", "action_type": "Basic", "trigger_type": "Active",
+      "damage_multipliers": [[0, 1.8]], "daze_multiplier": 0.5, "anomaly_multiplier": 0.0,
+      "hit_frames": [8, 16, 24], "invincible_frames": [], "interruptible_frame": 28,
+      "allows_background_completion": false, "is_snapshot": false, "charge_branches": {},
+      "prerequisite_action_id": null, "hp_cost": 0.0, "energy_cost": 0.0,
+      "cooldown_ticks": 0, "special_resource_cost": 0.0
+    },
+    {
+      "action_id": "anson_A4", "action_type": "Basic", "trigger_type": "Active",
+      "damage_multipliers": [[0, 2.5]], "daze_multiplier": 0.7, "anomaly_multiplier": 0.0,
+      "hit_frames": [15, 30, 45], "invincible_frames": [], "interruptible_frame": 50,
+      "allows_background_completion": false, "is_snapshot": false, "charge_branches": {},
+      "prerequisite_action_id": null, "hp_cost": 0.0, "energy_cost": 0.0,
+      "cooldown_ticks": 0, "special_resource_cost": 0.0
+    },
+    {
+      "action_id": "anson_special", "action_type": "Special", "trigger_type": "Active",
+      "damage_multipliers": [[0, 3.2]], "daze_multiplier": 0.8, "anomaly_multiplier": 0.0,
+      "hit_frames": [20, 40], "invincible_frames": [], "interruptible_frame": 45,
+      "allows_background_completion": false, "is_snapshot": false, "charge_branches": {},
+      "prerequisite_action_id": null, "hp_cost": 0.0, "energy_cost": 0.0,
+      "cooldown_ticks": 0, "special_resource_cost": 0.0
+    },
+    {
+      "action_id": "anson_ex_special", "action_type": "EXSpecial", "trigger_type": "Active",
+      "damage_multipliers": [[0, 5.5]], "daze_multiplier": 1.5, "anomaly_multiplier": 0.0,
+      "hit_frames": [15, 30, 45, 60], "invincible_frames": [[0, 30]], "interruptible_frame": 0,
+      "allows_background_completion": false, "is_snapshot": true, "charge_branches": {},
+      "prerequisite_action_id": null, "hp_cost": 0.0, "energy_cost": 60.0,
+      "cooldown_ticks": 0, "special_resource_cost": 0.0
+    },
+    {
+      "action_id": "anson_ultimate", "action_type": "Ultimate", "trigger_type": "Active",
+      "damage_multipliers": [[0, 12.0]], "daze_multiplier": 3.0, "anomaly_multiplier": 0.0,
+      "hit_frames": [30, 60, 90], "invincible_frames": [[0, 90]], "interruptible_frame": 0,
+      "allows_background_completion": false, "is_snapshot": true, "charge_branches": {},
+      "prerequisite_action_id": null, "hp_cost": 0.0, "energy_cost": 0.0,
+      "cooldown_ticks": 0, "special_resource_cost": 0.0
+    },
+    {
+      "action_id": "anson_dodge", "action_type": "Dodge", "trigger_type": "Reactive",
+      "damage_multipliers": [[0, 0.8]], "daze_multiplier": 0.2, "anomaly_multiplier": 0.0,
+      "hit_frames": [15], "invincible_frames": [[0, 20]], "interruptible_frame": 0,
+      "allows_background_completion": false, "is_snapshot": false, "charge_branches": {},
+      "prerequisite_action_id": null, "hp_cost": 0.0, "energy_cost": 0.0,
+      "cooldown_ticks": 0, "special_resource_cost": 0.0
+    }
+  ]
+}

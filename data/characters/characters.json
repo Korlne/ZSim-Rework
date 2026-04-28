@@ -1,0 +1,21 @@
+{
+  "characters": [
+    {
+      "char_id": "anson_01",
+      "faction": "Criminal_Investigation",
+      "specialty": "Attack",
+      "element": "Electric",
+      "action_dict": [
+        "anson_A1", "anson_A2", "anson_A3", "anson_A4",
+        "anson_special", "anson_ex_special", "anson_ultimate", "anson_dodge"
+      ],
+      "base_stats": {
+        "hp": 8000.0, "atk": 2500.0, "def": 800.0, "impact": 100.0,
+        "anomaly_proficiency": 100.0, "anomaly_mastery": 100.0,
+        "crit_rate": 0.55, "crit_dmg": 1.20,
+        "pen_ratio": 0.10, "pen_fixed": 50.0,
+        "energy_regen": 1.2, "energy_gen_rate": 1.0
+      }
+    }
+  ]
+}

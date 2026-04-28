@@ -8,7 +8,10 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import TextIO
+from typing import TextIO, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core_control.game_state import GameState
 
 logger = logging.getLogger("zsim.IO.StructuredLogger")
 
@@ -62,17 +65,30 @@ class StructuredLogger:
                 self.log_event(event_name, game_state.current_tick, kwargs)
             return handler
 
-        on_tick.connect(make_handler('on_tick'), weak=False)
-        on_action_start.connect(make_handler('on_action_start'), weak=False)
-        on_damage_dealt.connect(make_handler('on_damage_dealt'), weak=False)
-        on_damage_applied.connect(make_handler('on_damage_applied'), weak=False)
-        on_buff_changed.connect(make_handler('on_buff_changed'), weak=False)
-        on_anomaly_triggered.connect(make_handler('on_anomaly_triggered'), weak=False)
-        on_disorder_triggered.connect(make_handler('on_disorder_triggered'), weak=False)
-        on_chain_attack.connect(make_handler('on_chain_attack'), weak=False)
-        on_dodge.connect(make_handler('on_dodge'), weak=False)
-        on_parry.connect(make_handler('on_parry'), weak=False)
-        on_coordinated_action.connect(make_handler('on_coordinated_action'), weak=False)
-        on_combat_end.connect(make_handler('on_combat_end'), weak=False)
+        self._handlers = []
+        signals = [
+            (on_tick, 'on_tick'),
+            (on_action_start, 'on_action_start'),
+            (on_damage_dealt, 'on_damage_dealt'),
+            (on_damage_applied, 'on_damage_applied'),
+            (on_buff_changed, 'on_buff_changed'),
+            (on_anomaly_triggered, 'on_anomaly_triggered'),
+            (on_disorder_triggered, 'on_disorder_triggered'),
+            (on_chain_attack, 'on_chain_attack'),
+            (on_dodge, 'on_dodge'),
+            (on_parry, 'on_parry'),
+            (on_coordinated_action, 'on_coordinated_action'),
+            (on_combat_end, 'on_combat_end'),
+        ]
+        for signal, name in signals:
+            h = make_handler(name)
+            self._handlers.append((signal, h))
+            signal.connect(h, weak=False)
 
         logger.info(f"事件监听器已注册，输出: {self.log_path}")
+
+    def disconnect_event_handlers(self):
+        """注销所有事件监听器"""
+        for signal, handler in getattr(self, '_handlers', []):
+            signal.disconnect(handler)
+        self._handlers = []

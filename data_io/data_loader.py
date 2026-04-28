@@ -7,7 +7,7 @@ APL 格式参考 ZZZaxis_Timeline_example.json 的多轨道 tracks 结构，邦�
 import json
 import logging
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -28,13 +28,13 @@ class CharacterData(BaseModel):
 
 class EnemyData(BaseModel):
     """敌人导入数据结构"""
-    model_config = ConfigDict(strict=True)
+    model_config = ConfigDict(strict=True, populate_by_name=True)
 
     enemy_id: str
     enemy_type: str = "Normal"
     atk: float = 0.0
     hp: float = 0.0
-    def_val: float = 0.0
+    def_val: float = Field(default=0.0, alias="def")
     daze_max: float = 100.0
     res_physical: float = 0.0
     res_fire: float = 0.0
@@ -58,7 +58,7 @@ class DataLoader:
         with open(path, 'r', encoding='utf-8') as f:
             return json.load(f)
 
-    def load_characters(self, json_path: str = None) -> List[CharacterData]:
+    def load_characters(self, json_path: Optional[str] = None) -> List[CharacterData]:
         """加载角色面板数据"""
         path = json_path or str(self.data_root / "characters" / "characters.json")
         data = self._read_json(path)
@@ -68,7 +68,7 @@ class DataLoader:
         logger.info(f"加载角色: {len(results)} 个")
         return results
 
-    def load_enemies(self, json_path: str = None) -> List[EnemyData]:
+    def load_enemies(self, json_path: Optional[str] = None) -> List[EnemyData]:
         """加载敌人数据"""
         path = json_path or str(self.data_root / "enemies" / "enemies.json")
         data = self._read_json(path)
@@ -77,7 +77,7 @@ class DataLoader:
         logger.info(f"加载敌人: {len(results)} 个")
         return results
 
-    def load_skill_data(self, json_path: str = None) -> dict:
+    def load_skill_data(self, json_path: Optional[str] = None) -> dict:
         """加载技能倍率数据，返回 {action_id: skill_data_dict}"""
         path = json_path or str(self.data_root / "skills" / "skills.json")
         data = self._read_json(path)
@@ -86,7 +86,7 @@ class DataLoader:
         logger.info(f"加载技能数据: {len(skill_map)} 条")
         return skill_map
 
-    def load_equipment(self, json_path: str = None) -> dict:
+    def load_equipment(self, json_path: Optional[str] = None) -> dict:
         """
         加载装备数据，返回 {
             'wengines': [...], 'drive_discs': [...], 'disc_sets': [...]
