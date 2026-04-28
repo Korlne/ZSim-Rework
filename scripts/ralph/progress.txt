@@ -9,6 +9,8 @@ Started: Tue Apr 28 14:51:24     2026
 - Use `@emit_on_error` decorator for error broadcasting in action methods
 - When adding a forward-referenced type to a Pydantic model (e.g., GameState.team references TeamManager), import the class at the BOTTOM of the file after the class definition and call `model_rebuild()`. Using TYPE_CHECKING guard is not enough — Pydantic needs the class at runtime to validate.
 - Run tests with `PYTHONPATH="." python tests/<path>/test_<module>.py` (unittest discover from tests/ doesn't resolve project-root modules)
+- Validators (ResourceValidator, etc.) raise on failure instead of returning False — exceptions carry action_id, missing_resource, current_value, required_value context
+- Character carries runtime resources (energy, special_resource, current_hp) separate from base_stats — base_stats defines static caps, runtime fields track current values
 
 ---
 
