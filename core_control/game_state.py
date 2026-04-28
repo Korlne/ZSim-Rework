@@ -2,12 +2,20 @@
 全局状态快照模块
 主要功能：基于 Pydantic 构建强类型的全局数据中心，提供带有严格校验机制的上下文快照。
 """
+from enum import Enum
 from typing import Optional, TYPE_CHECKING
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from entities.enemy import EnemyState
 
 if TYPE_CHECKING:
     from combat.team_manager import TeamManager
+
+
+class SimMode(str, Enum):
+    """模拟运行模式枚举"""
+    LOOP = "LOOP"    # 循环测试：执行可循环的动作序列，重复X次
+    FULL = "FULL"    # 全程模拟：执行全部动作序列一次，伤害跳完停止
+    TIMED = "TIMED"  # 超时控制：限定最大运行时间
 
 
 class GameState(BaseModel):
@@ -26,11 +34,16 @@ class GameState(BaseModel):
     max_ticks: int = Field(default=18000, description="最大限制Tick数")
     is_running: bool = Field(default=True, description="模拟器运行状态")
 
+    # 运行模式配置
+    sim_mode: SimMode = Field(default=SimMode.FULL, description="运行模式（循环/全程/限时）")
+    loop_count: int = Field(default=1, description="循环模式下的重复次数")
+    max_duration_seconds: float = Field(default=300.0, description="限时模式下的最大运行时间（秒）")
+
     # 实体集成
     enemy: Optional[EnemyState] = Field(default=None, description="当前目标敌人状态")
     team: Optional["TeamManager"] = Field(default=None, description="队伍管理器（1-3角色+1邦布）")
 
-    @field_validator('current_tick', 'max_ticks')
+    @field_validator('current_tick', 'max_ticks', 'loop_count')
     @classmethod
     def check_non_negative(cls, value: int) -> int:
         """
