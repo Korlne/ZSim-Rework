@@ -7,6 +7,8 @@ Started: Tue Apr 28 14:51:24     2026
 - Pydantic models use `ConfigDict(strict=True, arbitrary_types_allowed=True)`
 - All docstrings in Chinese, all code uses complete type annotations
 - Use `@emit_on_error` decorator for error broadcasting in action methods
+- When adding a forward-referenced type to a Pydantic model (e.g., GameState.team references TeamManager), import the class at the BOTTOM of the file after the class definition and call `model_rebuild()`. Using TYPE_CHECKING guard is not enough — Pydantic needs the class at runtime to validate.
+- Run tests with `PYTHONPATH="." python tests/<path>/test_<module>.py` (unittest discover from tests/ doesn't resolve project-root modules)
 
 ---
 
@@ -29,4 +31,19 @@ Started: Tue Apr 28 14:51:24     2026
   - When adding enum-heavy models, define enums in the same file as the Pydantic model that uses them (e.g., SkillType/TriggerType live in skill_data.py)
   - Use TYPE_CHECKING for cross-module imports to avoid circular dependencies (e.g., Character in skill.py)
   - The venv lacks pip/pytest/mypy; use system/anaconda Python for dev tools
+---
+
+## 2026-04-28 15:30 - US-003
+- Created `combat/team_manager.py` with TeamManager class managing 1-3 characters + optional bangboo
+- Implemented character switching with 60-tick cooldown, shared resources (decibel_value max 3000, chain_points), quick assist auto-swap listener
+- Integrated TeamManager into GameState, replacing `characters: List[Character]` with `team: Optional[TeamManager]`
+- Fixed Pydantic forward reference: import TeamManager at bottom of game_state.py + call `model_rebuild()`
+- Updated tests/entities/test_integration.py to use TeamManager API
+- Created tests/combat/test_team_manager.py with 23 tests across 5 test classes
+- Files changed: `combat/team_manager.py` (new), `combat/__init__.py`, `core_control/game_state.py`, `tests/combat/__init__.py` (new), `tests/combat/test_team_manager.py` (new), `tests/entities/test_integration.py`
+- **Learnings for future iterations:**
+  - GameState now uses `team: Optional[TeamManager]` instead of `characters: List[Character]` — use `state.team.get_active_character()` pattern to access the foreground character
+  - When a Pydantic model has a forward-referenced type field, you MUST import the class at the bottom of the file and call `.model_rebuild()` — TYPE_CHECKING guard alone fails at runtime
+  - Bangboo is stored as an optional `Character` reference on TeamManager, sharing the same API as characters
+  - Quick assist listener is registered via `team.register_listeners()` which connects to `on_coordinated_action` signal
 ---
