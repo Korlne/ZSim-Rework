@@ -47,3 +47,18 @@ Started: Tue Apr 28 14:51:24     2026
   - Bangboo is stored as an optional `Character` reference on TeamManager, sharing the same API as characters
   - Quick assist listener is registered via `team.register_listeners()` which connects to `on_coordinated_action` signal
 ---
+
+## 2026-04-28 16:00 - US-004
+- Created `combat/resource_validator.py` with ResourceValidator implementing IResourceValidator.can_execute()
+- Validates 8 resource dimensions: action dictionary, cooldown, prerequisite, HP cost, energy, special resource, decibel (ultimates), chain conditions (enemy stunned + chain points)
+- Added `ResourceValidationError` (extends ZSimBaseException) with action_id, missing_resource, current_value, required_value, last_successful_action fields
+- Added energy/HP/special resource tracking to Character, energy_cost/cooldown_ticks/special_resource_cost to SkillData
+- Updated APLManager to catch ResourceValidationError and inject last_successful_action context, integrated into run_simulation.py
+- Created 26 tests across 10 test classes; all 50 existing tests pass; typecheck passes on 20 source files
+- Files changed: `combat/resource_validator.py` (new), `combat/__init__.py`, `combat/skill_data.py`, `core_control/apl_manager.py`, `core_control/exceptions.py`, `entities/character.py`, `run_simulation.py`, `tests/combat/test_resource_validator.py`
+- **Learnings for future iterations:**
+  - ResourceValidator tracks cooldowns per `{char_id: {action_id: remaining_ticks}}`; tick_cooldowns() must be called each frame
+  - When skill_data_map has a registered SkillData for an action, the character's action dictionary check is skipped
+  - Prerequisite validation uses `_last_successful_action` internal state — prerequisite_action_id in SkillData must match the last validated action
+  - Decibel check only fires for SkillType.ULTIMATE; chain conditions only for SkillType.CHAIN
+---
