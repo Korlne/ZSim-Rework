@@ -129,8 +129,10 @@ class CoordinatedActionSystem:
                 )
 
     def get_pending_actions(self) -> List['SkillAction']:
-        """获取当前 Tick 的待执行派生动作列表"""
-        return self.pending_actions
+        """获取并清空当前 Tick 的待执行派生动作列表（消费式获取）"""
+        actions = self.pending_actions.copy()
+        self.pending_actions.clear()
+        return actions
 
     def clear_pending(self):
         """清空本帧的派生动作队列（每帧结算完成后调用）"""
