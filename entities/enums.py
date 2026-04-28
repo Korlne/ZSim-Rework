@@ -49,6 +49,7 @@ class ElementTag(str, Enum):
     ETHER = "Ether"
     PHYSICAL = "Physical"
     ELECTRIC = "Electric"
+    WIND = "Wind"
     AURIC_INK = "Auric Ink"     # 特殊以太-玄墨
     FROST = "Frost"             # 特殊冰-烈霜
     HONED_EDGE = "Honed Edge"   # 特殊物理-凛刃

@@ -1,0 +1,32 @@
+# Ralph Progress Log
+Started: Tue Apr 28 14:51:24     2026
+
+## Codebase Patterns
+- Signals managed via `blinker.Namespace` — create with `_zsim_signals.signal('name')` as module-level vars in `dispatcher.py`
+- Logger naming convention: `zsim.Module.ClassName` (e.g., `zsim.Core.EventBus`)
+- Pydantic models use `ConfigDict(strict=True, arbitrary_types_allowed=True)`
+- All docstrings in Chinese, all code uses complete type annotations
+- Use `@emit_on_error` decorator for error broadcasting in action methods
+
+---
+
+## 2026-04-28 15:00 - US-001
+- Added 9 combat-related signals to `core_control/dispatcher.py`: `on_damage_dealt`, `on_damage_applied`, `on_buff_changed`, `on_anomaly_triggered`, `on_disorder_triggered`, `on_chain_attack`, `on_dodge`, `on_parry`, `on_coordinated_action`
+- Files changed: `core_control/dispatcher.py`
+- **Learnings for future iterations:**
+  - dispatcher.py is the single source of truth for ALL blinker signals in the project
+  - New signals must use the shared `_zsim_signals` Namespace instance
+  - Total signal count is now 14 (5 core + 9 combat)
+---
+
+## 2026-04-28 15:15 - US-002
+- Created `combat/` module with `__init__.py`, `skill_data.py`, `skill.py`
+- `SkillData` Pydantic model with 15 fields: action_id, action_type (SkillType enum), trigger_type (TriggerType enum), damage_multipliers, daze_multiplier, anomaly_multiplier, hit_frames, invincible_frames, interruptible_frame, allows_background_completion, is_snapshot, charge_branches, prerequisite_action_id, hp_cost
+- `SkillAction` runtime class: holds SkillData + Character references, frame counter, completion flag, plus helper methods: advance_frame(), mark_completed(), is_invincible(), is_hit_frame(), is_interruptible()
+- Files changed: `combat/__init__.py`, `combat/skill_data.py`, `combat/skill.py`
+- **Learnings for future iterations:**
+  - New top-level modules (combat, calculation, io, etc.) follow a flat directory structure under project root
+  - When adding enum-heavy models, define enums in the same file as the Pydantic model that uses them (e.g., SkillType/TriggerType live in skill_data.py)
+  - Use TYPE_CHECKING for cross-module imports to avoid circular dependencies (e.g., Character in skill.py)
+  - The venv lacks pip/pytest/mypy; use system/anaconda Python for dev tools
+---
