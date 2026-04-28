@@ -11,6 +11,7 @@ Started: Tue Apr 28 14:51:24     2026
 - Run tests with `PYTHONPATH="." python tests/<path>/test_<module>.py` (unittest discover from tests/ doesn't resolve project-root modules)
 - Validators (ResourceValidator, etc.) raise on failure instead of returning False — exceptions carry action_id, missing_resource, current_value, required_value context
 - Character carries runtime resources (energy, special_resource, current_hp) separate from base_stats — base_stats defines static caps, runtime fields track current values
+- tests/ directory is in .gitignore — use `git add -f` to stage test files for commit
 
 ---
 
@@ -64,3 +65,18 @@ Started: Tue Apr 28 14:51:24     2026
   - Prerequisite validation uses `_last_successful_action` internal state — prerequisite_action_id in SkillData must match the last validated action
   - Decibel check only fires for SkillType.ULTIMATE; chain conditions only for SkillType.CHAIN
 ---
+
+## 2026-04-28 16:50 - US-005 (修复+测试)
+- 修复 `CoordinatedActionSystem.get_pending_actions()` 返回列表后不清空内部队列的 bug，改为消费式获取（copy + clear）
+- 新增 `unregister_event_handlers()` 方法用于注销 blinker 信号连接
+- 新增 `unregister_listener()` 方法支持注销特定角色的特定协同技能
+- 新增 `has_pending_actions()` 辅助查询方法
+- 创建 34 个单元测试覆盖 8 个测试类：Listener 匹配逻辑、系统注册/注销、事件触发、冷却机制、待处理队列、多事件类型、blinker 信号集成、队伍集成场景
+- Files changed: `combat/coordinated_system.py`, `tests/combat/test_coordinated_system.py` (new)
+- **Learnings for future iterations:**
+  - tests/ 目录在 .gitignore 中，添加测试文件需 `git add -f`
+  - `get_pending_actions()` 应在返回时清空内部队列（消费式语义），否则同帧多次调用会重复获取
+  - CoordinatedActionSystem 的 `on_event()` 在创建 SkillAction 时应同时发出 `on_coordinated_action` 信号，供 TeamManager 等下游模块响应
+  - blinker 信号处理函数签名需使用 `**kwargs` 接收任意事件参数
+---
+
