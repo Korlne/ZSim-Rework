@@ -42,7 +42,7 @@ class ParallelRunner:
     每个线程独立的 GameState、RNG 与日志文件。
     """
 
-    def __init__(self, max_workers: int = None):
+    def __init__(self, max_workers: Optional[int] = None):
         self.max_workers = max_workers
 
     def run_parallel(self, configs: List[SimConfig]) -> List[SimResult]:

@@ -320,7 +320,7 @@
         "包含代码风格约定：中文 docstring、完整类型标注、依赖注入、@emit_on_error 装饰器"
       ],
       "priority": 18,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

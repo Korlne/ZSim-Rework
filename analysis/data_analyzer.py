@@ -40,7 +40,7 @@ class DataAnalyzer:
                     self.events.append(json.loads(line))
         logger.info(f"加载日志: {len(self.events)} 条事件")
 
-    def compute_dps_curve(self, window_size: int = None) -> List[Tuple[int, float, float]]:
+    def compute_dps_curve(self, window_size: Optional[int] = None) -> List[Tuple[int, float, float]]:
         """DPS 曲线：滑动窗口内的每秒伤害 (tick, dps, error)"""
         ws = window_size or self.window_size
         damage_by_tick: Dict[int, float] = defaultdict(float)
