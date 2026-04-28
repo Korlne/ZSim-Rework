@@ -99,3 +99,15 @@ Started: Tue Apr 28 14:51:24     2026
   - APLManager.load_from_json() 的 JSON 路径需使用完整相对路径（如 `data/apl/sample_apl.json`）
 ---
 
+## 2026-04-28 17:30 - US-018
+- 创建/更新 CLAUDE.md 项目文档体系：根 CLAUDE.md（~200 行完整架构文档）+ 7 个子模块 CLAUDE.md
+- 根文档覆盖六大域：模块架构概览（8 个模块表）、事件驱动模式（信号命名/订阅/生命周期）、Pydantic 严格模式（forward ref / alias 处理）、日志命名、测试规范（目录/命令）、代码风格（中文 docstring/类型标注/DI/@emit_on_error）
+- 各子目录（core_control/combat/calculation/data_io/analysis/parallel/entities）含模块特定约定和测试命令
+- 修复 analysis/data_analyzer.py 和 parallel/runner.py 中 implicit Optional 类型标注（mypy strict 合规）
+- 全部 100 个测试通过，mypy typecheck 通过（35 source files）
+- Files changed: `CLAUDE.md` (new), 7× `{module}/CLAUDE.md` (new), `analysis/data_analyzer.py`, `parallel/runner.py`, `scripts/ralph/prd.json`
+- **Learnings for future iterations:**
+  - `mypy --no-implicit-optional` 要求 Optional 参数显式标注 `Optional[T]`，不能使用 `T = None`
+  - CLAUDE.md 遵循模块级四章节格式：架构 / 关键约定 / 依赖 / 测试
+---
+
