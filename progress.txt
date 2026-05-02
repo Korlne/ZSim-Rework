@@ -197,8 +197,30 @@
 - Marked US-011 (frontend skill editor page) as passing in PRD — the implementation was already completed in the same commit as US-010 (commit bce3a98) but the PRD was not updated
 - skills.js has all 7 acceptance criteria: character dropdown with skill loading, skill table (action_id/type/energy/cooldown/actions), inline edit panel with all basic params, dynamic multiplier rows (add/delete segment/frame/multiplier/decay), effect_id free input, prerequisite action dropdown from existing skills, save/cancel/delete with confirmation
 - Files changed: scripts/ralph/prd.json, progress.txt
-- **Learnings for future iterations:**
-  - Patterns discovered: Skills editor follows the same pattern as the characters editor page — inline edit panel appended below the table, per-page notification helper
-  - Gotchas encountered: When multiple frontend pages are implemented in one commit, the PRD must be updated for each user story, not just the primary one
-  - Useful context: The skills.js page has a complete implementation even though US-011 was previously marked as not passing in the PRD
 ---
+## 2026-05-03 02:45 - US-012
+- Implemented frontend equipment management page with 3 sub-tabs (W-Engines, Drive Discs, Disc Sets)
+- W-Engines tab: list table (ID/Name/Lv/ATK/Crit Rate/Crit DMG) + inline edit form with all stat fields + passive effects tag input (JSON.stringify array)
+- Drive Discs tab: list table (ID/Slot/Lv/Set/Main Stat) + inline edit form with slot selector 1-6, main stat name/value, 4 dynamic sub-stat rows (name select + value input), set_id text field
+- Disc Sets tab: list table (Set ID/Name/2pc/4pc) + inline edit form with 2pc/4pc descriptions and buff IDs
+- All 3 tabs share a common inline form pattern (showInlineForm with type dispatching) and handleDelete helper
+- Added editor.equipment i18n keys to all 3 locale files
+- Updated scripts/ralph/prd.json US-012 → passes: true
+- vite build passes (29 modules, 0 errors)
+- Files changed: src/editor/pages/equipment.js, src/locales/*.json, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Patterns discovered: Sub-tab navigation uses the same `.editor-tabs`/`.editor-tab` classes as the main tab bar, with hash-based sub-routes (#/equipment/w-engines). Complex forms (W-Engine with tags, Drive Disc with sub-stats) bypass createForm and build DOM directly, then add save/cancel buttons manually — gives full control over custom sections.
+  - Gotchas encountered: Always check all 3 locale files when adding new i18n keys — missing keys fall back to the key name string, which looks unprofessional. The ja-JP locale uses a mix of dotted and flat key styles — new keys should match the predominant flat style.
+  - Useful context: The equipment page is the most complex of the CRUD pages with 3 sub-types, each needing distinct form layouts.
+---
+## 2026-05-03 02:45 - US-013
+- Marked US-013 (frontend enemy config page) as passing in PRD — the implementation was already completed alongside US-012 in the working tree
+- enemies.js has all 6 acceptance criteria: enemy list table (ID/Name/Type/Level/HP/DEF/Base RES), inline edit form with basic stats + dynamic resistance rows (element+value, add/delete) + weakness tag input + anomaly buildup fields, save/cancel/delete with confirmation
+- Added editor.enemies i18n keys to zh-CN and ja-JP locale files (en-US already had them)
+- Updated scripts/ralph/prd.json US-013 → passes: true
+- vite build passes
+- Files changed: src/editor/pages/enemies.js, src/locales/zh-CN.json, src/locales/ja-JP.json, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Patterns discovered: Enemies page follows the same inline edit pattern as characters/skills/equipment — anti-resistance dynamic rows are nearly identical to equipment sub-stat rows. Weakness tag input follows same pattern as passive effects tag input.
+  - Gotchas encountered: The en-US locale already had editor.enemies.* keys but zh-CN and ja-JP did not — always verify all 3 locales.
+  - Useful context: All frontend CRUD pages (characters, skills, equipment, enemies) now share consistent implementation patterns: hash-based routing, inline edit panels, notification helper, confirm dialog for deletes.
