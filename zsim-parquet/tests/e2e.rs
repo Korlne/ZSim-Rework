@@ -1,7 +1,7 @@
 //! ZSim 模拟管道的端到端集成测试。
 //!
-//! 这些测试加载真实游戏数据，运行模拟，将结果写入 Parquet，
-//! 并验证聚合器能够读取并生成合理的统计数据。
+//! 这些测试将游戏数据从 JSON 导入到 SQLite，然后加载数据，
+//! 运行模拟，将结果写入 Parquet，并验证聚合器能够读取并生成合理的统计数据。
 //! 它们还验证种子的可复现性。
 
 use std::collections::HashMap;
@@ -9,9 +9,11 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use tempfile::TempDir;
+use zsim_core::data::loader::DataLoader;
+
 /// 辅助函数：解析项目根目录（工作区根目录）。
 fn project_root() -> PathBuf {
-    // CARGO_MANIFEST_DIR 指向 zsim-parquet/
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     manifest.parent().unwrap().to_path_buf()
 }
@@ -20,48 +22,42 @@ fn data_dir() -> PathBuf {
     project_root().join("data")
 }
 
-/// 从真实数据目录加载角色。
-fn load_characters() -> Vec<zsim_core::entities::character::Character> {
-    let path = data_dir().join("characters");
-    zsim_core::data::loader::DataLoader::load_characters(&path)
-        .expect("load_characters should succeed with real data")
+/// 创建一个 DataLoader，从真实数据目录的 JSON 文件导入到临时 SQLite 数据库。
+fn make_loader() -> (DataLoader, TempDir) {
+    let tmp = TempDir::new().expect("create temp dir");
+    let db_path = tmp.path().join("zsim.db");
+    let loader = DataLoader::from_json_dir(&db_path, &data_dir())
+        .expect("DataLoader::from_json_dir should succeed with real data");
+    (loader, tmp)
 }
 
-/// 从真实数据目录加载敌人。
-fn load_enemies() -> Vec<zsim_core::entities::enemy::EnemyState> {
-    let path = data_dir().join("enemies");
-    zsim_core::data::loader::DataLoader::load_enemies(&path)
-        .expect("load_enemies should succeed with real data")
-}
-
-/// 从真实数据目录加载技能，返回以 action_id 为键的 HashMap。
-fn load_skills_map() -> HashMap<String, zsim_core::combat::skill::SkillData> {
-    let path = data_dir().join("skills");
-    let skills: Vec<_> = zsim_core::data::loader::DataLoader::load_skills(&path)
-        .expect("load_skills should succeed with real data");
-    skills
-        .into_iter()
-        .map(|s| (s.action_id.clone(), s))
-        .collect()
-}
-
-/// 加载示例 APL 文件。
-fn load_apl() -> zsim_core::data::apl::APLData {
-    let path = data_dir().join("apl").join("sample_apl.json");
-    zsim_core::data::loader::DataLoader::load_apl(&path)
-        .expect("load_apl should succeed with sample file")
-}
-
-/// 使用给定种子运行 N 次模拟，收集结果。
+/// 使用真实数据运行 N 次模拟，返回结果。
 fn run_simulations(
     sim_count: usize,
     base_seed: u64,
     max_tick: u64,
 ) -> Vec<zsim_core::combat::parallel::SimResult> {
-    let characters = Arc::new(load_characters());
-    let enemies = Arc::new(load_enemies());
-    let skills = Arc::new(load_skills_map());
-    let apl = Arc::new(load_apl());
+    let (loader, _tmp) = make_loader();
+
+    let characters = Arc::new(
+        loader.load_characters().expect("load_characters should succeed"),
+    );
+    let enemies = Arc::new(
+        loader.load_enemies().expect("load_enemies should succeed"),
+    );
+    let skills: Arc<HashMap<String, zsim_core::combat::skill::SkillData>> = Arc::new(
+        loader
+            .load_all_skills()
+            .expect("load_all_skills should succeed")
+            .into_iter()
+            .map(|s| (s.action_id.clone(), s))
+            .collect(),
+    );
+    let apl = Arc::new(
+        loader
+            .load_apl("sample_apl")
+            .expect("load_apl should succeed with sample file"),
+    );
 
     let config = zsim_core::combat::parallel::ParallelConfig {
         sim_count,
@@ -80,7 +76,6 @@ fn run_simulations(
 }
 
 /// 辅助函数：将模拟结果写入 NamedTempFile 并返回 (tmp, path)。
-/// 调用者在从 `path` 读取时必须保持 `tmp` 存活。
 fn write_parquet_temp(
     results: &[zsim_core::combat::parallel::SimResult],
 ) -> (tempfile::NamedTempFile, PathBuf) {
@@ -89,7 +84,7 @@ fn write_parquet_temp(
     let mut writer = zsim_parquet::writer::ParquetWriter::new(&path).expect("create writer");
     writer.write_batch(results).expect("write batch");
     writer.close().expect("close writer");
-    tmp.flush().expect("flush tempfile");
+    std::io::Write::flush(&mut tmp).expect("flush tempfile");
     (tmp, path)
 }
 
@@ -99,20 +94,23 @@ fn write_parquet_temp(
 
 #[test]
 fn test_e2e_data_loading() {
-    // 验证所有真实数据文件可以端到端加载。
-    let characters = load_characters();
+    let (loader, _tmp) = make_loader();
+
+    let characters = loader.load_characters().expect("load characters");
     assert!(!characters.is_empty(), "at least one character");
-    let enemies = load_enemies();
+
+    let enemies = loader.load_enemies().expect("load enemies");
     assert!(!enemies.is_empty(), "at least one enemy");
-    let skills = load_skills_map();
+
+    let skills = loader.load_all_skills().expect("load all skills");
     assert!(!skills.is_empty(), "at least one skill");
-    let apl = load_apl();
+
+    let apl = loader.load_apl("sample_apl").expect("load APL");
     assert!(!apl.tracks.is_empty(), "at least one APL track");
 }
 
 #[test]
 fn test_e2e_single_simulation_with_real_data() {
-    // 使用并行运行器路径运行单次模拟并验证完成。
     let results = run_simulations(1, 42, 200);
     assert_eq!(results.len(), 1);
 
@@ -130,12 +128,8 @@ fn test_e2e_single_simulation_with_real_data() {
 
 #[test]
 fn test_e2e_parallel_10_simulations() {
-    // 使用真实数据并行运行 10 次模拟。
     let results = run_simulations(10, 42, 500);
-
     assert_eq!(results.len(), 10, "should return 10 results");
-
-    // 所有模拟结果都应有终止原因。
     for (i, r) in results.iter().enumerate() {
         assert!(
             r.termination_reason.is_some(),
@@ -147,12 +141,10 @@ fn test_e2e_parallel_10_simulations() {
 
 #[test]
 fn test_e2e_seed_reproducibility_10_runs() {
-    // 相同种子应在 10 次运行中产生相同的结果。
     let results_a = run_simulations(10, 99, 200);
     let results_b = run_simulations(10, 99, 200);
 
     assert_eq!(results_a.len(), results_b.len());
-
     for (i, (a, b)) in results_a.iter().zip(results_b.iter()).enumerate() {
         assert_eq!(
             a.total_ticks, b.total_ticks,
@@ -175,13 +167,11 @@ fn test_e2e_seed_reproducibility_10_runs() {
 
 #[test]
 fn test_e2e_write_parquet_and_aggregate() {
-    // 运行模拟，写入 Parquet，用聚合器读回。
     use zsim_parquet::aggregator::{AggQuery, AggResult, ParquetAggregator};
 
     let results = run_simulations(5, 42, 200);
     let (_tmp, path) = write_parquet_temp(&results);
 
-    // TotalDamage（如果没有事件可能为 0，但不应报错）
     let total = ParquetAggregator::aggregate(&path, &AggQuery::TotalDamage)
         .expect("TotalDamage aggregation");
     assert!(
@@ -190,7 +180,6 @@ fn test_e2e_write_parquet_and_aggregate() {
         total
     );
 
-    // StatsSummary（统计摘要）
     let summary = ParquetAggregator::aggregate(&path, &AggQuery::StatsSummary)
         .expect("StatsSummary aggregation");
     if let AggResult::StatsSummary(stats) = &summary {
@@ -203,7 +192,6 @@ fn test_e2e_write_parquet_and_aggregate() {
         panic!("Expected StatsSummary result, got {:?}", summary);
     }
 
-    // DPS（如果没有事件可能为空）
     let dps = ParquetAggregator::aggregate(
         &path,
         &AggQuery::DPS {
@@ -217,7 +205,6 @@ fn test_e2e_write_parquet_and_aggregate() {
         dps
     );
 
-    // DamageBreakdown（如果没有事件可能为空）
     let breakdown = ParquetAggregator::aggregate(&path, &AggQuery::DamageBreakdown)
         .expect("DamageBreakdown aggregation");
     assert!(
@@ -225,29 +212,23 @@ fn test_e2e_write_parquet_and_aggregate() {
         "Expected DamageBreakdown result, got {:?}",
         breakdown
     );
-
-    // _tmp is dropped here, deleting the temp file
 }
 
 #[test]
 fn test_e2e_parquet_seed_reproducibility() {
-    // 相同种子应产生相同的 Parquet 文件（哈希检查）。
     fn parquet_hash(seed: u64) -> Vec<u8> {
         let results = run_simulations(3, seed, 100);
         let (_tmp, path) = write_parquet_temp(&results);
 
-        // 在 _tmp 存活时读取文件并计算哈希
         let bytes = std::fs::read(&path).expect("read parquet file");
         use std::hash::{Hash, Hasher};
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         bytes.hash(&mut hasher);
         hasher.finish().to_le_bytes().to_vec()
-        // _tmp dropped here, temp file deleted
     }
 
     let hash_a = parquet_hash(42);
     let hash_b = parquet_hash(42);
-
     assert_eq!(
         hash_a, hash_b,
         "same seed should produce identical Parquet files"
@@ -256,13 +237,11 @@ fn test_e2e_parquet_seed_reproducibility() {
 
 #[test]
 fn test_e2e_aggregation_returns_sensible_values() {
-    // 验证聚合结果在预期范围内。
     use zsim_parquet::aggregator::{AggQuery, AggResult, ParquetAggregator};
 
     let results = run_simulations(5, 42, 300);
     let (_tmp, path) = write_parquet_temp(&results);
 
-    // CritRate 应在 0 到 1 之间
     let crit = ParquetAggregator::aggregate(&path, &AggQuery::CritRate)
         .expect("CritRate aggregation");
     if let AggResult::CritRate(r) = &crit {
@@ -273,7 +252,6 @@ fn test_e2e_aggregation_returns_sensible_values() {
         );
     }
 
-    // AnomalyStats 应为非负
     let anomaly = ParquetAggregator::aggregate(&path, &AggQuery::AnomalyStats)
         .expect("AnomalyStats aggregation");
     if let AggResult::AnomalyStats(stats) = &anomaly {
@@ -297,7 +275,6 @@ fn test_e2e_aggregation_returns_sensible_values() {
         }
     }
 
-    // StunStats 应为非负
     let stun = ParquetAggregator::aggregate(&path, &AggQuery::StunStats)
         .expect("StunStats aggregation");
     if let AggResult::StunStats(s) = &stun {
@@ -306,6 +283,4 @@ fn test_e2e_aggregation_returns_sensible_values() {
             "stun damage should be non-negative"
         );
     }
-
-    // _tmp dropped here, temp file deleted
 }
