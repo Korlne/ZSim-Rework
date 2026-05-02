@@ -84,8 +84,8 @@
         "所有命令使用参数化查询"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现。skills.rs 含完整 CRUD（get_skills/save_skill/delete_skill），事务性技能+倍率段写入，9 个单元测试全部通过。Tauri 命令已注册。"
     },
     {
       "id": "US-006",

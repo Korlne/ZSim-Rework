@@ -73,3 +73,34 @@
   - Gotchas encountered: SQLite FK enforcement requires `PRAGMA foreign_keys = ON` per-connection (rusqlite doesn't enable by default). DELETE order matters: child tables (skill_multipliers) must be cleared before parent tables (characters) even with ON DELETE CASCADE, because FK constraints block parent deletion if children exist.
   - Useful context: The `data_dir` for dev is `CWD/data/`, computed at app startup and stored in `DataDirState`. The `import_from_json` command accepts both plural ("characters") and singular ("character") data_type values for flexibility.
 ---
+## 2026-05-03 00:15 - US-004
+- Implemented character CRUD Rust backend: `src-tauri/src/data_entry/characters.rs`
+  - `get_characters`: returns all characters as JSON array, ordered by char_id
+  - `get_character`: returns single character with associated skills as `{ character, skills }` JSON
+  - `save_character`: INSERT OR REPLACE with ON CONFLICT DO UPDATE, accepts JSON matching CharacterRecord struct
+  - `delete_character`: delete by char_id with ON DELETE CASCADE for skills and multipliers
+  - Input validation: char_id format (lowercase+digits+underscores), level (1-60), ascension (0-6), crit fields (0.0-1.0), non-negative numeric fields
+- Added 4 Tauri commands in `src-tauri/src/lib.rs` and registered in `generate_handler![]`
+- Added `pub mod characters;` to `data_entry/mod.rs`
+- Updated `scripts/ralph/prd.json` with complete data entry project PRD (US-001 through US-015), marked first 4 as passing
+- Fixed pre-existing compilation errors in `zsim-core/src/data/loader.rs` (type mismatch in SQLite loading code)
+- 16 unit tests for character CRUD (all pass), 448 tests pass across workspace
+- **Learnings for future iterations:**
+  - Patterns discovered: Flat CharacterRecord struct (matching DB columns directly) is simpler than zsim-core's nested Character. Tauri commands open per-invocation Connection — consistent with existing pattern from US-003. INSERT OR REPLACE with ON CONFLICT DO UPDATE works well for upsert and lets SQLite handle the UPDATE of updated_at.
+  - Gotchas encountered: The `data_entry/mod.rs` already existed with `db` and `import` modules — was careful not to overwrite. The `CharacterWithSkills` struct needs `serde::Deserialize` for test deserialization (initially only had `Serialize`).
+  - Useful context: Character validation rules are defined in the PRD for the data entry frontend. The existing `db.rs` schema had all the columns needed. The zsim-core loader already had `rusqlite` dependency (from prior work), so no Cargo.toml changes needed.
+---
+## 2026-05-03 00:25 - US-005
+- Implemented skill CRUD Rust backend: `src-tauri/src/data_entry/skills.rs`
+  - `get_skills`: returns all skills for a character with embedded multiplier segments, ordered by action_id
+  - `save_skill`: accepts JSON with skill fields + multipliers array, uses transaction to atomically upsert skill and replace multipliers (delete-all + re-insert)
+  - `delete_skill`: delete by skill id with ON DELETE CASCADE for multipliers
+  - Validation: char_id, action_id, action_type required
+- Added 3 Tauri commands in `src-tauri/src/lib.rs` and registered in `generate_handler![]`
+- Added `pub mod skills;` to `data_entry/mod.rs`
+- 9 unit tests for skill CRUD (all pass), full workspace 415+ tests pass
+- **Learnings for future iterations:**
+  - Patterns discovered: Skill CRUD follows the same pattern as character CRUD — flat structs matching DB columns, per-command Connection, transaction with BEGIN/COMMIT/ROLLBACK for atomic skill + multiplier writes. BOOL fields in SQLite stored as INTEGER, converted via `row.get::<_, i32>(n)? != 0`.
+  - Gotchas encountered: `last_insert_rowid()` works correctly with `ON CONFLICT DO UPDATE` in SQLite 3.35+ — returns the rowid for both insert and update paths. Must use `ON CONFLICT(char_id, action_id)` (the UNIQUE constraint columns), not the PK id.
+  - Useful context: Multiplier replacement strategy (DELETE all + re-insert) is simpler than diff-based updates and safe within a transaction. The `SkillWithMultipliers` struct is reused for both GET responses and SAVE input. Multiplier `decay_coeff` is Option<f64> to handle DB NULLs with serde default.
+---
