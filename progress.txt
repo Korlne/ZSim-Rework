@@ -6,6 +6,7 @@
 - `src-tauri/` can be a Rust workspace member without conflicts on Windows
 - Sidecar processes: manage via `tauri::State` with `Mutex<Option<Child>>` + `Mutex<Option<ChildStdin>>`
 - **Import module pattern**: Each data type has its own `import_<type>()` function in `import.rs`. They take `&Connection` and `data_dir: &Path`, return `ImportResult { success, errors }`. Use zsim-core's existing entity structs for JSON deserialization (they already have correct serde annotations for the data files). Convert enums to strings via `serde_json::to_value()` + `as_str()`. Store complex nested data (constellations, resistances, tracks) as JSON TEXT in SQLite. Use `INSERT OR REPLACE` for idempotent reimport.
+- **Data entry Tauri commands**: DataDirState (managed via `.manage(DataDirState { data_dir })`) shares the data directory path across all data entry commands. Access via `State<'_, DataDirState>` parameter. Open a fresh `rusqlite::Connection` per command for infrequent ops (init, import). Always enable `PRAGMA foreign_keys = ON;` after opening each connection. Define commands directly in `lib.rs` and register in `generate_handler![]`.
 
 ---
 ## 2026-05-02 23:45 - US-019
@@ -56,4 +57,19 @@
   - Patterns discovered: zsim-core entity structs (Character, SkillData, EquipmentData, EnemyState, APLData) can be reused directly for JSON deserialization in the Tauri crate since they have correct serde annotations.
   - Gotchas encountered: `EnemyState` has no `level` field (not in JSON), so default 60 is used for the SQLite column. `BaseStats.dmg_bonus` maps to `energy_gen_rate` field in character JSON files via serde alias. zsim-core's `Character` has enum fields (`FactionTag`, `SpecialtyTag`, `ElementTag`) that serialize to their serde-rename strings — need `serde_json::to_value()` to extract the string value, not `format!("{:?}")`.
   - Useful context: The `ImportResult` struct with `success` + `errors` fields provides structured feedback suitable for the Tauri command response. All 11 tests use in-memory SQLite with `tempfile::TempDir` for isolated file I/O.
+---
+## 2026-05-02 23:58 - US-003
+- Created 3 Tauri commands in `src-tauri/src/lib.rs`:
+  - `init_database`: opens/creates `zsim.db` in data directory, calls `data_entry::db::init_db` to create all tables, returns table list as JSON
+  - `import_from_json`: accepts `data_type` (characters/skills/equipment/enemies/apl + singular aliases) and optional `data_path`, delegates to import module functions, returns success count + errors
+  - `reimport_all`: clears all tables in FK-safe order (child tables first), then calls `import_all` to re-import from data directory, returns per-type summary
+- Added `DataDirState` (holds `data_dir: PathBuf`) managed as Tauri state
+- Added `use std::path::PathBuf` and `use rusqlite::Connection` imports to lib.rs
+- Commands open connection per-invocation (no persistent connection — these are infrequent operations)
+- All commands use parameterized SQL (no string interpolation)
+- All 17 existing unit tests pass
+- **Learnings for future iterations:**
+  - Patterns discovered: Tauri state for shared config (`DataDirState`) combined with per-command `Connection::open()` works well for infrequent DB ops. Register state via `.manage()` and access via `State<'_, T>` parameter in command functions.
+  - Gotchas encountered: SQLite FK enforcement requires `PRAGMA foreign_keys = ON` per-connection (rusqlite doesn't enable by default). DELETE order matters: child tables (skill_multipliers) must be cleared before parent tables (characters) even with ON DELETE CASCADE, because FK constraints block parent deletion if children exist.
+  - Useful context: The `data_dir` for dev is `CWD/data/`, computed at app startup and stored in `DataDirState`. The `import_from_json` command accepts both plural ("characters") and singular ("character") data_type values for flexibility.
 ---

@@ -25,9 +25,10 @@ Tauri v2 desktop shell for ZSim Analyzer.
 ## Data Entry / SQLite
 
 - **Module structure**: `data_entry/` in `src-tauri/src/` with `mod.rs` (module exports) and task-specific files (`db.rs`, etc.). Declare `mod data_entry;` in `lib.rs` to register.
+- **Tauri commands**: Data entry commands are defined in `lib.rs` with `#[tauri::command]`. Use `DataDirState` (managed via `.manage()`) to share the data directory path. Access via `State<'_, DataDirState>` parameter. Open a fresh `rusqlite::Connection` per command for infrequent operations (init, import). Always enable `PRAGMA foreign_keys = ON;` after opening each connection.
 - **Schema init**: `data_entry::db::init_db(conn)` uses `CREATE TABLE IF NOT EXISTS` for all DDL — safe to call multiple times. Creates `schema_version` metadata table for migration tracking.
 - **SQLite lib**: Use `rusqlite = { version = "0.31", features = ["bundled"] }` — the `bundled` feature statically compiles SQLite so no system install is needed.
-- **Foreign keys**: Enable via `PRAGMA foreign_keys = ON;` (off by default in rusqlite). Use `ON DELETE CASCADE` on foreign keys for automatic cascade deletes.
+- **Foreign keys**: Enable via `PRAGMA foreign_keys = ON;` (off by default in rusqlite). Use `ON DELETE CASCADE` on foreign keys for automatic cascade deletes. When clearing all tables manually (e.g., reimport), delete child tables first (skill_multipliers → skills → characters), then tables without FK references — FK constraints block parent row deletion if children exist, even with ON DELETE CASCADE.
 - **Parameterized queries**: Always use `?N` placeholders (e.g., `conn.execute(sql, [param1, param2])`) — never string interpolation for user input.
 - **ID columns**: Integer PKs use `AUTOINCREMENT`, text-based IDs use `TEXT PRIMARY KEY`. Skill+character uniqueness enforced via `UNIQUE(char_id, action_id)`.
 - **JSON in TEXT**: Complex nested data (constellations, resistances, tracks) stored as JSON `TEXT` columns, parsed in the application layer with `serde_json`.

@@ -1,11 +1,13 @@
 mod data_entry;
 
 use std::io::{BufRead, BufReader, Write};
+use std::path::PathBuf;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use rusqlite::Connection;
 use tauri::{Emitter, Manager};
 
 // --- 托管状态 ---
@@ -20,6 +22,11 @@ struct SidecarState {
 /// 当设置为 true 时，正在运行的仿真应中止。
 struct SimulationState {
     cancel_flag: Arc<AtomicBool>,
+}
+
+/// 数据录入状态 — 存储数据目录路径（JSON 文件所在目录，zsim.db 也创建于此）。
+struct DataDirState {
+    data_dir: PathBuf,
 }
 
 // --- 仿真进度事件载荷（与前端预期匹配）---
@@ -269,7 +276,128 @@ fn get_resource_dir(app: tauri::AppHandle) -> Result<String, String> {
     Ok(resource_dir.to_string_lossy().to_string())
 }
 
+// --- 数据录入命令 ---
+
+/// 初始化数据库：创建或打开 `data/zsim.db`，初始化所有表。
+///
+/// 返回 JSON 字符串，包含创建的表名列表。
+/// 可以在应用启动后任何时候安全调用（使用 IF NOT EXISTS）。
+#[tauri::command]
+fn init_database(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn = Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open database at {}: {e}", db_path.display()))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::db::init_db(&conn)
+        .map_err(|e| format!("Failed to initialize schema: {e}"))?;
+
+    let tables: Vec<String> = conn
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        .map_err(|e| format!("Failed to query tables: {e}"))?
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| format!("Failed to fetch tables: {e}"))?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(serde_json::json!({
+        "status": "ok",
+        "tables": tables,
+    }).to_string())
+}
+
+/// 从 JSON 文件导入指定类型的数据到 SQLite。
+///
+/// - `data_type`: `"characters"` | `"skills"` | `"equipment"` | `"enemies"` | `"apl"`
+/// - `data_path`: 可选，JSON 数据目录的路径；不提供时使用默认路径。
+///
+/// 返回 JSON 字符串，包含导入成功数和错误信息。
+#[tauri::command]
+fn import_from_json(
+    state: tauri::State<'_, DataDirState>,
+    data_type: String,
+    data_path: Option<String>,
+) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn = Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    let data_dir: PathBuf = data_path
+        .map(PathBuf::from)
+        .unwrap_or_else(|| state.data_dir.clone());
+
+    let result = match data_type.as_str() {
+        "characters" | "character" => data_entry::import::import_characters(&conn, &data_dir),
+        "skills" => data_entry::import::import_skills(&conn, &data_dir),
+        "equipment" => data_entry::import::import_equipment(&conn, &data_dir),
+        "enemies" | "enemy" => data_entry::import::import_enemies(&conn, &data_dir),
+        "apl" => data_entry::import::import_apl(&conn, &data_dir),
+        _ => {
+            return Err(format!(
+                "Unknown data_type '{data_type}'. Must be one of: characters, skills, equipment, enemies, apl"
+            ));
+        }
+    };
+
+    Ok(serde_json::json!({
+        "data_type": data_type,
+        "success": result.success,
+        "errors": result.errors,
+    }).to_string())
+}
+
+/// 清空所有表并从 `data/` 目录重新导入全部 JSON 数据。
+///
+/// 返回 JSON 字符串，包含每种类型的导入结果摘要。
+#[tauri::command]
+fn reimport_all(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn = Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    // 按外键依赖顺序清空表：先删子表，再删父表
+    conn.execute_batch(
+        "DELETE FROM skill_multipliers;
+         DELETE FROM skills;
+         DELETE FROM characters;
+         DELETE FROM w_engines;
+         DELETE FROM drive_discs;
+         DELETE FROM disc_sets;
+         DELETE FROM enemies;
+         DELETE FROM apl;",
+    )
+    .map_err(|e| format!("Failed to clear tables: {e}"))?;
+
+    let results = data_entry::import::import_all(&conn, &state.data_dir);
+
+    let mut summary = serde_json::Map::new();
+    for (name, result) in &results {
+        summary.insert(
+            name.to_string(),
+            serde_json::json!({
+                "success": result.success,
+                "errors": result.errors,
+            }),
+        );
+    }
+
+    Ok(serde_json::json!({
+        "status": "ok",
+        "imported": summary,
+    }).to_string())
+}
+
 pub fn run() {
+    // 数据目录：开发环境下为项目根目录下的 data/，生产环境使用应用资源目录
+    let data_dir = std::env::current_dir()
+        .unwrap_or_default()
+        .join("data");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -281,6 +409,7 @@ pub fn run() {
         .manage(SimulationState {
             cancel_flag: Arc::new(AtomicBool::new(false)),
         })
+        .manage(DataDirState { data_dir })
         .invoke_handler(tauri::generate_handler![
             run_simulation,
             stop_simulation,
@@ -288,6 +417,9 @@ pub fn run() {
             send_to_sidecar,
             write_file,
             get_resource_dir,
+            init_database,
+            import_from_json,
+            reimport_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
