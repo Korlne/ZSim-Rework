@@ -6,6 +6,7 @@
 - `src-tauri/` can be a Rust workspace member without conflicts on Windows
 - Sidecar processes: manage via `tauri::State` with `Mutex<Option<Child>>` + `Mutex<Option<ChildStdin>>`
 - **Import module pattern**: Each data type has its own `import_<type>()` function in `import.rs`. They take `&Connection` and `data_dir: &Path`, return `ImportResult { success, errors }`. Use zsim-core's existing entity structs for JSON deserialization (they already have correct serde annotations for the data files). Convert enums to strings via `serde_json::to_value()` + `as_str()`. Store complex nested data (constellations, resistances, tracks) as JSON TEXT in SQLite. Use `INSERT OR REPLACE` for idempotent reimport.
+- **Export module pattern**: Export reverses the import process — read flat SQL columns, reconstruct nested zsim-core structs (Character, SkillData, EquipmentData, EnemyState, APLData), serialize to JSON. Uses `parse_enum<T>(value)` helper that wraps string in quotes and calls `serde_json::from_str` (same pattern as DataLoader). Creates output directories with `fs::create_dir_all`. Uses `serde_json::to_string_pretty` for human-readable output.
 - **Data entry Tauri commands**: DataDirState (managed via `.manage(DataDirState { data_dir })`) shares the data directory path across all data entry commands. Access via `State<'_, DataDirState>` parameter. Open a fresh `rusqlite::Connection` per command for infrequent ops (init, import). Always enable `PRAGMA foreign_keys = ON;` after opening each connection. Define commands directly in `lib.rs` and register in `generate_handler![]`.
 - **Editor frontend structure**: The `src/editor/` module uses hash-based routing (`#/dashboard`, `#/characters`, etc.) with lazy-loaded page modules via dynamic `import()`. Each page exports `renderPage(route)` and is a separate Vite chunk. `utils/api.js` wraps all Tauri `invoke()` calls with JSON parsing. Page stubs use `editor.comingSoon` i18n key for placeholder content. i18n keys use `editor.nav.*` for navigation, `editor.dashboard.*` for dashboard UI.
 - **View switching (simulation vs editor)**: The `index.html` has tab buttons that toggle `.hidden` class between `#simulation-view` and `#editor-view`. The editor is lazy-loaded on first tab click via dynamic `import("/src/editor/app.js")`. The `.view-panel` CSS class provides shared flex-column layout for both views.
@@ -254,4 +255,24 @@
   - Patterns discovered: The datatable component is the single place where "Actions" column header, "Edit"/"Del" action buttons, and "No data" empty state are rendered — these should always use t() calls to support i18n. Similarly confirm.js and form.js use hardcoded English fallback strings.
   - Gotchas encountered: The ja-JP locale was ahead of en-US/zh-CN in editor.action.* keys — it had edit/delete/add/noData/search/confirmDelete while en-US and zh-CN only had save/cancel. Always cross-check all 3 locale files against the complete key set when doing i18n work.
   - Useful context: The i18n.t() function falls back to English (en-US) and then to raw key name, so missing keys in zh-CN/ja-JP silently fall back to English rather than crashing. Always rebuild and visually verify after i18n changes.
+---
+## 2026-05-03 03:15 - US-012
+- Implemented export_to_json Tauri command: reads all data from SQLite, reconstructs zsim-core structs, writes formatted JSON files
+  - export_characters: reads 21 columns, reconstructs Character with BaseStats, HashSet action_dict, [bool; 6] constellations
+  - export_skills: reads skills JOIN skill_multipliers, preloads multipliers into HashMap<i64, Vec<HitFrame>>
+  - export_equipment: reads all 3 equipment tables, reconstructs WEngine/DriveDisc/DiscSet structs (with 2pc/4pc bonus logic)
+  - export_enemies: reads enemies table, parses resistances/weaknesses/anomaly_buildup from JSON TEXT, reconstructs EnemyState
+  - export_apl: reads apl table, parses tracks from JSON TEXT, reconstructs APLData
+- Added frontend export button on dashboard with success/error notifications
+- Added "Recently Edited" section showing top 5 characters by updated_at (clickable → navigates to characters page)
+- Added editor.dashboard i18n keys (exportBtn, exportSuccess, exportError, recentTitle, recentEmpty) to all 3 locales
+- Added CSS for recent items section
+- Fixed search result data_type mapping for singular keys (character, skill, enemy, w_engine, disc_set)
+- Fixed `APLTrack` → `Track` type name in export.rs (zsim-core uses `Track`, not `APLTrack`)
+- **Learnings for future iterations:**
+  - Patterns discovered: Export uses `parse_enum<T>(value)` — same serde_json string-wrapping trick as DataLoader. Disc set bonus reconstruction needs careful ownership: clone tp_desc/tp_buff before use in Option chaining since closure captures them.
+  - Gotchas encountered: `APLTrack` doesn't exist in zsim-core — actual type is `Track` in `zsim_core::data::apl`. serde_json enum parsing needs quoted input. Ownership errors with `.or().map()` chains: use if/let with `.clone()` instead. cargo check needs cargo on PATH or full path to `~/.cargo/bin/cargo`.
+  - Useful context: Export mirrors import's 5 data types. Output dirs created under data directory (characters/, skills/, equipment/, enemies/, apl/). Export button in dashboard.js action row alongside Init DB and Reimport buttons.
+- Files changed: src-tauri/src/data_entry/export.rs (new), src-tauri/src/data_entry/mod.rs, src-tauri/src/lib.rs, src/editor/utils/api.js, src/editor/pages/dashboard.js, src/editor/styles.css, src/locales/{en-US,zh-CN,ja-JP}.json
+- cargo check + vite build both pass
 ---
