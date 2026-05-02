@@ -602,6 +602,86 @@ fn delete_disc_set(state: tauri::State<'_, DataDirState>, set_id: String) -> Res
     data_entry::equipment::cmd_delete_disc_set(&conn, set_id)
 }
 
+// --- 敌人 CRUD 命令 ---
+
+/// 获取所有敌人列表（摘要字段）。
+#[tauri::command]
+fn get_enemies(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::enemies::cmd_get_enemies(&conn)
+}
+
+/// 获取单个敌人完整信息（含抗性/弱点 JSON）。
+#[tauri::command]
+fn get_enemy(state: tauri::State<'_, DataDirState>, enemy_id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::enemies::cmd_get_enemy(&conn, enemy_id)
+}
+
+/// 创建或更新敌人。
+#[tauri::command]
+fn save_enemy(state: tauri::State<'_, DataDirState>, data: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::enemies::cmd_save_enemy(&conn, data)
+}
+
+/// 删除敌人。
+#[tauri::command]
+fn delete_enemy(state: tauri::State<'_, DataDirState>, enemy_id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::enemies::cmd_delete_enemy(&conn, enemy_id)
+}
+
+// --- 数据查询命令 ---
+
+/// 获取各表记录数量统计。
+#[tauri::command]
+fn get_data_summary(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::queries::cmd_get_data_summary(&conn)
+}
+
+/// 跨表搜索。data_type 可选: characters, skills, enemies, w_engines, disc_sets, all
+#[tauri::command]
+fn search_data(
+    state: tauri::State<'_, DataDirState>,
+    query: String,
+    data_type: String,
+) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::queries::cmd_search_data(&conn, query, data_type)
+}
+
 pub fn run() {
     // 数据目录：开发环境下为项目根目录下的 data/，生产环境使用应用资源目录
     let data_dir = std::env::current_dir()
@@ -647,6 +727,12 @@ pub fn run() {
             get_disc_sets,
             save_disc_set,
             delete_disc_set,
+            get_enemies,
+            get_enemy,
+            save_enemy,
+            delete_enemy,
+            get_data_summary,
+            search_data,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
