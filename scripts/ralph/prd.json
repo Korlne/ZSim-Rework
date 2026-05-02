@@ -262,8 +262,8 @@
         "cargo test 通过（验证 100 次并行结果与单线程一致）"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "ParallelRunner in combat::parallel with rayon par_iter. ParallelConfig with Arc-wrapped shared data (team_characters/enemies/skills/apl/bangboo). Progress updates every ~1% via mpsc::channel (AtomicUsize counter). SimResult with sim_index/seed/total_ticks/termination_reason/events. 10 tests covering basic execution, result count, determinism, serial-vs-parallel equivalence (100 sims), zero/single sim edge cases, progress updates."
     },
     {
       "id": "US-017",

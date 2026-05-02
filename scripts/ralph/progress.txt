@@ -282,3 +282,21 @@ Started: Sat May  2 10:38:49     2026
   - Patterns discovered: The runner was already implemented in a prior session as untracked work - always check git status for untracked files before assuming a US hasn't been started. Runner follows the same unit-struct pattern as other combat systems (SimulationRunner::run).
   - Gotchas encountered: Runner tests depend on being compiled with the full crate. First run after adding `pub mod runner` fails (stale build) then passes on rebuild. Always do a clean `cargo test` after adding new modules.
   - Useful context: Runner doesn't register CoordinatedListeners by default — SimConfig needs extension for listener registration (future US-016 parallel runner). EquipmentManager is setup-only, not part of the per-tick loop. APL exhaustion tracks must have non-empty tracks (empty tracks = no APL = run to max_tick).
+---
+
+## 2026-05-02 21:00 - US-016
+- Implemented ParallelRunner in zsim-core/src/combat/parallel.rs
+- ParallelRunner struct with `run(config: ParallelConfig) -> (Vec<SimResult>, Receiver<ProgressUpdate>)`
+- ParallelConfig: sim_count, base_seed, max_tick, mode, Arc-wrapped team_characters/enemies/skills/apl/bangboo
+- Uses rayon::par_iter for parallel execution — each sim independently creates RNG/GameState/EventBus/BuffManager/AnomalyManager/APLManager/EquipmentManager via SimulationRunner::run
+- Shared read-only data (skills, characters, enemies, APL) via Arc — each thread clones for its local SimConfig
+- SimResult: sim_index, seed, total_ticks, termination_reason, events
+- Progress updates every ~1% using AtomicUsize counter + std::sync::mpsc::channel
+- 10 tests: basic execution, result count (1/5/50/100), determinism (50 sims identical), serial-vs-parallel equivalence (100 sims match single run), zero sim count, single sim, progress updates
+- Files changed: zsim-core/src/combat/parallel.rs (new, 470 lines), zsim-core/src/combat/mod.rs (+1 line), scripts/ralph/prd.json (US-016 passes:true)
+- All 355 tests pass, clippy clean (0 new warnings), fmt clean
+- **Learnings for future iterations:**
+  - Patterns discovered: ParallelRunner uses rayon's `into_par_iter().map()` with `&AtomicUsize` (for progress counter) and `&mpsc::Sender` (for progress channel) captured by reference in the Fn closure — these are Send+Sync because `AtomicUsize: Sync` and `Sender: Sync`. The AtomicUsize-based counter gives accurate progress regardless of rayon's parallel execution order.
+  - Gotchas encountered: SimMode doesn't derive Copy, so `mode.clone()` is needed in the rayon closure. Closures in rayon's `.map()` are Fn (not FnOnce), so captured values that aren't Copy must be used by reference or cloned. Wrapping data in Arc avoids the Clone requirement for cross-thread sharing.
+  - Useful context: ParallelConfig uses Arc<Vec<Character>> and Arc<HashMap<String, SkillData>> for zero-cost sharing, but each par_iter iteration still clones the data for its local SimConfig (since SimulationRunner::run takes ownership). For very large skill maps, a future optimization could make SimulationRunner accept Arc references directly.
+---
