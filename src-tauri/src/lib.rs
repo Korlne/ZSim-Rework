@@ -480,6 +480,128 @@ fn delete_skill(state: tauri::State<'_, DataDirState>, skill_id: i64) -> Result<
     data_entry::skills::cmd_delete_skill(&conn, skill_id)
 }
 
+// --- 装备 CRUD 命令 ---
+
+/// 获取所有装备（含 W-Engine、驱动盘、套装）。
+#[tauri::command]
+fn get_all_equipment(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_get_all_equipment(&conn)
+}
+
+/// 获取所有 W-Engine。
+#[tauri::command]
+fn get_w_engines(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_get_w_engines(&conn)
+}
+
+/// 创建或更新 W-Engine。
+#[tauri::command]
+fn save_w_engine(state: tauri::State<'_, DataDirState>, data: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_save_w_engine(&conn, data)
+}
+
+/// 删除 W-Engine。
+#[tauri::command]
+fn delete_w_engine(state: tauri::State<'_, DataDirState>, id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_delete_w_engine(&conn, id)
+}
+
+/// 获取所有驱动盘。
+#[tauri::command]
+fn get_drive_discs(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_get_drive_discs(&conn)
+}
+
+/// 创建或更新驱动盘。
+#[tauri::command]
+fn save_drive_disc(state: tauri::State<'_, DataDirState>, data: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_save_drive_disc(&conn, data)
+}
+
+/// 删除驱动盘。
+#[tauri::command]
+fn delete_drive_disc(state: tauri::State<'_, DataDirState>, id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_delete_drive_disc(&conn, id)
+}
+
+/// 获取所有驱动盘套装。
+#[tauri::command]
+fn get_disc_sets(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_get_disc_sets(&conn)
+}
+
+/// 创建或更新驱动盘套装。
+#[tauri::command]
+fn save_disc_set(state: tauri::State<'_, DataDirState>, data: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_save_disc_set(&conn, data)
+}
+
+/// 删除驱动盘套装。
+#[tauri::command]
+fn delete_disc_set(state: tauri::State<'_, DataDirState>, set_id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_delete_disc_set(&conn, set_id)
+}
+
 pub fn run() {
     // 数据目录：开发环境下为项目根目录下的 data/，生产环境使用应用资源目录
     let data_dir = std::env::current_dir()
@@ -515,6 +637,16 @@ pub fn run() {
             get_skills,
             save_skill,
             delete_skill,
+            get_all_equipment,
+            get_w_engines,
+            save_w_engine,
+            delete_w_engine,
+            get_drive_discs,
+            save_drive_disc,
+            delete_drive_disc,
+            get_disc_sets,
+            save_disc_set,
+            delete_disc_set,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
