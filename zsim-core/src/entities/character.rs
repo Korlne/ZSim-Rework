@@ -172,6 +172,40 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_from_data_file() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../data/characters/anby_demara.json"
+        );
+        let json = std::fs::read_to_string(path).expect("read character JSON file");
+        let c: Character = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(c.char_id, "anby_demara");
+        assert_eq!(c.name, "Anby Demara");
+        assert_eq!(c.faction, FactionTag::GentleHouse);
+        assert_eq!(c.specialty, SpecialtyTag::Stun);
+        assert_eq!(c.element, ElementTag::Electric);
+        assert_eq!(c.level, 60);
+        assert_eq!(c.ascension, 6);
+        assert_eq!(c.base_stats.hp, 9500.0);
+        assert_eq!(c.base_stats.atk, 1100.0);
+        assert_eq!(c.base_stats.def, 550.0);
+        assert_eq!(c.base_stats.impact, 120.0);
+        assert_eq!(c.base_stats.crit_rate, 0.15);
+        assert_eq!(c.base_stats.crit_dmg, 0.8);
+        assert_eq!(c.base_stats.pen_ratio, 0.1);
+        assert_eq!(c.base_stats.pen, 40.0);
+        assert_eq!(c.base_stats.anomaly_mastery, 80.0);
+        assert_eq!(c.base_stats.anomaly_proficiency, 95.0);
+        assert_eq!(c.base_stats.energy_regen, 1.2);
+        assert_eq!(c.base_stats.dmg_bonus, 0.3);
+        assert!(c.constellations[0]);
+        assert_eq!(c.action_dict.len(), 6);
+        assert!(c.validate_action("Attack_Normal_1"));
+        assert!(c.validate_action("Ultimate_1"));
+        assert!(c.validate_action("Dodge_1"));
+    }
+
+    #[test]
     fn test_deserialize_minimal_json() {
         // Minimal character JSON as might come from data/characters/
         let json = r#"{

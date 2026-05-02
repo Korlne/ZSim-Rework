@@ -148,6 +148,29 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_from_data_file() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../data/enemies/boss_dullahan.json"
+        );
+        let json = std::fs::read_to_string(path).expect("read enemy JSON file");
+        let enemy: EnemyState = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(enemy.enemy_id, "boss_dullahan");
+        assert_eq!(enemy.enemy_type, EnemyType::Boss);
+        assert_eq!(enemy.hp, 150000.0);
+        assert_eq!(enemy.def_val, 600.0);
+        assert_eq!(enemy.base_res, 0.15);
+        assert_eq!(enemy.stun_gauge, 0.0);
+        assert_eq!(enemy.stun_max, 200.0);
+        assert_eq!(enemy.resistance_for(&ElementTag::Ice), 0.4);
+        assert_eq!(enemy.resistance_for(&ElementTag::Ether), 0.6);
+        assert_eq!(enemy.resistance_for(&ElementTag::Fire), 1.0);
+        assert!(enemy.weaknesses.contains(&ElementTag::Fire));
+        assert!(enemy.weaknesses.contains(&ElementTag::Physical));
+        assert_eq!(enemy.chain_attack_limit(), 3);
+    }
+
+    #[test]
     fn test_deserialize_with_def_alias() {
         // Python EnemyState uses alias="def" for defense value
         let json = r#"{
