@@ -3,6 +3,9 @@ use std::collections::HashMap;
 use crate::calculation::buff::{BuffCategory, BuffData, BuffManager, StackType};
 use crate::data::equipment::{DiscSet, DriveDisc, EquipmentData, WEngine};
 
+/// Duration assigned to permanent equipment stat buffs (covers max simulation length).
+pub const EQUIPMENT_BUFF_DURATION: u64 = 18_000;
+
 /// Per-character equipment assignment: one W-Engine and up to 6 Drive Discs.
 #[derive(Debug, Clone)]
 pub struct CharacterEquipment {
@@ -94,6 +97,7 @@ impl EquipmentManager {
                     BuffCategory::DamageBonus,
                     StackType::Replace,
                 )
+                .with_duration(EQUIPMENT_BUFF_DURATION)
                 .with_modifier("dmg_bonus", 0.10),
             ),
             "buff_thunder_atk_20" => Some(
@@ -113,6 +117,7 @@ impl EquipmentManager {
                     BuffCategory::Crit,
                     StackType::Replace,
                 )
+                .with_duration(EQUIPMENT_BUFF_DURATION)
                 .with_modifier("crit_dmg", 0.20),
             ),
 
@@ -151,10 +156,60 @@ impl EquipmentManager {
         buffs
     }
 
+    /// Map equipment JSON stat names to BuffManager modifier names.
+    ///
+    /// Equipment uses short names like `"atk"` or `"pen_fixed"` while the
+    /// buff system expects `"atk_flat"` / `"pen"`.
+    pub fn map_stat_name(name: &str) -> &str {
+        match name {
+            "hp" => "hp_flat",
+            "atk" => "atk_flat",
+            "def" => "def_flat",
+            "pen_fixed" => "pen",
+            other => other,
+        }
+    }
+
+    /// Build a single buff with multiple modifiers from a WEngine's base stats.
+    /// Skips zero-valued stats to keep the buff compact.
+    fn build_wengine_stats_buff(we: &WEngine) -> Option<BuffData> {
+        let buff_id = format!("eq_we_{}_stats", we.id);
+        let mut buff = BuffData::new(&buff_id, BuffCategory::Stat, StackType::Replace)
+            .with_duration(EQUIPMENT_BUFF_DURATION);
+
+        let stats = &we.base_stats;
+        let mut count = 0;
+        macro_rules! add_if_nonzero {
+            ($field:ident, $name:expr) => {
+                if stats.$field != 0.0 {
+                    buff = buff.with_modifier($name, stats.$field);
+                    count += 1;
+                }
+            };
+        }
+
+        add_if_nonzero!(atk, "atk_flat");
+        add_if_nonzero!(hp, "hp_flat");
+        add_if_nonzero!(def, "def_flat");
+        add_if_nonzero!(crit_rate, "crit_rate");
+        add_if_nonzero!(crit_dmg, "crit_dmg");
+        add_if_nonzero!(pen, "pen");
+        add_if_nonzero!(pen_ratio, "pen_ratio");
+        add_if_nonzero!(anomaly_mastery, "anomaly_mastery");
+        add_if_nonzero!(anomaly_proficiency, "anomaly_proficiency");
+        add_if_nonzero!(impact, "impact");
+        add_if_nonzero!(energy_regen, "energy_regen");
+        add_if_nonzero!(dmg_bonus, "dmg_bonus");
+
+        if count > 0 { Some(buff) } else { None }
+    }
+
     /// Apply all equipment-derived buffs for a character.
     ///
-    /// * W-Engine passive effects are registered as buffs.
-    /// * Drive Disc set bonuses (2-piece, 4-piece) are evaluated and registered.
+    /// * W-Engine base stats are registered as a single multi-modifier buff.
+    /// * W-Engine passive effects are registered as per-id buffs.
+    /// * Drive Disc main stats and sub-stats are registered as stat buffs.
+    /// * Disc set bonuses (2-piece, 4-piece) are evaluated and registered.
     ///
     /// Unknown or unresolvable buff IDs are silently skipped.
     pub fn apply_equipment_buffs(
@@ -167,8 +222,14 @@ impl EquipmentManager {
             return;
         };
 
-        // W-Engine passive effects
+        // ── W-Engine ──────────────────────────────────────────────────
         if let Some(ref we) = equipment.w_engine {
+            // Base stats → single buff with all non-zero stat modifiers
+            if let Some(stats_buff) = Self::build_wengine_stats_buff(we) {
+                buff_manager.apply_buff(character_id, stats_buff, current_tick);
+            }
+
+            // Passive effects
             for passive_id in &we.passive_effects {
                 if let Some(buff) = Self::resolve_buff(passive_id) {
                     buff_manager.apply_buff(character_id, buff, current_tick);
@@ -176,7 +237,28 @@ impl EquipmentManager {
             }
         }
 
-        // Disc set bonuses
+        // ── Drive Discs ───────────────────────────────────────────────
+        for disc in &equipment.drive_discs {
+            // Main stat → single-modifier buff
+            let main_buff_id = format!("eq_dd_{}_main", disc.id);
+            let mapped_main = Self::map_stat_name(&disc.main_stat.stat_name);
+            let main_buff = BuffData::new(&main_buff_id, BuffCategory::Stat, StackType::Replace)
+                .with_duration(EQUIPMENT_BUFF_DURATION)
+                .with_modifier(mapped_main, disc.main_stat.value);
+            buff_manager.apply_buff(character_id, main_buff, current_tick);
+
+            // Sub-stats → one independent buff per sub-stat entry
+            for sub in &disc.sub_stats {
+                let mapped_sub = Self::map_stat_name(&sub.stat_name);
+                let sub_buff_id = format!("eq_dd_{}_sub_{}", disc.id, sub.stat_name);
+                let sub_buff = BuffData::new(&sub_buff_id, BuffCategory::Stat, StackType::Independent)
+                    .with_duration(EQUIPMENT_BUFF_DURATION)
+                    .with_modifier(mapped_sub, sub.value);
+                buff_manager.apply_buff(character_id, sub_buff, current_tick);
+            }
+        }
+
+        // ── Disc Set Bonuses ──────────────────────────────────────────
         for buff_id in self.resolve_set_bonuses(&equipment.drive_discs) {
             if let Some(buff) = Self::resolve_buff(&buff_id) {
                 buff_manager.apply_buff(character_id, buff, current_tick);
