@@ -12,3 +12,16 @@ Started: Sat May  2 15:34:32     2026
   - Always enable `PRAGMA foreign_keys = ON;` per connection — it's off by default in rusqlite
   - The data_entry pattern: functions accept `&Connection`, Tauri commands accept `State<DataDirState>`, open connection, set pragma, then call the module function
 ---
+
+## 2026-05-02 - US-006
+- Implemented Equipment CRUD backend: three sub-types (W-Engine, Drive Disc, Disc Set) plus combined get_all_equipment
+- Added equipment.rs with WEngineRecord, DriveDiscRecord, DiscSetRecord, AllEquipment structs
+- Save/delete for each sub-type: save_w_engine, delete_w_engine, save_drive_disc, delete_drive_disc, save_disc_set, delete_disc_set
+- Drive disc slot validation (1-6 range check)
+- 13 unit tests covering: empty lists, save+get round-trip, delete, not-found error, invalid slot, combined query
+- Tauri commands registered in lib.rs: get_all_equipment, get_w_engines, save_w_engine, delete_w_engine, get_drive_discs, save_drive_disc, delete_drive_disc, get_disc_sets, save_disc_set, delete_disc_set
+- **Learnings for future iterations:**
+  - Equipment CRUD follows the same pattern as characters/skills: `&Connection` core functions + `cmd_` Tauri wrappers
+  - No cascade relationships between equipment sub-types — each is independent with its own table
+  - Drive disc uses fixed 4 sub-stat columns (sub_stat_1 through sub_stat_4) in the schema, matching the existing DB design
+---
