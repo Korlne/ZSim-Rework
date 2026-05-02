@@ -119,3 +119,20 @@
   - Gotchas encountered: Drive disc has no FK constraint to disc_sets in the schema, so disc set lookup failures must be handled at the application layer. The sub_stats columns are nullable (4 pairs of name+value).
   - Useful context: Equipment data has 3 distinct types but only one file (equipment.json) — the CRUD reflects separating them into independent tables. `get_all_equipment` is convenient for dashboard loading but individual getters are more efficient for targeted updates.
 ---
+## 2026-05-03 00:45 - US-008
+- Implemented enemy CRUD Rust backend: `src-tauri/src/data_entry/enemies.rs`
+  - `get_enemies`: returns all enemies as JSON array (summary fields: enemy_id, type, name, level, hp, def, base_res)
+  - `get_enemy(enemy_id)`: returns full enemy record with resistances/weaknesses/anomaly_buildup as parsed JSON strings
+  - `save_enemy`: INSERT OR REPLACE with ON CONFLICT DO UPDATE, validation (enemy_id format, level 1-60, base_res 0.0-1.0)
+  - `delete_enemy`: delete by enemy_id
+- Implemented data query module: `src-tauri/src/data_entry/queries.rs`
+  - `get_data_summary`: COUNT queries across 6 tables (characters, skills, w_engines, drive_discs, disc_sets, enemies, apl) returning JSON object
+  - `search_data(query, data_type)`: LIKE search across characters/skills/enemies/w_engines/disc_sets, returns flat `{ data_type, id, name }` results, supports "all" to search everything
+- Added `pub mod enemies;` and `pub mod queries;` to `data_entry/mod.rs`
+- Added 6 Tauri commands (get_enemies, get_enemy, save_enemy, delete_enemy, get_data_summary, search_data) to lib.rs and registered in generate_handler![]
+- 13 unit tests (7 enemy + 6 queries) pass, full workspace 470+ tests pass
+- **Learnings for future iterations:**
+  - Patterns discovered: Enemies CRUD follows same pattern as characters/equipment. Data queries module is separate from entity CRUD because it spans multiple tables. search_data uses flat SearchResult struct with data_type discriminator for unified response.
+  - Gotchas encountered: LIKE search needs `%` pattern wrapping. The `search_data` function needs to handle `data_type: "all"` by running queries against ALL tables and merging results. Different tables have different ID column names (char_id, enemy_id, id, set_id) — unified as `id` in SearchResult.
+  - Useful context: The queries module is a standalone module that only depends on rusqlite and Connection — no entity structs needed. get_data_summary uses a closure factory pattern for concise COUNT queries.
+---
