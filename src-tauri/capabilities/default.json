@@ -1,0 +1,19 @@
+{
+  "identifier": "default",
+  "description": "Default capability granting shell and IPC permissions",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-spawn",
+    "shell:allow-execute",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        {
+          "url": "http://*",
+          "app": "*"
+        }
+      ]
+    }
+  ]
+}

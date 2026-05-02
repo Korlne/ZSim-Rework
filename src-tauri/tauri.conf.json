@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicedoc/tauri-test/refs/heads/t2/test-app/gen/schemas/desktop-schema.json",
+  "productName": "ZSim Analyzer",
+  "version": "0.1.0",
+  "identifier": "com.zsim.analyzer",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "ZSim Analyzer",
+        "width": 1280,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all"
+  }
+}

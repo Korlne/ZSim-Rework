@@ -343,8 +343,8 @@
         "cargo tauri dev 可启动开发模式"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Tauri v2 project (tauri 2.11, tauri-build 2.6, tauri-plugin-shell 2.3) at project root. src-tauri/ for Rust backend, src/ for Vanilla JS frontend with Vite 6 dev server. 3 Tauri commands (run_simulation/spawn_sidecar/send_to_sidecar) registered via generate_handler!. Sidecar managed via tauri::State<SidecarState> with Mutex<Child> + Mutex<ChildStdin>. Windows icon.ico required for tauri-build. Workspace member (zsim-tauri crate). Frontend: dark theme, config panel, progress bar, sidecar controls. npm deps: @tauri-apps/api ^2, @tauri-apps/plugin-shell ^2, vite ^6. Note: sidecar uses tauri-plugin-shell (Tauri v2 API) not tauri::api::process::Command (v1 API)."
     },
     {
       "id": "US-022",

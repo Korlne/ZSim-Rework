@@ -1,0 +1,42 @@
+## Codebase Patterns
+- Tauri v2 on Windows: `icons/icon.ico` is required by `tauri-build` even for `cargo check` — a minimal valid ICO can be generated from raw BGRA pixel bytes via Python `struct.pack`
+- Tauri v2 uses `tauri-plugin-shell` for sidecar (not the v1 `tauri::api::process::Command`)
+- Tauri v2 commands: define `#[tauri::command] fn` in `lib.rs`, register via `generate_handler![]`, manage state with `app.manage()` + `app.state::<T>()`
+- Vite + Vanilla JS is the minimal frontend setup: `vite.config.js`, `index.html` at root, JS in `src/`
+- `src-tauri/` can be a Rust workspace member without conflicts on Windows
+- Sidecar processes: manage via `tauri::State` with `Mutex<Option<Child>>` + `Mutex<Option<ChildStdin>>`
+
+---
+## 2026-05-02 23:45 - US-019
+- Implemented zsim-pyo3 crate with 4 Python-callable functions delegating to zsim-parquet aggregator
+- aggregate(parquet_path, query_json): deserializes AggQuery from JSON, calls ParquetAggregator::aggregate, returns JSON string
+- summary(parquet_path): convenience wrapper querying StatsSummary
+- dps_curve(parquet_path, window_ticks): convenience wrapper querying DPS with sliding window
+- damage_breakdown(parquet_path): convenience wrapper querying DamageBreakdown
+- All functions return JSON strings (not Python objects) and use PyIOError for error reporting
+- Workspace pyo3 0.24 with extension-module feature (.pyd/.so/.dylib output)
+- Aggregation logic is fully tested by zsim-parquet's 18+ tests (pyo3 integration tests require `maturin develop`)
+- Files changed: zsim-pyo3/Cargo.toml (+anyhow dep), zsim-pyo3/src/lib.rs (stub→real impl), scripts/ralph/prd.json (US-019 passes:true), progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: PyO3 `#[pyfunction]` annotations produce regular Rust functions that return `PyResult<T>` — the pyo3 layer is trivially thin (just wraps the aggregator + serialization).
+  - Gotchas encountered: `cdylib` crate test binaries need Python DLL on Windows at runtime — cannot run Rust unit tests that call `#[pyfunction]` functions in a cdylib crate. Solution: keep pyo3 functions as thin wrappers and test the underlying logic in the dependency crate (zsim-parquet).
+  - Useful context: Adding `anyhow` as a direct dependency of zsim-pyo3 is needed for the `to_py_err` conversion. zsim-parquet's aggregator provides all the aggregation logic — zsim-pyo3 is purely a bridging layer. Integration testing requires `maturin develop` to build the .pyd and test from Python.
+---
+## 2026-05-02 23:56 - US-021
+- Implemented Tauri v2 project scaffolding with 3 IPC commands and vanilla JS/CSS frontend
+- `src-tauri/Cargo.toml` with tauri 2.11 / tauri-build 2.6 / tauri-plugin-shell 2.3 deps
+- `src-tauri/tauri.conf.json` configured for 1280×800 window, title "ZSim Analyzer", Vite dev server on :1420
+- `src-tauri/src/lib.rs`: 3 `#[tauri::command]` functions (run_simulation stub, spawn_sidecar with Python child process, send_to_sidecar with stdin pipe)
+- SidecarState managed via `tauri::State` with `Mutex<Option<Child>>` + `Mutex<Option<ChildStdin>>`
+- `src-tauri/capabilities/default.json` with core:default + shell permissions
+- Frontend: `package.json` (@tauri-apps/api ^2, @tauri-apps/plugin-shell ^2, vite ^6), `index.html`, `src/main.js`, `src/styles.css`
+- Dark-themed UI with config panel (6 inputs), run/stop buttons, progress bar, sidecar controls, results panel
+- Generated `icon.ico` for Windows tauri-build requirement (32×32 BGRA via Python)
+- Added src-tauri to workspace members in root Cargo.toml
+- Updated .gitignore for node_modules/ and dist/
+- **Learnings for future iterations:**
+  - Patterns discovered: Tauri v2 on Windows unconditionally requires `icons/icon.ico` for the build script — even `cargo check` fails without it. Generate with Python struct + raw BGRA bytes.
+  - Gotchas encountered: The acceptance criterion references `tauri::api::process::Command::new_sidecar()` which is Tauri v1 API. Tauri v2 uses `tauri-plugin-shell` for sidecar management. Implemented with `std::process::Command` wrapped in `tauri::State` for the scaffold.
+  - Useful context: `src-tauri/` works fine as a Rust workspace member. `beforeDevCommand` runs from the workspace root. The `dist/` directory must exist at project root for `cargo tauri build`. Tauri v2 capabilities/permissions are in `src-tauri/capabilities/default.json` using the standard permission identifiers.
+  - Frontend context: Vite config needs `envPrefix: ["VITE_", "TAURI_"]` and `server.strictPort: true` for Tauri integration. The `@tauri-apps/api/core` `invoke()` function handles IPC to Rust commands. Tauri events use `listen()` from `@tauri-apps/api/event`.
+---

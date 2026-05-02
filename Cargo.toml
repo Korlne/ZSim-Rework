@@ -4,6 +4,7 @@ members = [
     "zsim-parquet",
     "zsim-pyo3",
     "zsim-cli",
+    "src-tauri",
 ]
 resolver = "2"
 

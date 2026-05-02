@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZSim Analyzer</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Header -->
+      <header id="header">
+        <h1>ZSim Analyzer</h1>
+        <span id="status-badge" class="badge badge-idle">Idle</span>
+      </header>
+
+      <!-- Main content -->
+      <main id="main">
+        <!-- Simulation Config Panel -->
+        <section id="config-panel" class="panel">
+          <h2>Simulation Config</h2>
+          <div class="form-grid">
+            <label>
+              Simulation Count
+              <input type="number" id="sim-count" value="100000" min="1" max="1000000" />
+            </label>
+            <label>
+              Max Tick
+              <input type="number" id="max-tick" value="18000" min="1" max="100000" />
+            </label>
+            <label>
+              Base Seed
+              <input type="number" id="base-seed" value="42" min="0" />
+            </label>
+            <label>
+              Data Directory
+              <input type="text" id="data-dir" value="data" />
+            </label>
+            <label>
+              APL File
+              <input type="text" id="apl-file" value="data/apl/sample_apl.json" />
+            </label>
+            <label>
+              Output Path
+              <input type="text" id="output-path" value="results.parquet" />
+            </label>
+          </div>
+          <div class="button-row">
+            <button id="btn-run" class="btn btn-primary">Run Simulation</button>
+            <button id="btn-stop" class="btn btn-danger" disabled>Stop</button>
+          </div>
+          <div id="progress-container" class="hidden">
+            <progress id="progress-bar" max="100" value="0"></progress>
+            <span id="progress-text">0%</span>
+          </div>
+        </section>
+
+        <!-- Sidecar Panel -->
+        <section id="sidecar-panel" class="panel">
+          <h2>Analysis Sidecar</h2>
+          <div class="button-row">
+            <button id="btn-spawn-sidecar" class="btn btn-secondary">Spawn Sidecar</button>
+          </div>
+          <div id="sidecar-status" class="status-text">Not running</div>
+        </section>
+
+        <!-- Analysis Results -->
+        <section id="results-panel" class="panel hidden">
+          <h2>Analysis Results</h2>
+          <div id="results-content">
+            <p>Results will appear here after simulation completes.</p>
+          </div>
+        </section>
+      </main>
+
+      <!-- Footer -->
+      <footer id="footer">
+        <span>ZSim 2.0 &mdash; Rust Engine &middot; Tauri Desktop</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

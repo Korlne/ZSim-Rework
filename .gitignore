@@ -20,3 +20,8 @@ target/
 *.pyd
 *.so
 *.dylib
+
+# Node / frontend
+node_modules/
+dist/
+*.tsbuildinfo
