@@ -1,0 +1,254 @@
+{
+  "project": "ZSim Data Entry Frontend",
+  "branchName": "ralph/data-entry-frontend",
+  "description": "为 ZSim 战斗模拟器构建独立的 Tauri 桌面数据录入界面，实现对角色、技能、装备、敌人等游戏数据的可视化增删改查（CRUD）。录入数据通过 SQLite 持久化存储，与现有模拟引擎解耦但数据结构兼容。",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "SQLite 数据库 Schema 与初始化",
+      "description": "作为数据录入的基础，需要在 Tauri 项目中引入 rusqlite 依赖并创建完整的 SQLite Schema，包含 characters/skills/skill_multipliers/w_engines/drive_discs/disc_sets/enemies/apl 共 8 张业务表 + 1 张 schema_version 元数据表。",
+      "acceptanceCriteria": [
+        "src-tauri/Cargo.toml 添加 rusqlite = { version = \"0.31\", features = [\"bundled\"] }",
+        "创建 data_entry/db.rs 模块，使用 CREATE TABLE IF NOT EXISTS 初始化所有表",
+        "所有表包含正确的字段类型、默认值、外键约束和唯一约束",
+        "级联删除：删除角色 → 级联删除关联技能和倍率段",
+        "包含 schema_version 元数据表用于版本追踪",
+        "init_db 可重复调用（幂等）",
+        "unit tests 验证所有表创建、幂等性、级联删除"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "已实现。commit 04200db。包含 8 张业务表 + schema_version，完整外键约束和级联删除。5 个测试验证 schema、幂等性、级联删除。"
+    },
+    {
+      "id": "US-002",
+      "title": "JSON 导入模块",
+      "description": "作为旧数据迁移的桥梁，需要创建 import.rs 模块，支持从 data/ 目录 JSON 文件（characters/skills/equipment/enemies/apl）导入数据到 SQLite。",
+      "acceptanceCriteria": [
+        "import_characters：读取 data/characters/*.json，展平 base_stats，星座和 action_dict 存为 JSON TEXT",
+        "import_skills：读取 data/skills/{char_id}.json，将技能和倍率段拆入两张表",
+        "import_equipment：读取 data/equipment/equipment.json，拆分至 w_engines/drive_discs/disc_sets",
+        "import_enemies：读取 data/enemies/*.json，抗性/弱点/异常积蓄存为 JSON TEXT",
+        "import_apl：读取 data/apl/*.json，tracks 存为 JSON TEXT",
+        "所有导入使用 INSERT OR REPLACE 实现幂等",
+        "使用 zsim-core 的实体 struct 进行 JSON 反序列化",
+        "11+ 个单元测试覆盖所有导入函数"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "已实现。commit 1a36667。5 个 import 函数，11 个测试，使用 zsim-core 实体结构。"
+    },
+    {
+      "id": "US-003",
+      "title": "Tauri 数据库初始化与导入命令",
+      "description": "作为数据入口的 Tauri 层，需要注册 init_database / import_from_json / reimport_all 三个 Tauri 命令，通过 `tauri::State<DataDirState>` 共享数据目录配置。",
+      "acceptanceCriteria": [
+        "init_database 命令：打开/创建 zsim.db，初始化所有表，返回表名列表 JSON",
+        "import_from_json 命令：接受 data_type + 可选 data_path，调用对应 import 函数",
+        "reimport_all 命令：按 FK 安全顺序清空表，重新导入全部 JSON 数据",
+        "DataDirState 托管状态存储 data_dir 路径",
+        "所有命令使用参数化查询（防止 SQL 注入）",
+        "PRAGMA foreign_keys = ON 在每次连接后启用",
+        "17 个现有单元测试全部通过"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "已实现。commit 066eda5。3 个 Tauri 命令，DataDirState 托管状态。"
+    },
+    {
+      "id": "US-004",
+      "title": "角色 CRUD Rust 后端命令",
+      "description": "作为 CRUD 的基础模块，需要创建 characters.rs 实现角色的增删改查（CRUD）Tauri 命令，包括获取列表、获取详情（含关联技能）、保存（创建/更新）、删除（级联）。",
+      "acceptanceCriteria": [
+        "get_characters 命令：返回所有角色列表（JSON 数组），按 char_id 排序",
+        "get_character 命令：返回单个角色详情（包含关联技能列表），JSON 格式 { character: {...}, skills: [...] }",
+        "save_character 命令：接受 JSON data 字符串，INSERT OR REPLACE 写入 characters 表",
+        "delete_character 命令：按 char_id 删除角色，级联删除关联技能和倍率段",
+        "所有命令使用参数化查询，验证必填字段",
+        "字符 ID 格式验证：仅允许小写字母、数字、下划线",
+        "data_entry/characters.rs 模块含完整的单元测试"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "已实现。包含 4 个 Tauri 命令，完整验证（char_id 格式、level 1-60、ascension 0-6、crit 0-1），级联删除。17 个单元测试覆盖所有 CRUD 操作和验证。"
+    },
+    {
+      "id": "US-005",
+      "title": "技能 CRUD Rust 后端命令",
+      "description": "作为技能数据的管理入口，需要创建 skills.rs 实现技能的增删改查，包含倍率段（skill_multipliers）的行内管理。",
+      "acceptanceCriteria": [
+        "get_skills 命令：返回指定角色的所有技能（含倍率段），JSON 数组",
+        "save_skill 命令：接受包含 skill 字段 + multipliers 数组的 JSON，事务性写入 skills 和 skill_multipliers 表",
+        "delete_skill 命令：按 skill_id 删除，级联删除关联倍率段",
+        "倍率段支持动态增删（先删后插，事务包装）",
+        "所有命令使用参数化查询"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "已实现。包含 3 个 Tauri 命令，事务性先删后插倍率段，级联删除。14 个单元测试覆盖 CRUD、验证、事务回滚。"
+    },
+    {
+      "id": "US-006",
+      "title": "装备 CRUD Rust 后端命令",
+      "description": "作为装备数据的管理入口，需要创建 equipment.rs 实现三个装备子类型的 CRUD：音擎（w_engines）、驱动盘（drive_discs）、套装（disc_sets）。",
+      "acceptanceCriteria": [
+        "get_w_engines 命令：返回所有音擎列表",
+        "get_drive_discs 命令：返回所有驱动盘列表",
+        "get_disc_sets 命令：返回所有套装列表",
+        "get_all_equipment 命令：返回 { w_engines, drive_discs, disc_sets } 聚合",
+        "save_w_engine / delete_w_engine 命令：音擎增删",
+        "save_drive_disc / delete_drive_disc 命令：驱动盘增删",
+        "save_disc_set / delete_disc_set 命令：套装增删",
+        "所有命令使用参数化查询",
+        "驱动盘 slot 验证：1-6 范围检查"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "已实现。包含 10 个 Tauri 命令，3 个子类型 CRUD + get_all_equipment 聚合，slot 1-6 验证。15 个单元测试覆盖全部功能。"
+    },
+    {
+      "id": "US-007",
+      "title": "敌人 CRUD Rust 后端命令",
+      "description": "作为敌人数据的管理入口，需要创建 enemies.rs 实现敌人的增删改查 Tauri 命令，包含抗性/弱点的 JSON 字段管理。",
+      "acceptanceCriteria": [
+        "get_enemies 命令：返回所有敌人列表",
+        "get_enemy 命令：返回单个敌人详情",
+        "save_enemy 命令：INSERT OR REPLACE 写入 enemies 表，resistances/weaknesses/anomaly_buildup 为 JSON TEXT",
+        "delete_enemy 命令：按 enemy_id 删除",
+        "所有命令使用参数化查询"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "已实现。包含 4 个 Tauri 命令，摘要列表 + 完整详情，JSON TEXT 字段管理。9 个单元测试覆盖全部 CRUD。"
+    },
+    {
+      "id": "US-008",
+      "title": "数据查询与概览命令",
+      "description": "作为数据辅助功能，需要实现数据概览统计和跨表搜索命令。",
+      "acceptanceCriteria": [
+        "get_data_summary 命令：返回各表记录数 JSON",
+        "search_data 命令：按 query 字符串搜索角色/装备/敌人",
+        "使用参数化查询防止 SQL 注入"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "已实现。包含 2 个 Tauri 命令，跨表搜索支持 characters/skills/enemies/w_engines/disc_sets/all，LIKE + LIMIT 50。6 个单元测试。"
+    },
+    {
+      "id": "US-009",
+      "title": "前端编辑器目录结构与导航",
+      "description": "作为数据录入界面的基础设施，需要在 src/editor/ 下创建完整的目录结构、侧边栏导航和路由系统。",
+      "acceptanceCriteria": [
+        "创建 src/editor/ 目录及子目录结构：components/, pages/, utils/",
+        "创建 editor/app.js 入口文件（路由/导航）",
+        "创建 editor/components/sidebar.js 侧边栏导航组件",
+        "创建 editor/components/datatable.js 通用数据表格组件",
+        "创建 editor/components/form.js 通用表单组件",
+        "创建 editor/components/confirm.js 确认弹窗组件",
+        "创建 editor/utils/api.js（invoke 封装）",
+        "创建 editor/utils/validation.js（表单验证）",
+        "创建 editor/utils/format.js（数值格式化）",
+        "创建 editor/styles.css 录入界面专属样式",
+        "index.html 顶部添加 [模拟分析] [数据录入] 导航 Tab",
+        "侧边栏包含：总览/角色/技能/装备(含子项)/敌人/导入 导航项"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "前端角色管理页面",
+      "description": "作为角色数据的前端界面，需要实现角色列表、筛选、编辑表单（含 12 个面板字段、影画和动作列表）。",
+      "acceptanceCriteria": [
+        "角色列表页：表格显示所有角色，支持按阵营/专精/属性筛选",
+        "角色编辑表单：弹出/面板形式，含全部 12 个面板数值字段",
+        "字段布局：基础信息区 + 基础面板（12 字段分两列）+ 影画（6 个开关）+ 动作列表",
+        "char_id 为只读（新建时可填，编辑时不可改）",
+        "所有数值字段支持正确输入和验证",
+        "保存/取消/删除按钮功能完整",
+        "删除有二次确认弹窗"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "前端技能编辑器页面",
+      "description": "作为技能数据的前端界面，需要实现以角色为单位的技能列表和编辑表单，支持倍率段动态增删。",
+      "acceptanceCriteria": [
+        "顶部角色下拉选择器 → 加载该角色所有技能",
+        "技能列表：显示 action_id/类型/能量消耗/冷却帧/操作按钮",
+        "技能编辑表单：含基础参数（能量/分贝/HP消耗、冷却/动画帧、击晕倍率等）和 damage_multipliers 区域",
+        "倍率段动态增删行：段数/命中帧/倍率值/衰减系数",
+        "效果 ID 字段可自由输入并持久化",
+        "前置动作下拉选择（从已有技能中选择）",
+        "保存/取消/删除功能完整"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "前端装备管理页面",
+      "description": "作为装备数据的前端界面，需要实现三级 Tab 导航（音擎/驱动盘/套装）各自独立的列表和编辑表单。",
+      "acceptanceCriteria": [
+        "三级 Tab 切换：音擎 / 驱动盘 / 套装",
+        "音擎列表+编辑：ID/名称/等级/攻击/面板字段/被动效果 ID",
+        "驱动盘列表+编辑：槽位选择(1-6)/主词条/副词条(最多4条动态增删)/套装 ID",
+        "套装列表+编辑：二件套/四件套效果描述 + 效果 ID",
+        "所有 CRUD 操作通过 Tauri 命令完成"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "前端敌人配置页面",
+      "description": "作为敌人数据的前端界面，需要实现敌人列表和编辑表单，含抗性/弱点的动态增删行。",
+      "acceptanceCriteria": [
+        "敌人列表：ID/名称/类型/等级/HP/DEF 等关键字段",
+        "敌人编辑表单：基础信息（ID/名称/类型/等级/面板值）",
+        "抗性动态增删：属性+抗性值行，可添加/删除",
+        "弱点标签输入：添加/移除弱点标签",
+        "异常积蓄 JSON 字段支持",
+        "保存/取消/删除功能完整"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "前端数据总览与导入页面",
+      "description": "作为首页和批量导入入口，需要实现数据总览仪表盘和 JSON 导入页面。",
+      "acceptanceCriteria": [
+        "数据总览：卡片式显示各表记录数",
+        "快速搜索框（跨表搜索）",
+        "导入页面：扫描 data/ 目录 JSON 文件，显示文件清单",
+        "导入模式选择：覆盖/追加",
+        "导入进度反馈和结果展示"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "i18n 国际化（数据录入界面）",
+      "description": "作为多语言支持，需要为数据录入界面添加中/英/日三语翻译覆盖。",
+      "acceptanceCriteria": [
+        "扩展现有 i18n.js 支持录入界面翻译",
+        "zh-CN / en-US / ja-JP 翻译覆盖所有录入界面文本",
+        "录入界面组件使用 i18n.t() 进行翻译",
+        "侧边栏/表格/表单/弹窗等全部组件覆盖"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
