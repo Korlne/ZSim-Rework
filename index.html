@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ZSim Analyzer</title>
+    <title data-i18n="header.title">ZSim Analyzer</title>
     <link rel="stylesheet" href="/src/styles.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
   </head>
@@ -11,44 +11,55 @@
     <div id="app">
       <!-- Header -->
       <header id="header">
-        <h1>ZSim Analyzer</h1>
-        <span id="status-badge" class="badge badge-idle">Idle</span>
+        <div class="header-left">
+          <h1 data-i18n="header.title">ZSim Analyzer</h1>
+        </div>
+        <div class="header-right">
+          <span id="status-badge" class="badge badge-idle" data-i18n="status.idle">Idle</span>
+          <div class="lang-switcher">
+            <select id="lang-select" aria-label="Language">
+              <option value="zh-CN">🇨🇳 中文</option>
+              <option value="en-US">🇺🇸 English</option>
+              <option value="ja-JP">🇯🇵 日本語</option>
+            </select>
+          </div>
+        </div>
       </header>
 
       <!-- Main content -->
       <main id="main">
         <!-- Simulation Config Panel -->
         <section id="config-panel" class="panel">
-          <h2>Simulation Config</h2>
+          <h2 data-i18n="panel.config.title">Simulation Config</h2>
           <div class="form-grid">
             <label>
-              Simulation Count
+              <span data-i18n="panel.config.simCount">Simulation Count</span>
               <input type="number" id="sim-count" value="100000" min="1" max="1000000" />
             </label>
             <label>
-              Max Tick
+              <span data-i18n="panel.config.maxTick">Max Tick</span>
               <input type="number" id="max-tick" value="18000" min="1" max="100000" />
             </label>
             <label>
-              Base Seed
+              <span data-i18n="panel.config.baseSeed">Base Seed</span>
               <input type="number" id="base-seed" value="42" min="0" />
             </label>
             <label>
-              Data Directory
+              <span data-i18n="panel.config.dataDir">Data Directory</span>
               <input type="text" id="data-dir" value="data" />
             </label>
             <label>
-              APL File
+              <span data-i18n="panel.config.aplFile">APL File</span>
               <input type="text" id="apl-file" value="data/apl/sample_apl.json" />
             </label>
             <label>
-              Output Path
+              <span data-i18n="panel.config.outputPath">Output Path</span>
               <input type="text" id="output-path" value="results.parquet" />
             </label>
           </div>
           <div class="button-row">
-            <button id="btn-run" class="btn btn-primary">Run Simulation</button>
-            <button id="btn-stop" class="btn btn-danger" disabled>Stop</button>
+            <button id="btn-run" class="btn btn-primary" data-i18n="panel.config.runBtn">Run Simulation</button>
+            <button id="btn-stop" class="btn btn-danger" disabled data-i18n="panel.config.stopBtn">Stop</button>
           </div>
           <div id="progress-container" class="hidden">
             <progress id="progress-bar" max="100" value="0"></progress>
@@ -58,47 +69,48 @@
 
         <!-- Sidecar Panel -->
         <section id="sidecar-panel" class="panel">
-          <h2>Analysis Sidecar</h2>
+          <h2 data-i18n="panel.sidecar.title">Analysis Sidecar</h2>
           <div class="button-row">
-            <button id="btn-spawn-sidecar" class="btn btn-secondary">Spawn Sidecar</button>
+            <button id="btn-spawn-sidecar" class="btn btn-secondary" data-i18n="panel.sidecar.spawnBtn">Spawn Sidecar</button>
           </div>
-          <div id="sidecar-status" class="status-text">Not running</div>
+          <div id="sidecar-status" class="status-text" data-i18n="panel.sidecar.notRunning">Not running</div>
         </section>
 
         <!-- Analysis Results -->
         <section id="results-panel" class="panel hidden">
-          <h2>Analysis Results</h2>
+          <h2 data-i18n="panel.results.title">Analysis Results</h2>
           <div id="results-content">
-            <p class="text-muted">Simulation completed. Spawn the sidecar and click "Analyze" to view charts.</p>
+            <p class="text-muted" data-i18n="panel.results.completed">Simulation completed. Spawn the sidecar and click "Analyze" to view charts.</p>
           </div>
 
           <!-- Chart controls -->
           <div class="chart-controls">
-            <button id="btn-analyze" class="btn btn-primary" disabled>Analyze Charts</button>
-            <span id="chart-status" class="status-text">Spawn sidecar first</span>
+            <button id="btn-analyze" class="btn btn-primary" disabled data-i18n="panel.results.analyzeBtn">Analyze Charts</button>
+            <span id="chart-status" class="status-text" data-i18n="panel.results.spawnFirst">Spawn sidecar first</span>
           </div>
 
           <!-- Stats Summary -->
           <div id="stats-summary" class="stats-grid hidden"></div>
           <div id="percentile-chart-container" class="chart-section hidden">
+            <h3 data-i18n="chart.percentile.title">Percentile Distribution</h3>
             <div id="percentile-chart" class="chart-container" style="height:300px"></div>
           </div>
 
           <!-- DPS Curve -->
           <div class="chart-section hidden" id="chart-section-dps">
-            <h3>DPS Curve</h3>
+            <h3 data-i18n="chart.dps.title">DPS Curve</h3>
             <div id="dps-chart" class="chart-container" style="height:380px"></div>
           </div>
 
           <!-- Damage Breakdown -->
           <div class="chart-section hidden" id="chart-section-damage">
-            <h3>Damage Breakdown</h3>
+            <h3 data-i18n="chart.damage.title">Damage Breakdown</h3>
             <div class="chart-toolbar">
-              <label>Group by:
+              <label><span data-i18n="panel.results.selectGroupBy">Group by:</span>
                 <select id="damage-group-by">
-                  <option value="source">Source</option>
-                  <option value="element" disabled>Element (requires new data)</option>
-                  <option value="action" disabled>Action Type (requires new data)</option>
+                  <option value="source" data-i18n="chart.group.source">Source</option>
+                  <option value="element" disabled data-i18n="chart.group.element">Element</option>
+                  <option value="action" disabled data-i18n="chart.group.action">Action Type</option>
                 </select>
               </label>
             </div>
@@ -107,22 +119,22 @@
 
           <!-- Anomaly Statistics -->
           <div class="chart-section hidden" id="chart-section-anomaly">
-            <h3>Anomaly Statistics</h3>
+            <h3 data-i18n="chart.anomaly.title">Anomaly Statistics</h3>
             <div id="anomaly-chart" class="chart-container" style="height:380px"></div>
           </div>
 
           <!-- Export Controls -->
           <div class="export-controls">
-            <button id="btn-export-html" class="btn btn-secondary" disabled>Export Charts as HTML</button>
-            <button id="btn-export-csv" class="btn btn-secondary" disabled>Export Summary as CSV</button>
-            <span id="export-status" class="status-text">Analyze data first to enable export</span>
+            <button id="btn-export-html" class="btn btn-secondary" disabled data-i18n="export.html">Export Charts as HTML</button>
+            <button id="btn-export-csv" class="btn btn-secondary" disabled data-i18n="export.csv">Export Summary as CSV</button>
+            <span id="export-status" class="status-text" data-i18n="export.statusDisabled">Analyze data first to enable export</span>
           </div>
         </section>
       </main>
 
       <!-- Footer -->
       <footer id="footer">
-        <span>ZSim 2.0 &mdash; Rust Engine &middot; Tauri Desktop</span>
+        <span data-i18n="footer.text">ZSim 2.0 &mdash; Rust Engine &middot; Tauri Desktop</span>
       </footer>
 
       <!-- Notification -->

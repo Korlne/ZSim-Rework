@@ -10,6 +10,7 @@ Tauri v2 desktop shell for ZSim Analyzer.
 - **Long-running commands**: For operations that block (simulation, etc.), use `std::thread::spawn` with `app.clone()` to emit progress events. Use `SimulationState` with `Arc<AtomicBool>` for cancellation. Import `tauri::Emitter` trait to call `app.emit()`.
 - **Windows ICO**: `icons/icon.ico` required by `tauri-build` even for `cargo check`. Generate with Python `struct.pack` for raw BGRA bytes.
 - **Permissions**: Tauri v2 uses `src-tauri/capabilities/default.json` for capability-based permissions.
+- **File Export with Dialog**: Use `tauri-plugin-dialog` (Rust) + `@tauri-apps/plugin-dialog` (JS) for save dialogs. Frontend calls `save()` from `@tauri-apps/plugin-dialog` to get a file path, then invokes a `write_file` Tauri command (defined in `lib.rs`) via `invoke("write_file", { path, content })` to write content. Add `dialog:allow-save` to capabilities. Register plugin with `.plugin(tauri_plugin_dialog::init())`.
 
 ## Dev Setup
 

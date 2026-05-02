@@ -449,3 +449,17 @@ Started: Sat May  2 10:38:49     2026
   - Gotchas encountered: `Plotly.getFigmaData` is not a real API (VSCode autocomplete hallucination). Must check `element.classList.contains("hidden")` before reading `_fullData` to avoid empty chart exports. `dialog:allow-save` permission must be in capabilities/default.json for the save() function to work.
   - Useful context: Export buttons are disabled until analysis completes. The standalone HTML includes Plotly.js CDN reference (requires internet to render). CSV export reads from DOM stat cards — if card format changes, CSV export must be updated in sync. Full verification requires `cargo tauri dev` for dialog interaction.
 
+
+## 2026-05-02 14:00 - US-024a
+- Implemented i18n system with Chinese/English/Japanese support for the Tauri frontend
+- **src/locales/**: Created zh-CN.json, en-US.json, ja-JP.json with ~70 flat key-value pairs each covering all UI text (header, config panel, sidecar, results, charts, export, stats, notifications, footer)
+- **src/i18n.js**: Implemented i18n module using Vite import.meta.glob for auto-discovery of locale files (adding a new language just means adding a JSON file). Features: t(key, {params}) with {param} interpolation, data-i18n DOM attributes for static elements, localStorage persistence, langchange custom event, fallback chain: current lang -> en-US -> raw key
+- **index.html**: Added data-i18n attributes to all translatable elements; added language switcher dropdown in header-right (zh-CN/en-US/ja-JP with flag emojis)
+- **styles.css**: Added .header-left, .header-right, .lang-switcher select styles
+- **main.js**: Changed setStatus() to use translation keys; reapplyDynamicText() updates chart titles, sidecar status, analyze status, and export status on language switch; language selector calls switchLang() which dispatches langchange event
+- Quality: vite build, cargo check, cargo clippy, cargo fmt all pass
+- Files changed: src/locales/zh-CN.json (new), src/locales/en-US.json (new), src/locales/ja-JP.json (new), src/i18n.js, index.html, src/main.js, src/styles.css, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Vite import.meta.glob with {eager: true} inlines JSON files at build time — no runtime fetch needed and bundled into production JS. data-i18n attributes enable declarative DOM translation without JS logic for each element.
+  - Gotchas encountered: Showdown between printf-style %s and {param} interpolation — i18n.js uses {param} style consistently. Stat cards are rendered dynamically in renderStatsSummary(), so they don't update on language switch until next analysis run. Chart section titles use h3 elements targeted by reapplyDynamicText() after langchange event.
+  - Useful context: The language switcher dropdown is in header-right alongside the status badge. localStorage key is "zsim-lang". The "langchange" event is dispatched after every switchLang() call — listeners can update dynamic content. The i18n.applyToDOM() handles all elements with data-i18n attributes automatically.

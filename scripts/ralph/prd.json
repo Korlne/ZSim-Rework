@@ -409,8 +409,8 @@
         "cargo tauri dev 验证三语切换完整"
       ],
       "priority": 25,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created src/locales/zh-CN.json, en-US.json, ja-JP.json with flat key-value structure. i18n.js module using Vite import.meta.glob for auto-discovery. Supports t(key, {params}) with {param} interpolation, data-i18n DOM attributes, localStorage persistence, and langchange event. Language switcher dropdown in header-right with zh-CN/en-US/ja-JP. Fallback chain: current lang -> en-US -> raw key. Adding a new language only requires adding a JSON file to src/locales/. All UI text covered: config panel, sidecar, results, charts, export, notifications, stat labels, footer. Verified: vite build, cargo check, cargo fmt all pass."
     },
     {
       "id": "US-025",

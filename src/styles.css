@@ -57,6 +57,33 @@ body {
   letter-spacing: -0.5px;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.lang-switcher select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--font);
+  cursor: pointer;
+}
+
+.lang-switcher select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
 .badge {
   font-size: 12px;
   font-weight: 600;
