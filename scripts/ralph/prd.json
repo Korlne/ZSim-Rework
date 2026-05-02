@@ -153,8 +153,8 @@
         "侧边栏包含：总览/角色/技能/装备(含子项)/敌人/导入 导航项"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现。commit 5b95948。src/editor/ 完整目录结构（components/pages/utils）：app.js（hash 路由 + 懒加载页面）、components/sidebar.js（侧边栏导航含装备子项）、components/datatable.js（通用数据表格）、components/form.js（通用表单 + 6 种字段类型）、components/confirm.js（确认弹窗 Promise API）、utils/api.js（全部 20+ Tauri 命令封装）、utils/validation.js（字段验证函数）、utils/format.js（数值格式化）、styles.css（深色主题编辑器样式）。index.html 已添加 [模拟分析] [数据录入] Tab 切换。三种语言（zh-CN/en-US/ja-JP）30+ 编辑器命名空间 i18n 键。cargo check + vite build 均通过。"
     },
     {
       "id": "US-010",

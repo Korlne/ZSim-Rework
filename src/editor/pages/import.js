@@ -2,7 +2,13 @@ import { t } from "../../i18n.js";
 
 export function renderPage() {
   const container = document.createElement("div");
-  container.className = "page-import";
-  container.innerHTML = `<h2>${t("editor.nav.import")}</h2><p>${t("editor.comingSoon")}</p>`;
+  const heading = document.createElement("h2");
+  heading.textContent = t("editor.nav.import");
+  container.appendChild(heading);
+
+  const placeholder = document.createElement("p");
+  placeholder.textContent = t("editor.comingSoon");
+  container.appendChild(placeholder);
+
   return container;
 }

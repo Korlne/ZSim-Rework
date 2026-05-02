@@ -1,8 +1,15 @@
 /**
  * Confirmation dialog component.
  * Returns a promise that resolves to true/false.
+ *
+ * @param {string} message  Confirmation message
+ * @param {Object} [options]
+ * @param {string} [options.confirmLabel]  Label for confirm button
+ * @param {string} [options.cancelLabel]  Label for cancel button
+ * @param {string} [options.variant]  'danger' (default) or 'primary'
+ * @returns {Promise<boolean>}
  */
-export function confirm(message) {
+export function confirm(message, options = {}) {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "confirm-overlay";
@@ -19,15 +26,16 @@ export function confirm(message) {
 
     const btnCancel = document.createElement("button");
     btnCancel.className = "btn btn-secondary";
-    btnCancel.textContent = "Cancel";
+    btnCancel.textContent = options.cancelLabel || "Cancel";
     btnCancel.addEventListener("click", () => {
       overlay.remove();
       resolve(false);
     });
 
     const btnConfirm = document.createElement("button");
-    btnConfirm.className = "btn btn-danger";
-    btnConfirm.textContent = "Delete";
+    const variant = options.variant || "danger";
+    btnConfirm.className = `btn btn-${variant}`;
+    btnConfirm.textContent = options.confirmLabel || "Delete";
     btnConfirm.addEventListener("click", () => {
       overlay.remove();
       resolve(true);
@@ -47,5 +55,8 @@ export function confirm(message) {
         resolve(false);
       }
     });
+
+    // Focus confirm button for keyboard users
+    btnConfirm.focus();
   });
 }

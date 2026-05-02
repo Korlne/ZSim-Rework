@@ -1,5 +1,5 @@
 import { t, lang, switchLang } from "../i18n.js";
-import { createSidebar } from "./sidebar.js";
+import { createSidebar } from "./components/sidebar.js";
 
 // ── DOM refs (lazily resolved) ─────────────────────────────
 

@@ -6,6 +6,8 @@
  * @param {Object} [options]
  * @param {function} [options.onEdit]  Called with row data
  * @param {function} [options.onDelete]  Called with row data
+ * @param {function} [options.onRowClick]  Called with row data on row click
+ * @param {string} [options.emptyMessage]  Custom empty state message
  * @returns {HTMLTableElement}
  */
 export function createDataTable(columns, rows, options = {}) {
@@ -36,12 +38,16 @@ export function createDataTable(columns, rows, options = {}) {
     const td = document.createElement("td");
     td.colSpan = columns.length + (options.onEdit || options.onDelete ? 1 : 0);
     td.className = "empty-state";
-    td.textContent = "No data";
+    td.textContent = options.emptyMessage || "No data";
     tr.appendChild(td);
     tbody.appendChild(tr);
   } else {
     for (const row of rows) {
       const tr = document.createElement("tr");
+      if (options.onRowClick) {
+        tr.style.cursor = "pointer";
+        tr.addEventListener("click", () => options.onRowClick(row));
+      }
       for (const col of columns) {
         const td = document.createElement("td");
         let val = row[col.key];
@@ -65,7 +71,10 @@ export function createDataTable(columns, rows, options = {}) {
           const btnEdit = document.createElement("button");
           btnEdit.className = "btn btn-sm btn-secondary";
           btnEdit.textContent = "Edit";
-          btnEdit.addEventListener("click", () => options.onEdit(row));
+          btnEdit.addEventListener("click", (e) => {
+            e.stopPropagation();
+            options.onEdit(row);
+          });
           td.appendChild(btnEdit);
         }
 
@@ -73,7 +82,10 @@ export function createDataTable(columns, rows, options = {}) {
           const btnDel = document.createElement("button");
           btnDel.className = "btn btn-sm btn-danger";
           btnDel.textContent = "Del";
-          btnDel.addEventListener("click", () => options.onDelete(row));
+          btnDel.addEventListener("click", (e) => {
+            e.stopPropagation();
+            options.onDelete(row);
+          });
           td.appendChild(btnDel);
         }
 

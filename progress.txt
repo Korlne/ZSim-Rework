@@ -7,6 +7,8 @@
 - Sidecar processes: manage via `tauri::State` with `Mutex<Option<Child>>` + `Mutex<Option<ChildStdin>>`
 - **Import module pattern**: Each data type has its own `import_<type>()` function in `import.rs`. They take `&Connection` and `data_dir: &Path`, return `ImportResult { success, errors }`. Use zsim-core's existing entity structs for JSON deserialization (they already have correct serde annotations for the data files). Convert enums to strings via `serde_json::to_value()` + `as_str()`. Store complex nested data (constellations, resistances, tracks) as JSON TEXT in SQLite. Use `INSERT OR REPLACE` for idempotent reimport.
 - **Data entry Tauri commands**: DataDirState (managed via `.manage(DataDirState { data_dir })`) shares the data directory path across all data entry commands. Access via `State<'_, DataDirState>` parameter. Open a fresh `rusqlite::Connection` per command for infrequent ops (init, import). Always enable `PRAGMA foreign_keys = ON;` after opening each connection. Define commands directly in `lib.rs` and register in `generate_handler![]`.
+- **Editor frontend structure**: The `src/editor/` module uses hash-based routing (`#/dashboard`, `#/characters`, etc.) with lazy-loaded page modules via dynamic `import()`. Each page exports `renderPage(route)` and is a separate Vite chunk. `utils/api.js` wraps all Tauri `invoke()` calls with JSON parsing. Page stubs use `editor.comingSoon` i18n key for placeholder content. i18n keys use `editor.nav.*` for navigation, `editor.dashboard.*` for dashboard UI.
+- **View switching (simulation vs editor)**: The `index.html` has tab buttons that toggle `.hidden` class between `#simulation-view` and `#editor-view`. The editor is lazy-loaded on first tab click via dynamic `import("/src/editor/app.js")`. The `.view-panel` CSS class provides shared flex-column layout for both views.
 
 ---
 ## 2026-05-02 23:45 - US-019
@@ -135,4 +137,41 @@
   - Patterns discovered: Enemies CRUD follows same pattern as characters/equipment. Data queries module is separate from entity CRUD because it spans multiple tables. search_data uses flat SearchResult struct with data_type discriminator for unified response.
   - Gotchas encountered: LIKE search needs `%` pattern wrapping. The `search_data` function needs to handle `data_type: "all"` by running queries against ALL tables and merging results. Different tables have different ID column names (char_id, enemy_id, id, set_id) — unified as `id` in SearchResult.
   - Useful context: The queries module is a standalone module that only depends on rusqlite and Connection — no entity structs needed. get_data_summary uses a closure factory pattern for concise COUNT queries.
+---
+## 2026-05-03 01:15 - US-009
+- Created `src/editor/` with 7 modules + 6 page stubs:
+  - `utils/api.js`: comprehensive API wrapper for all 20+ Tauri invoke calls (db, characters, skills, equipment, enemies, queries)
+  - `app.js`: hash-based router with lazy-loaded page modules (dashboard, characters, skills, equipment, enemies, import)
+  - `sidebar.js`: nav sidebar with Dashboard, Characters, Equipment (sub-items: W-Engines, Drive Discs, Disc Sets), Enemies, Import
+  - `datatable.js`: reusable sortable data table component with column defs, format functions, empty state, edit/delete action column
+  - `form.js`: reusable form builder with text/number/select/textarea/checkbox/tag-input field types, validation-ready value state
+  - `confirm.js`: promise-based confirmation dialog with overlay, keyboard/click-to-dismiss
+  - `styles.css`: editor-specific dark theme (sidebar, data-table, form, tags, tabs, dashboard cards, notifications, page states)
+- Added `src/editor/pages/`:
+  - `dashboard.js`: live data summary with record count cards, Init Database + Reimport All buttons
+  - `characters.js`, `skills.js`, `equipment.js`, `enemies.js`, `import.js`: placeholder stubs with `Coming soon` text
+- Modified `index.html`:
+  - Added editor stylesheet link
+  - Added view tab navigation (Simulation / Data Editor)
+  - Renamed `#main` → `#simulation-view` with `.view-panel` class
+  - Added `#editor-view` with `.editor-layout` + content containers
+  - Added inline script for tab switching with lazy editor init (dynamic import of app.js)
+- Extended all 3 locale files (en-US, zh-CN, ja-JP) with 30+ editor namespace keys
+- **Learnings for future iterations:**
+  - Patterns discovered: Hash-based routing with lazy-loaded page modules via `import()` keeps the editor shell lightweight -- each page is a separate Vite chunk loaded on demand. The app.js registers `hashchange` and `langchange` listeners once at init, page modules simply export a `renderPage(route)` function.
+  - Gotchas encountered: When renaming `#main` to `#simulation-view`, existing CSS selector must be updated to `.view-panel` class selector. The inline tab-switching script in index.html uses dynamic `import()` for lazy editor loading -- must handle the case where the editor fails to load.
+  - Useful context: Editor i18n keys use `editor.nav.*` prefix for nav labels, `editor.dashboard.*` for dashboard UI. CSS is scoped under `.editor-*` and `.data-table` classes to avoid conflicts with simulation styles. Tab switching toggles `.hidden` class between views.
+---
+## 2026-05-03 01:25 - US-009 (restructure)
+- Moved component files to `src/editor/components/` subdirectory per PRD spec: sidebar.js → components/sidebar.js, datatable.js → components/datatable.js, form.js → components/form.js, confirm.js → components/confirm.js
+- Created `src/editor/utils/validation.js`: reusable validation functions (charId, enemyId, level, ascension, critRate, nonNegative, required, slot, equipmentId, setId) + `validate()` and `validateForm()` combinators
+- Created `src/editor/utils/format.js`: reusable formatters (formatNumber, formatPercent, formatFixed, formatStat, formatEnergy, truncate, formatList, formatJson)
+- Enhanced components: datatable.js now supports onRowClick + custom emptyMessage; form.js supports custom save/cancel labels; confirm.js supports custom button labels + variant (danger/primary) + auto-focus
+- Updated app.js import path: `./sidebar.js` → `./components/sidebar.js`
+- All component imports updated from `../i18n.js` to `../../i18n.js` for the deeper component path
+- cargo check passes, vite build succeeds (24 modules transformed, 0 errors)
+- **Learnings for future iterations:**
+  - Patterns discovered: Component files should live in `src/editor/components/` and pages in `src/editor/pages/` — app.js imports from `./components/` while page files import from `../../i18n.js` and `../utils/api.js`.
+  - Gotchas encountered: When moving files to a deeper directory, import paths for `i18n.js` must be adjusted (one more `../` level). The vite build catches broken imports — always run `npx vite build` to verify after restructuring.
+  - Useful context: Validation utilities use a simple `validate(value, validators)` combinator pattern and `validateForm(fieldMap)` for batch form validation. Format utilities are stateless pure functions suitable for use in datatable column `format` callbacks.
 ---

@@ -16,6 +16,8 @@
  * @param {Object} [options]
  * @param {function} [options.onSave]  Called with current values
  * @param {function} [options.onCancel]  Called on cancel
+ * @param {string} [options.saveLabel]  Custom save button label
+ * @param {string} [options.cancelLabel]  Custom cancel button label
  * @returns {HTMLDivElement}
  */
 export function createForm(fields, values, options = {}) {
@@ -177,7 +179,7 @@ export function createForm(fields, values, options = {}) {
   if (options.onSave) {
     const btnSave = document.createElement("button");
     btnSave.className = "btn btn-primary";
-    btnSave.textContent = "Save";
+    btnSave.textContent = options.saveLabel || "Save";
     btnSave.addEventListener("click", () => options.onSave(state));
     btnRow.appendChild(btnSave);
   }
@@ -185,7 +187,7 @@ export function createForm(fields, values, options = {}) {
   if (options.onCancel) {
     const btnCancel = document.createElement("button");
     btnCancel.className = "btn btn-secondary";
-    btnCancel.textContent = "Cancel";
+    btnCancel.textContent = options.cancelLabel || "Cancel";
     btnCancel.addEventListener("click", () => options.onCancel());
     btnRow.appendChild(btnCancel);
   }

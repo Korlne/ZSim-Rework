@@ -1,13 +1,20 @@
 import { t } from "../../i18n.js";
 
+const routeTitles = {
+  "w-engines": "editor.nav.wEngines",
+  "drive-discs": "editor.nav.driveDiscs",
+  "disc-sets": "editor.nav.discSets",
+};
+
 export function renderPage(route) {
-  const labels = {
-    "w-engines": "editor.nav.wEngines",
-    "drive-discs": "editor.nav.driveDiscs",
-    "disc-sets": "editor.nav.discSets",
-  };
   const container = document.createElement("div");
-  container.className = "page-equipment";
-  container.innerHTML = `<h2>${t(labels[route] || "editor.nav.equipment")}</h2><p>${t("editor.comingSoon")}</p>`;
+  const heading = document.createElement("h2");
+  heading.textContent = t(routeTitles[route] || route);
+  container.appendChild(heading);
+
+  const placeholder = document.createElement("p");
+  placeholder.textContent = t("editor.comingSoon");
+  container.appendChild(placeholder);
+
   return container;
 }
