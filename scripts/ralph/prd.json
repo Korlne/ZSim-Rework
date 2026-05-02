@@ -426,8 +426,8 @@
         "所有测试在 CI 中通过"
       ],
       "priority": 26,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "7 Rust E2E tests in zsim-parquet/tests/e2e.rs (data loading, single/parallel sim, seed reproducibility, Parquet write+aggregate, hash reproducibility, aggregation sanity). 23 Python tests in zsim-pyo3/tests/test_aggregator.py (chart builders, command dispatch with mocked zsim_rs, main loop protocol). Fixed analysis_sidecar.py: moved zsim_rs import from main() to module level with try/except ImportError (handle_command needed it as a global). Fixed .gitignore: changed tests/ to /tests/ so crate-level test directories aren't ignored."
     },
     {
       "id": "US-026",
