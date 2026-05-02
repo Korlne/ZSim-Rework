@@ -113,7 +113,7 @@ mod tests {
         let mut rng = RNGManager::new(7);
         for _ in 0..1000 {
             let v = rng.gen_range(5.0, 10.0);
-            assert!(v >= 5.0 && v < 10.0, "out of bounds: {v}");
+            assert!((5.0..10.0).contains(&v), "out of bounds: {v}");
         }
     }
 
@@ -264,7 +264,7 @@ mod tests {
         let mut rng = RNGManager::new(1);
         for _ in 0..100 {
             let v = rng.gen_range(-10.0, 10.0);
-            assert!(v >= -10.0 && v < 10.0, "out of bounds: {v}");
+            assert!((-10.0..10.0).contains(&v), "out of bounds: {v}");
         }
     }
 
