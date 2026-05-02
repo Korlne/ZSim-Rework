@@ -9,7 +9,7 @@ wheels/
 logs/
 *.log
 # 忽略测试文件
-tests/
+/tests/
 # 忽略施工文档
 Docs/*.md
 # Virtual environments

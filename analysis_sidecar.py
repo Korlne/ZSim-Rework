@@ -25,6 +25,12 @@ import sys
 import traceback
 from typing import Any
 
+try:
+    import zsim_rs  # type: ignore[import-untyped]
+except ImportError:
+    zsim_rs = None  # type: ignore[assignment]
+    # The module is required at runtime; tests mock sys.modules["zsim_rs"].
+
 
 # ── Plotly chart builders ──────────────────────────────────────────────────
 
@@ -268,8 +274,6 @@ def handle_command(cmd: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> None:
     """Main event loop — read commands, emit responses."""
-    import zsim_rs  # type: ignore[import-untyped]  # noqa: F811
-
     emit({"type": "ready"})
 
     for line in sys.stdin:
