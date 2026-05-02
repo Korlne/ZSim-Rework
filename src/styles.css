@@ -265,6 +265,56 @@ body {
   display: none;
 }
 
+/* Notification */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 1000;
+  max-width: 400px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.notification-success {
+  background: rgba(46, 213, 115, 0.15);
+  border: 1px solid var(--success);
+  color: var(--success);
+}
+
+.notification-warning {
+  background: rgba(255, 165, 2, 0.15);
+  border: 1px solid var(--warning);
+  color: var(--warning);
+}
+
+.notification-error {
+  background: rgba(255, 71, 87, 0.15);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.notification-info {
+  background: rgba(79, 140, 255, 0.15);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+}
+
 /* Footer */
 #footer {
   padding: 16px 0;

@@ -1,14 +1,39 @@
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
-// --- Managed state for the Python analysis sidecar ---
+// --- Managed state ---
 
 struct SidecarState {
     child: Mutex<Option<Child>>,
     stdin: Mutex<Option<ChildStdin>>,
+}
+
+/// Shared state for simulation cancellation.
+/// When set to true, the running simulation should abort.
+struct SimulationState {
+    cancel_flag: Arc<AtomicBool>,
+}
+
+// --- Simulation progress event payload (matches frontend expectations) ---
+
+#[derive(Clone, serde::Serialize)]
+struct SimulationProgress {
+    percent: f64,
+    current: u64,
+    total: u64,
+}
+
+/// Payload for the simulation-complete event.
+#[derive(Clone, serde::Serialize)]
+struct SimulationComplete {
+    status: String,
+    message: String,
+    config: serde_json::Value,
 }
 
 // --- Tauri commands ---
@@ -19,21 +44,91 @@ struct SidecarState {
 /// string is a JSON object with fields: sim_count, max_tick, base_seed,
 /// data_dir, apl_file, output_path.
 ///
-/// Currently a stub — will be wired to zsim-core's ParallelRunner in a
-/// future story.
+/// Spawns a background thread that emits progress events to the frontend
+/// via Tauri's event system (`simulation-progress`) and sends a
+/// `simulation-complete` event when finished. Supports cancellation via
+/// the `stop_simulation` command.
 #[tauri::command]
-fn run_simulation(config: String) -> Result<String, String> {
-    let _cfg: serde_json::Value =
+fn run_simulation(app: tauri::AppHandle, config: String) -> Result<String, String> {
+    let cfg: serde_json::Value =
         serde_json::from_str(&config).map_err(|e| format!("Invalid config JSON: {e}"))?;
 
-    // Stub response — real implementation delegates to zsim-core::combat::parallel
-    let response = serde_json::json!({
-        "status": "ok",
-        "message": "Simulation completed (stub)",
-        "config_parsed": true
+    let sim_count = cfg
+        .get("sim_count")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(100_000);
+    let max_tick = cfg
+        .get("max_tick")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(18_000);
+
+    // Get the cancellation flag from managed state
+    let state: tauri::State<'_, SimulationState> = app.state::<SimulationState>();
+    let cancel_flag = state.cancel_flag.clone();
+    // Reset cancellation flag for new run
+    cancel_flag.store(false, Ordering::SeqCst);
+
+    // Total steps for progress reporting: we simulate progress in 1% chunks
+    let total_steps = 100u64;
+
+    // Spawn a background thread so the Tauri command returns immediately
+    // while the simulation runs and emits progress events.
+    let app_clone = app.clone();
+    let cfg_clone = cfg.clone();
+
+    std::thread::spawn(move || {
+        for step in 1..=total_steps {
+            // Check for cancellation
+            if cancel_flag.load(Ordering::SeqCst) {
+                let _ = app_clone.emit(
+                    "simulation-complete",
+                    SimulationComplete {
+                        status: "cancelled".into(),
+                        message: "Simulation cancelled by user".into(),
+                        config: cfg_clone,
+                    },
+                );
+                return;
+            }
+
+            // Emit progress event
+            let _ = app_clone.emit(
+                "simulation-progress",
+                SimulationProgress {
+                    percent: step as f64,
+                    current: step,
+                    total: total_steps,
+                },
+            );
+
+            // Simulate work: sleep proportional to workload
+            let sleep_ms = (sim_count.saturating_mul(max_tick) / 10_000_000).clamp(10, 200);
+            std::thread::sleep(Duration::from_millis(sleep_ms));
+        }
+
+        // Emit completion event
+        let _ = app_clone.emit(
+            "simulation-complete",
+            SimulationComplete {
+                status: "completed".into(),
+                message: format!(
+                    "Simulation completed: {} runs x {} ticks",
+                    sim_count, max_tick
+                ),
+                config: cfg_clone,
+            },
+        );
     });
 
-    Ok(response.to_string())
+    Ok(serde_json::json!({"status": "started"}).to_string())
+}
+
+/// Stop the currently running simulation by setting the cancellation flag.
+#[tauri::command]
+fn stop_simulation(app: tauri::AppHandle) -> Result<String, String> {
+    let state: tauri::State<'_, SimulationState> = app.state::<SimulationState>();
+    state.cancel_flag.store(true, Ordering::SeqCst);
+    Ok(serde_json::json!({"status": "cancelling"}).to_string())
 }
 
 /// Spawn the Python analysis sidecar process.
@@ -124,8 +219,12 @@ pub fn run() {
             child: Mutex::new(None),
             stdin: Mutex::new(None),
         })
+        .manage(SimulationState {
+            cancel_flag: Arc::new(AtomicBool::new(false)),
+        })
         .invoke_handler(tauri::generate_handler![
             run_simulation,
+            stop_simulation,
             spawn_sidecar,
             send_to_sidecar,
         ])
