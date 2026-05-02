@@ -7,7 +7,7 @@ Started: Sat May  2 10:38:49     2026
 - AnomalyState stores `gauge_at_trigger` for disorder damage calculations. If the new element has no AnomalyState slot yet, gauge is treated as 0.0 for disorder calcs.
 - AccumulateResult/TriggerAnomalyResult/DisorderResult structs provide structured feedback without coupling to the event bus.
 - Ralph tracking files are at `scripts/ralph/prd.json` and `scripts/ralph/progress.txt`. The `ralph/` directory at project root is a separate Claude Code plugin repo with its own `.git`.
-- Rust toolchain: Always use `stable-x86_64-pc-windows-gnu` as default. The MSVC toolchain builds cached artifacts but fails when rebuilds are needed because `link.exe` from Git for Windows shadows the MSVC linker. `rustup default stable-x86_64-pc-windows-gnu` fixes this.
+- Rust toolchain: Always use `stable-x86_64-pc-windows-gnu` as default. The MSVC toolchain can fail when `link.exe` from Git for Windows shadows the MSVC linker, while GNU can fail when `dlltool.exe` is missing from PATH. If GNU fails with "dlltool.exe not found", try MSVC (`rustup default stable-x86_64-pc-windows-msvc` + `export PATH="$PATH:/c/Users/59275/.cargo/bin"`). `cargo test` and `cargo clippy` (without `--all-targets`) work on MSVC.
 - When using `data` in a struct literal like `ActiveBuff { data, remaining_ticks: data.duration_ticks }`, read the field BEFORE the move: `let duration = data.duration_ticks; ActiveBuff { data, remaining_ticks: duration, ... }`.
 - Damage calculation modules: Use unit structs with `fn calc(&self, input: &CalcInput, rng: &mut RNGManager) -> CalcOutput` signature. CalcInput has Default impl with safe defaults (res_factor=1.0, anomaly_threshold=100.0).
 - Defense formula: `effective_def = (def * (1 - pen_ratio) - pen).max(0.0)` and `def_factor = 1.0 / (1.0 + effective_def / 1000.0)`.
@@ -188,3 +188,44 @@ Started: Sat May  2 10:38:49     2026
   - Patterns discovered: TeamManager uses CharacterState::Active/Standby for on-field/off-field tracking. Switch cooldown managed with saturating_sub for tick-based decrement. Decibel is added team-wide but consumed from on-field character only.
   - Gotchas encountered: Chain points are stored on the on-field character's ResourceSet (not team-wide), so chain points are lost if the character switches off field. This matches the per-character ResourceSet model but differs from some team-wide interpretations.
   - Useful context: The old `state.rs` and duplicate test modules can cause compilation errors. Always check for orphaned code when refactoring. GameState references TeamManager's all_dead() and characters.len() — these are preserved.
+
+## 2026-05-02 17:30 - US-012
+- Implemented ResourceValidator in zsim-core/src/combat/validator.rs
+- ResourceType enum: 9 variants (Energy, Hp, Decibel, ChainPoint, Cooldown, SwitchCooldown, CharacterState, AnomalyState, Role) with Display impl
+- ValidationError struct: action_id, missing_resource(ResourceType), current_value(f64), required_value(f64) with Display + Error impls
+- 8 validation methods on ResourceValidator unit struct:
+  - validate_energy: checks character.resources.energy >= required (1e-9 tolerance)
+  - validate_cooldown: checks current_tick >= last_used_tick + cooldown_ticks (0 cd = always ready)
+  - validate_hp: checks current_stats.hp >= hp_cost
+  - validate_decibel: checks resources.decibel >= required
+  - validate_chain_point: checks resources.chain_points >= required
+  - validate_switch_cooldown: checks team.switch_cooldown() == 0
+  - validate_anomaly_state: checks anomaly_mgr.is_active() for given enemy/element
+  - validate_role: checks character.specialty == required_role
+- validate_all() aggregates all 8 checks, collects all errors (non-short-circuit), skips zero-cost resources
+- 31 tests: all individual validate methods (success/failure/exact), validate_all aggregation, error display, ResourceType display, error trait
+- All 256 tests pass, clippy clean (0 new warnings), fmt clean
+- Files changed: zsim-core/src/combat/validator.rs (new), zsim-core/src/combat/mod.rs (+pub mod validator), scripts/ralph/prd.json (US-012 passes:true)
+- **Learnings for future iterations:**
+  - Patterns discovered: ValidationError follows the same pattern as SwitchError/InsufficientResource. ResourceValidator uses unit struct pattern identical to damage calc modules.
+  - Gotchas encountered: validate_all() uses Vec<ValidationError> (not Result) since collecting errors is the primary use case. Zero-cooldown skills are always ready — early-return in validate_cooldown.
+  - Useful context: validate_all() takes 11 parameters covering all validation dimensions. Optional anomaly/role checks use Option params. Zero-cost resources are skipped to avoid false positives.
+---
+
+## 2026-05-02 18:00 - US-012 (rework: improved ResourceValidator with stateful cooldown tracking)
+- Rewrote ResourceValidator from unit struct (stateless static methods) to stateful struct with HashMap-based cooldown tracking
+- Key design changes from previous iteration:
+  - ResourceValidator now has `cooldowns: HashMap<String, u64>` for internal cooldown state
+  - All validation methods are instance methods (`&self`) instead of static
+  - validate_anomaly_state now checks `enemy.resistance_for(element) > 0.0` (enemy immunity) instead of `AnomalyDisorderManager.is_active()`
+  - validate_role derives specialty requirements from SkillType (Coordinated → Support/Anomaly/Rupture) instead of taking an explicit role parameter
+  - validate_all accepts simpler, context-derived parameters (character, skill, team, tick, optional enemy) with conditional chain/switch/anomaly checks
+- ResourceType enum: 8 variants (removed CharacterState, split Cooldown→SkillCooldown, AnomalyState→AnomalyResistance, Role→RoleRequirement)
+- 36 tests: 5 cooldown management, 2 energy, 3 hp, 2 decibel, 2 chain point, 2 switch cooldown, 2 anomaly state (enemy immunity), 2 cooldown validation, 3 role validation, 9 validate_all, 2 full integration with cooldown lifecycle, 2 error display/trait, 1 default impl
+- Files changed: zsim-core/src/combat/validator.rs (rewrote), scripts/ralph/prd.json (notes updated)
+- All 259 tests pass, clippy clean (0 new warnings), fmt clean
+- **Learnings for future iterations:**
+  - Patterns discovered: ResourceValidator follows stateful pattern (unlike stateless calc modules) because cooldown tracking requires mutable state. validate_anomaly_state uses EnemyState.resistance_for() — the PRD's "异常免疫状态" means checking enemy immunity, not whether an anomaly is active.
+  - Gotchas encountered: The previous iteration used AnomalyDisorderManager for anomaly state validation, but the PRD specifies checking enemy anomaly immunity — use EnemyState.resistance_for(element) instead.
+  - Useful context: US-012 placeholder was auto-generated between US-011 and US-012. Always verify implementation matches PRD requirements, not just compiles.
+---

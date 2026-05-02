@@ -1,43 +1,27 @@
+use std::collections::HashMap;
 use std::fmt;
 
-use crate::calculation::anomaly::AnomalyDisorderManager;
 use crate::combat::skill::SkillData;
 use crate::combat::team::TeamManager;
 use crate::entities::character::Character;
-use crate::entities::enums::{ElementTag, SpecialtyTag};
+use crate::entities::enemy::EnemyState;
+use crate::entities::enums::{SkillType, SpecialtyTag};
 
-/// Resource types that can be validated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Categories of resources that can fail validation.
+#[derive(Debug, Clone, PartialEq)]
 pub enum ResourceType {
     Energy,
     Hp,
     Decibel,
     ChainPoint,
-    Cooldown,
+    SkillCooldown,
     SwitchCooldown,
-    CharacterState,
-    AnomalyState,
-    Role,
-}
-
-impl fmt::Display for ResourceType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ResourceType::Energy => write!(f, "energy"),
-            ResourceType::Hp => write!(f, "HP"),
-            ResourceType::Decibel => write!(f, "decibel"),
-            ResourceType::ChainPoint => write!(f, "chain_point"),
-            ResourceType::Cooldown => write!(f, "cooldown"),
-            ResourceType::SwitchCooldown => write!(f, "switch_cooldown"),
-            ResourceType::CharacterState => write!(f, "character_state"),
-            ResourceType::AnomalyState => write!(f, "anomaly_state"),
-            ResourceType::Role => write!(f, "role"),
-        }
-    }
+    AnomalyResistance,
+    RoleRequirement,
 }
 
 /// Structured error returned when a resource validation check fails.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ValidationError {
     pub action_id: String,
     pub missing_resource: ResourceType,
@@ -49,7 +33,7 @@ impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "action '{}' missing resource '{}': current={}, required={}",
+            "action '{}' missing {:?}: current={}, required={}",
             self.action_id, self.missing_resource, self.current_value, self.required_value
         )
     }
@@ -57,283 +41,418 @@ impl fmt::Display for ValidationError {
 
 impl std::error::Error for ValidationError {}
 
-/// Pre-action resource validator: 8 independent checks plus an aggregate.
+/// Pre-execution resource validator that screens skill execution eligibility.
 ///
-/// Follows the unit-struct pattern used by damage calculation modules.
-#[derive(Debug, Clone, Copy)]
-pub struct ResourceValidator;
+/// Tracks skill cooldowns and validates 8 resource dimensions before
+/// allowing an action to proceed.
+#[derive(Debug, Clone)]
+pub struct ResourceValidator {
+    /// Maps action_id -> tick when that skill's cooldown expires.
+    cooldowns: HashMap<String, u64>,
+}
 
 impl ResourceValidator {
-    /// Validate that the character has enough energy.
-    pub fn validate_energy(
-        character: &Character,
-        required_energy: f64,
-        action_id: &str,
-    ) -> Result<(), ValidationError> {
-        let current = character.resources.energy;
-        if current >= required_energy - 1e-9 {
-            Ok(())
-        } else {
-            Err(ValidationError {
-                action_id: action_id.to_string(),
-                missing_resource: ResourceType::Energy,
-                current_value: current,
-                required_value: required_energy,
-            })
+    /// Create a new validator with no tracked cooldowns.
+    pub fn new() -> Self {
+        Self {
+            cooldowns: HashMap::new(),
         }
     }
 
-    /// Validate that the skill cooldown has elapsed.
-    ///
-    /// A cooldown of 0 ticks means the skill is always ready (no cooldown).
-    pub fn validate_cooldown(
-        last_used_tick: u64,
-        cooldown_ticks: u64,
-        current_tick: u64,
-        action_id: &str,
+    // ------------------------------------------------------------------
+    // Cooldown management
+    // ------------------------------------------------------------------
+
+    /// Record a cooldown for an action. No-ops if `cooldown_ticks == 0`.
+    pub fn set_cooldown(&mut self, action_id: &str, cooldown_ticks: u64, current_tick: u64) {
+        if cooldown_ticks > 0 {
+            self.cooldowns
+                .insert(action_id.to_string(), current_tick + cooldown_ticks);
+        }
+    }
+
+    /// Manually clear a cooldown (e.g., on cooldown reset or buff).
+    pub fn clear_cooldown(&mut self, action_id: &str) {
+        self.cooldowns.remove(action_id);
+    }
+
+    /// Get remaining cooldown ticks for an action (0 if ready or never set).
+    pub fn remaining_cooldown(&self, action_id: &str, current_tick: u64) -> u64 {
+        self.cooldowns
+            .get(action_id)
+            .map(|&expiry| expiry.saturating_sub(current_tick))
+            .unwrap_or(0)
+    }
+
+    // ------------------------------------------------------------------
+    // Dimension 1: Energy
+    // ------------------------------------------------------------------
+
+    /// Validate the character has enough energy for the skill cost.
+    pub fn validate_energy(
+        &self,
+        character: &Character,
+        skill: &SkillData,
     ) -> Result<(), ValidationError> {
-        if cooldown_ticks == 0 {
+        if skill.energy_cost <= 0.0 {
             return Ok(());
         }
-        let ready_tick = last_used_tick.saturating_add(cooldown_ticks);
-        if current_tick >= ready_tick {
+        if character.resources.energy >= skill.energy_cost {
             Ok(())
         } else {
             Err(ValidationError {
-                action_id: action_id.to_string(),
-                missing_resource: ResourceType::Cooldown,
-                current_value: current_tick as f64,
-                required_value: ready_tick as f64,
+                action_id: skill.action_id.clone(),
+                missing_resource: ResourceType::Energy,
+                current_value: character.resources.energy,
+                required_value: skill.energy_cost,
             })
         }
     }
 
-    /// Validate that the character has enough HP to pay the cost.
-    pub fn validate_hp(
-        character: &Character,
-        hp_cost: f64,
-        action_id: &str,
-    ) -> Result<(), ValidationError> {
-        let current = character.current_stats.hp;
-        if current >= hp_cost - 1e-9 {
-            Ok(())
-        } else {
-            Err(ValidationError {
-                action_id: action_id.to_string(),
-                missing_resource: ResourceType::Hp,
-                current_value: current,
-                required_value: hp_cost,
-            })
-        }
-    }
+    // ------------------------------------------------------------------
+    // Dimension 2: Cooldown
+    // ------------------------------------------------------------------
 
-    /// Validate that the character has enough decibel (ult energy).
-    pub fn validate_decibel(
-        character: &Character,
-        required_decibel: f64,
+    /// Validate the skill is off cooldown at the current tick.
+    pub fn validate_cooldown(
+        &self,
         action_id: &str,
+        current_tick: u64,
     ) -> Result<(), ValidationError> {
-        let current = character.resources.decibel;
-        if current >= required_decibel - 1e-9 {
-            Ok(())
-        } else {
-            Err(ValidationError {
-                action_id: action_id.to_string(),
-                missing_resource: ResourceType::Decibel,
-                current_value: current,
-                required_value: required_decibel,
-            })
-        }
-    }
-
-    /// Validate that the character has enough chain points.
-    pub fn validate_chain_point(
-        character: &Character,
-        required_points: u32,
-        action_id: &str,
-    ) -> Result<(), ValidationError> {
-        let current = character.resources.chain_points;
-        if current >= required_points {
-            Ok(())
-        } else {
-            Err(ValidationError {
-                action_id: action_id.to_string(),
-                missing_resource: ResourceType::ChainPoint,
-                current_value: current as f64,
-                required_value: required_points as f64,
-            })
-        }
-    }
-
-    /// Validate that the team's switch is not on cooldown.
-    pub fn validate_switch_cooldown(
-        team: &TeamManager,
-        action_id: &str,
-    ) -> Result<(), ValidationError> {
-        let remaining = team.switch_cooldown();
+        let remaining = self.remaining_cooldown(action_id, current_tick);
         if remaining == 0 {
             Ok(())
         } else {
             Err(ValidationError {
                 action_id: action_id.to_string(),
-                missing_resource: ResourceType::SwitchCooldown,
+                missing_resource: ResourceType::SkillCooldown,
                 current_value: remaining as f64,
                 required_value: 0.0,
             })
         }
     }
 
-    /// Validate that a specific anomaly is active on the target enemy.
-    pub fn validate_anomaly_state(
-        anomaly_mgr: &AnomalyDisorderManager,
-        enemy_id: &str,
-        required_element: &ElementTag,
-        action_id: &str,
-    ) -> Result<(), ValidationError> {
-        if anomaly_mgr.is_active(enemy_id, required_element) {
-            Ok(())
-        } else {
-            Err(ValidationError {
-                action_id: action_id.to_string(),
-                missing_resource: ResourceType::AnomalyState,
-                current_value: 0.0,
-                required_value: 1.0,
-            })
-        }
-    }
+    // ------------------------------------------------------------------
+    // Dimension 3: HP
+    // ------------------------------------------------------------------
 
-    /// Validate that the character has the required specialty/role.
-    pub fn validate_role(
+    /// Validate the character has enough HP to pay the skill's HP cost.
+    ///
+    /// Uses strict greater-than for HP — 0 HP means dead, and costs must
+    /// leave the character alive.
+    pub fn validate_hp(
+        &self,
         character: &Character,
-        required_role: &SpecialtyTag,
-        action_id: &str,
+        skill: &SkillData,
     ) -> Result<(), ValidationError> {
-        if character.specialty == *required_role {
+        if skill.hp_cost <= 0.0 {
+            return Ok(());
+        }
+        if character.current_stats.hp > skill.hp_cost {
+            Ok(())
+        } else {
+            Err(ValidationError {
+                action_id: skill.action_id.clone(),
+                missing_resource: ResourceType::Hp,
+                current_value: character.current_stats.hp,
+                required_value: skill.hp_cost,
+            })
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Dimension 4: Decibel
+    // ------------------------------------------------------------------
+
+    /// Validate the on-field character has enough decibel for the skill cost.
+    pub fn validate_decibel(
+        &self,
+        team: &TeamManager,
+        skill: &SkillData,
+    ) -> Result<(), ValidationError> {
+        if skill.decibel_cost <= 0.0 {
+            return Ok(());
+        }
+        let on_field_decibel = team.decibel_of(team.on_field_index()).unwrap_or(0.0);
+        if on_field_decibel >= skill.decibel_cost {
+            Ok(())
+        } else {
+            Err(ValidationError {
+                action_id: skill.action_id.clone(),
+                missing_resource: ResourceType::Decibel,
+                current_value: on_field_decibel,
+                required_value: skill.decibel_cost,
+            })
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Dimension 5: Chain point
+    // ------------------------------------------------------------------
+
+    /// Validate the on-field character has at least 1 chain point.
+    pub fn validate_chain_point(
+        &self,
+        action_id: &str,
+        team: &TeamManager,
+    ) -> Result<(), ValidationError> {
+        let points = team.chain_points();
+        if points >= 1 {
             Ok(())
         } else {
             Err(ValidationError {
                 action_id: action_id.to_string(),
-                missing_resource: ResourceType::Role,
-                current_value: 0.0,
+                missing_resource: ResourceType::ChainPoint,
+                current_value: points as f64,
                 required_value: 1.0,
             })
         }
     }
 
-    /// Run all applicable validations and collect errors.
+    // ------------------------------------------------------------------
+    // Dimension 6: Switch cooldown
+    // ------------------------------------------------------------------
+
+    /// Validate the team switch is not on cooldown.
+    pub fn validate_switch_cooldown(
+        &self,
+        action_id: &str,
+        team: &TeamManager,
+    ) -> Result<(), ValidationError> {
+        if !team.is_switch_on_cooldown() {
+            Ok(())
+        } else {
+            Err(ValidationError {
+                action_id: action_id.to_string(),
+                missing_resource: ResourceType::SwitchCooldown,
+                current_value: team.switch_cooldown() as f64,
+                required_value: 0.0,
+            })
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Dimension 7: Anomaly state (enemy immunity check)
+    // ------------------------------------------------------------------
+
+    /// Validate the enemy is not immune to the character's element.
     ///
-    /// Only checks resources with non-zero requirements. Optional checks
-    /// (anomaly_state, role) are included only when their respective
-    /// `Option` parameters are `Some`.
+    /// A resistance of 0.0 means full immunity — the character cannot
+    /// trigger anomalies on this enemy.
+    pub fn validate_anomaly_state(
+        &self,
+        character: &Character,
+        enemy: &EnemyState,
+    ) -> Result<(), ValidationError> {
+        let resistance = enemy.resistance_for(&character.element);
+        if resistance > 0.0 {
+            Ok(())
+        } else {
+            Err(ValidationError {
+                action_id: "anomaly".to_string(),
+                missing_resource: ResourceType::AnomalyResistance,
+                current_value: resistance,
+                required_value: f64::EPSILON,
+            })
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Dimension 8: Role (specialty requirement)
+    // ------------------------------------------------------------------
+
+    /// Define which specialties are allowed for restricted skill types.
     ///
-    /// Returns `Vec<ValidationError>` — empty means all checks passed.
-    #[allow(clippy::too_many_arguments)]
+    /// `None` means the skill type has no role restriction.
+    fn required_specialties(action_type: &SkillType) -> Option<&'static [SpecialtyTag]> {
+        match action_type {
+            // Coordinated attacks are only available to off-field roles
+            SkillType::Coordinated => Some(&[
+                SpecialtyTag::Support,
+                SpecialtyTag::Anomaly,
+                SpecialtyTag::Rupture,
+            ]),
+            // All other skill types have no role restriction
+            _ => None,
+        }
+    }
+
+    /// Validate the character's specialty is valid for the skill type.
+    ///
+    /// Most skill types have no restriction. Restricted types
+    /// (e.g., Coordinated) check against an allowlist of specialties.
+    pub fn validate_role(
+        &self,
+        character: &Character,
+        skill: &SkillData,
+    ) -> Result<(), ValidationError> {
+        if let Some(required) = Self::required_specialties(&skill.action_type) {
+            if required.contains(&character.specialty) {
+                Ok(())
+            } else {
+                Err(ValidationError {
+                    action_id: skill.action_id.clone(),
+                    missing_resource: ResourceType::RoleRequirement,
+                    current_value: 0.0,
+                    required_value: 1.0,
+                })
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Aggregated: validate_all
+    // ------------------------------------------------------------------
+
+    /// Run all applicable validations and collect every failure.
+    ///
+    /// Unlike individual validators, this does **not** short-circuit —
+    /// it evaluates all 8 dimensions and returns every error found.
+    ///
+    /// **Conditional checks:**
+    /// - Chain point: only checked when `skill.action_type == Chain`.
+    /// - Switch cooldown: only checked for `Assist` / `QuickAssist`.
+    /// - Anomaly state: only checked when `enemy` is `Some`.
+    ///
+    /// Returns an empty `Vec` when all checks pass.
     pub fn validate_all(
+        &self,
         character: &Character,
         skill: &SkillData,
         team: &TeamManager,
-        anomaly_mgr: &AnomalyDisorderManager,
-        enemy_id: &str,
-        required_element: Option<&ElementTag>,
-        required_role: Option<&SpecialtyTag>,
-        required_chain_points: u32,
-        last_used_tick: u64,
         current_tick: u64,
-        action_id: &str,
+        enemy: Option<&EnemyState>,
     ) -> Vec<ValidationError> {
         let mut errors = Vec::new();
 
-        // Energy
-        if skill.energy_cost > 0.0 {
-            if let Err(e) = Self::validate_energy(character, skill.energy_cost, action_id) {
-                errors.push(e);
-            }
-        }
-
-        // Cooldown
-        if skill.cooldown_ticks > 0 {
-            if let Err(e) =
-                Self::validate_cooldown(last_used_tick, skill.cooldown_ticks, current_tick, action_id)
-            {
-                errors.push(e);
-            }
-        }
-
-        // HP
-        if skill.hp_cost > 0.0 {
-            if let Err(e) = Self::validate_hp(character, skill.hp_cost, action_id) {
-                errors.push(e);
-            }
-        }
-
-        // Decibel
-        if skill.decibel_cost > 0.0 {
-            if let Err(e) = Self::validate_decibel(character, skill.decibel_cost, action_id) {
-                errors.push(e);
-            }
-        }
-
-        // Chain points
-        if required_chain_points > 0 {
-            if let Err(e) = Self::validate_chain_point(character, required_chain_points, action_id) {
-                errors.push(e);
-            }
-        }
-
-        // Switch cooldown
-        if let Err(e) = Self::validate_switch_cooldown(team, action_id) {
+        // 1. Energy
+        if let Err(e) = self.validate_energy(character, skill) {
             errors.push(e);
         }
 
-        // Anomaly state (optional)
-        if let Some(element) = required_element {
-            if let Err(e) = Self::validate_anomaly_state(anomaly_mgr, enemy_id, element, action_id) {
+        // 2. Skill cooldown
+        if let Err(e) = self.validate_cooldown(&skill.action_id, current_tick) {
+            errors.push(e);
+        }
+
+        // 3. HP
+        if let Err(e) = self.validate_hp(character, skill) {
+            errors.push(e);
+        }
+
+        // 4. Decibel
+        if let Err(e) = self.validate_decibel(team, skill) {
+            errors.push(e);
+        }
+
+        // 5. Chain point (relevant for Chain-type skills)
+        if skill.action_type == SkillType::Chain {
+            if let Err(e) = self.validate_chain_point(&skill.action_id, team) {
                 errors.push(e);
             }
         }
 
-        // Role (optional)
-        if let Some(role) = required_role {
-            if let Err(e) = Self::validate_role(character, role, action_id) {
+        // 6. Switch cooldown (relevant for switch-triggering actions)
+        if matches!(
+            skill.action_type,
+            SkillType::Assist | SkillType::QuickAssist
+        ) {
+            if let Err(e) = self.validate_switch_cooldown(&skill.action_id, team) {
                 errors.push(e);
             }
+        }
+
+        // 7. Anomaly state (requires enemy context)
+        if let Some(enemy) = enemy {
+            if let Err(e) = self.validate_anomaly_state(character, enemy) {
+                errors.push(e);
+            }
+        }
+
+        // 8. Role
+        if let Err(e) = self.validate_role(character, skill) {
+            errors.push(e);
         }
 
         errors
     }
 }
 
+impl Default for ResourceValidator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entities::enums::{FactionTag, SkillType};
+    use crate::entities::enemy::EnemyState;
+    use crate::entities::enums::{ElementTag, EnemyType, FactionTag, SkillType, SpecialtyTag};
     use crate::entities::models::BaseStats;
 
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
 
-    fn make_character(hp: f64) -> Character {
+    fn make_character(
+        char_id: &str,
+        specialty: SpecialtyTag,
+        element: ElementTag,
+        energy: f64,
+        hp: f64,
+    ) -> Character {
         let mut c = Character::new(
-            "test_char",
+            char_id,
             FactionTag::GentleHouse,
-            SpecialtyTag::Attack,
-            ElementTag::Physical,
+            specialty,
+            element,
             BaseStats::default().with_hp(hp),
         );
-        c.current_stats = BaseStats::default().with_hp(hp);
+        c.resources.energy = energy;
+        c.current_stats.hp = hp;
         c
     }
 
-    fn make_skill_with_costs(
-        energy: f64,
-        hp: f64,
-        decibel: f64,
-        cooldown: u64,
+    fn make_team() -> TeamManager {
+        TeamManager::new(vec![
+            make_character(
+                "char_0",
+                SpecialtyTag::Attack,
+                ElementTag::Physical,
+                100.0,
+                8000.0,
+            ),
+            make_character(
+                "char_1",
+                SpecialtyTag::Support,
+                ElementTag::Ether,
+                120.0,
+                6000.0,
+            ),
+            make_character(
+                "char_2",
+                SpecialtyTag::Anomaly,
+                ElementTag::Fire,
+                80.0,
+                5000.0,
+            ),
+        ])
+    }
+
+    fn make_skill(
+        action_id: &str,
+        action_type: SkillType,
+        energy_cost: f64,
+        hp_cost: f64,
+        decibel_cost: f64,
+        cooldown_ticks: u64,
     ) -> SkillData {
         SkillData {
-            action_id: "test_skill".into(),
-            action_type: SkillType::Special,
+            action_id: action_id.to_string(),
+            action_type,
             damage_multipliers: vec![],
             daze_multiplier: 0.0,
             hit_frames: vec![],
@@ -342,428 +461,523 @@ mod tests {
             is_snapshot: false,
             charge_branches: vec![],
             prerequisite_action_id: None,
-            hp_cost: hp,
-            energy_cost: energy,
-            decibel_cost: decibel,
-            cooldown_ticks: cooldown,
-            animation_frames: 1,
+            hp_cost,
+            energy_cost,
+            decibel_cost,
+            cooldown_ticks,
+            animation_frames: 30,
         }
     }
 
-    fn make_team() -> TeamManager {
-        TeamManager::new(vec![
-            make_character(8000.0),
-            make_character(6000.0),
-            make_character(5000.0),
-        ])
-    }
-
-    fn make_anomaly_mgr() -> AnomalyDisorderManager {
-        AnomalyDisorderManager::new()
+    fn make_enemy() -> EnemyState {
+        let mut enemy = EnemyState::new("test_enemy", EnemyType::Elite, 100.0);
+        enemy.resistances.insert(ElementTag::Fire, 0.5);
+        enemy.resistances.insert(ElementTag::Electric, 0.0); // immune
+        enemy
     }
 
     // ------------------------------------------------------------------
-    // validate_energy
+    // Cooldown management (5 tests)
     // ------------------------------------------------------------------
 
     #[test]
-    fn test_validate_energy_sufficient() {
-        let mut c = make_character(8000.0);
-        c.resources.energy = 50.0;
-        assert!(ResourceValidator::validate_energy(&c, 40.0, "skill_1").is_ok());
+    fn test_new_validator_no_cooldowns() {
+        let v = ResourceValidator::new();
+        assert_eq!(v.remaining_cooldown("any_action", 0), 0);
     }
 
     #[test]
-    fn test_validate_energy_insufficient() {
-        let mut c = make_character(8000.0);
-        c.resources.energy = 10.0;
-        let err = ResourceValidator::validate_energy(&c, 40.0, "skill_1").unwrap_err();
-        assert_eq!(err.action_id, "skill_1");
+    fn test_set_cooldown_and_remaining() {
+        let mut v = ResourceValidator::new();
+        v.set_cooldown("skill_a", 100, 50);
+        assert_eq!(v.remaining_cooldown("skill_a", 50), 100);
+        assert_eq!(v.remaining_cooldown("skill_a", 120), 30);
+    }
+
+    #[test]
+    fn test_cooldown_expired_returns_zero() {
+        let mut v = ResourceValidator::new();
+        v.set_cooldown("skill_a", 30, 0);
+        assert_eq!(v.remaining_cooldown("skill_a", 0), 30);
+        assert_eq!(v.remaining_cooldown("skill_a", 30), 0);
+        assert_eq!(v.remaining_cooldown("skill_a", 100), 0);
+    }
+
+    #[test]
+    fn test_clear_cooldown() {
+        let mut v = ResourceValidator::new();
+        v.set_cooldown("skill_a", 100, 0);
+        v.clear_cooldown("skill_a");
+        assert_eq!(v.remaining_cooldown("skill_a", 0), 0);
+    }
+
+    #[test]
+    fn test_zero_cooldown_not_set() {
+        let mut v = ResourceValidator::new();
+        v.set_cooldown("skill_a", 0, 0);
+        assert_eq!(v.remaining_cooldown("skill_a", 0), 0);
+    }
+
+    // ------------------------------------------------------------------
+    // validate_energy (2 tests)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_energy_sufficient() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            50.0,
+            8000.0,
+        );
+        let s = make_skill("ult", SkillType::Ultimate, 40.0, 0.0, 0.0, 0);
+        assert!(v.validate_energy(&c, &s).is_ok());
+    }
+
+    #[test]
+    fn test_energy_insufficient() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            10.0,
+            8000.0,
+        );
+        let s = make_skill("ult", SkillType::Ultimate, 40.0, 0.0, 0.0, 0);
+        let err = v.validate_energy(&c, &s).unwrap_err();
+        assert_eq!(err.action_id, "ult");
         assert_eq!(err.missing_resource, ResourceType::Energy);
         assert!((err.current_value - 10.0).abs() < 1e-9);
         assert!((err.required_value - 40.0).abs() < 1e-9);
     }
 
-    #[test]
-    fn test_validate_energy_exact() {
-        let mut c = make_character(8000.0);
-        c.resources.energy = 40.0;
-        assert!(ResourceValidator::validate_energy(&c, 40.0, "skill_1").is_ok());
-    }
-
-    #[test]
-    fn test_validate_energy_zero_cost() {
-        let mut c = make_character(8000.0);
-        c.resources.energy = 0.0;
-        assert!(ResourceValidator::validate_energy(&c, 0.0, "skill_1").is_ok());
-    }
-
     // ------------------------------------------------------------------
-    // validate_cooldown
+    // validate_hp (3 tests)
     // ------------------------------------------------------------------
 
     #[test]
-    fn test_validate_cooldown_ready() {
-        assert!(ResourceValidator::validate_cooldown(10, 30, 50, "skill_1").is_ok());
+    fn test_hp_sufficient() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            0.0,
+            8000.0,
+        );
+        let s = make_skill("hp_cost_skill", SkillType::Special, 0.0, 500.0, 0.0, 0);
+        assert!(v.validate_hp(&c, &s).is_ok());
     }
 
     #[test]
-    fn test_validate_cooldown_not_ready() {
-        let err =
-            ResourceValidator::validate_cooldown(10, 30, 35, "skill_1").unwrap_err();
-        assert_eq!(err.missing_resource, ResourceType::Cooldown);
-        assert!((err.current_value - 35.0).abs() < 1e-9);
-        assert!((err.required_value - 40.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn test_validate_cooldown_exact_ready() {
-        assert!(ResourceValidator::validate_cooldown(10, 30, 40, "skill_1").is_ok());
-    }
-
-    #[test]
-    fn test_validate_cooldown_zero_cooldown() {
-        assert!(ResourceValidator::validate_cooldown(50, 0, 50, "skill_1").is_ok());
-        assert!(ResourceValidator::validate_cooldown(50, 0, 30, "skill_1").is_ok());
-    }
-
-    // ------------------------------------------------------------------
-    // validate_hp
-    // ------------------------------------------------------------------
-
-    #[test]
-    fn test_validate_hp_sufficient() {
-        let c = make_character(8000.0);
-        assert!(ResourceValidator::validate_hp(&c, 5000.0, "skill_1").is_ok());
-    }
-
-    #[test]
-    fn test_validate_hp_insufficient() {
-        let c = make_character(8000.0);
-        let err = ResourceValidator::validate_hp(&c, 9000.0, "skill_1").unwrap_err();
+    fn test_hp_insufficient() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            0.0,
+            300.0,
+        );
+        let s = make_skill("hp_cost_skill", SkillType::Special, 0.0, 500.0, 0.0, 0);
+        let err = v.validate_hp(&c, &s).unwrap_err();
         assert_eq!(err.missing_resource, ResourceType::Hp);
-        assert!((err.current_value - 8000.0).abs() < 1e-9);
-        assert!((err.required_value - 9000.0).abs() < 1e-9);
+        assert!((err.current_value - 300.0).abs() < 1e-9);
+        assert!((err.required_value - 500.0).abs() < 1e-9);
     }
 
     #[test]
-    fn test_validate_hp_exact() {
-        let c = make_character(8000.0);
-        assert!(ResourceValidator::validate_hp(&c, 8000.0, "skill_1").is_ok());
+    fn test_hp_zero_cost_always_ok() {
+        let v = ResourceValidator::new();
+        let c = make_character("test", SpecialtyTag::Attack, ElementTag::Physical, 0.0, 0.0);
+        let s = make_skill("free_skill", SkillType::Normal, 0.0, 0.0, 0.0, 0);
+        assert!(v.validate_hp(&c, &s).is_ok());
     }
 
     // ------------------------------------------------------------------
-    // validate_decibel
+    // validate_decibel (2 tests)
     // ------------------------------------------------------------------
 
     #[test]
-    fn test_validate_decibel_sufficient() {
-        let mut c = make_character(8000.0);
-        c.resources.decibel = 2000.0;
-        assert!(ResourceValidator::validate_decibel(&c, 1500.0, "skill_1").is_ok());
+    fn test_decibel_sufficient() {
+        let v = ResourceValidator::new();
+        let mut team = make_team();
+        team.characters[0].resources.decibel = 2000.0;
+        let s = make_skill("ult", SkillType::Ultimate, 0.0, 0.0, 1500.0, 0);
+        assert!(v.validate_decibel(&team, &s).is_ok());
     }
 
     #[test]
-    fn test_validate_decibel_insufficient() {
-        let mut c = make_character(8000.0);
-        c.resources.decibel = 500.0;
-        let err = ResourceValidator::validate_decibel(&c, 1000.0, "skill_1").unwrap_err();
+    fn test_decibel_insufficient() {
+        let v = ResourceValidator::new();
+        let team = make_team();
+        let s = make_skill("ult", SkillType::Ultimate, 0.0, 0.0, 1500.0, 0);
+        let err = v.validate_decibel(&team, &s).unwrap_err();
         assert_eq!(err.missing_resource, ResourceType::Decibel);
-        assert!((err.current_value - 500.0).abs() < 1e-9);
-        assert!((err.required_value - 1000.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn test_validate_decibel_exact() {
-        let mut c = make_character(8000.0);
-        c.resources.decibel = 3000.0;
-        assert!(ResourceValidator::validate_decibel(&c, 3000.0, "skill_1").is_ok());
+        assert!((err.current_value - 0.0).abs() < 1e-9);
+        assert!((err.required_value - 1500.0).abs() < 1e-9);
     }
 
     // ------------------------------------------------------------------
-    // validate_chain_point
+    // validate_chain_point (2 tests)
     // ------------------------------------------------------------------
 
     #[test]
-    fn test_validate_chain_point_sufficient() {
-        let mut c = make_character(8000.0);
-        c.resources.chain_points = 3;
-        assert!(ResourceValidator::validate_chain_point(&c, 1, "skill_1").is_ok());
+    fn test_chain_point_sufficient() {
+        let v = ResourceValidator::new();
+        let mut team = make_team();
+        team.characters[0].resources.chain_points = 2;
+        assert!(v.validate_chain_point("chain_attack", &team).is_ok());
     }
 
     #[test]
-    fn test_validate_chain_point_insufficient() {
-        let c = make_character(8000.0);
-        let err = ResourceValidator::validate_chain_point(&c, 1, "skill_1").unwrap_err();
+    fn test_chain_point_insufficient() {
+        let v = ResourceValidator::new();
+        let team = make_team();
+        let err = v.validate_chain_point("chain_attack", &team).unwrap_err();
         assert_eq!(err.missing_resource, ResourceType::ChainPoint);
         assert!((err.current_value - 0.0).abs() < 1e-9);
         assert!((err.required_value - 1.0).abs() < 1e-9);
     }
 
-    #[test]
-    fn test_validate_chain_point_zero_required() {
-        let mut c = make_character(8000.0);
-        c.resources.chain_points = 0;
-        assert!(ResourceValidator::validate_chain_point(&c, 0, "skill_1").is_ok());
-    }
-
     // ------------------------------------------------------------------
-    // validate_switch_cooldown
+    // validate_switch_cooldown (2 tests)
     // ------------------------------------------------------------------
 
     #[test]
-    fn test_validate_switch_cooldown_ready() {
+    fn test_switch_cooldown_ready() {
+        let v = ResourceValidator::new();
         let team = make_team();
-        assert!(ResourceValidator::validate_switch_cooldown(&team, "skill_1").is_ok());
+        assert!(v.validate_switch_cooldown("assist", &team).is_ok());
     }
 
     #[test]
-    fn test_validate_switch_cooldown_active() {
+    fn test_switch_cooldown_active() {
+        let v = ResourceValidator::new();
         let mut team = make_team();
         team.switch_cooldown_remaining = 15;
-        let err =
-            ResourceValidator::validate_switch_cooldown(&team, "skill_1").unwrap_err();
+        let err = v.validate_switch_cooldown("assist", &team).unwrap_err();
         assert_eq!(err.missing_resource, ResourceType::SwitchCooldown);
         assert!((err.current_value - 15.0).abs() < 1e-9);
         assert!((err.required_value - 0.0).abs() < 1e-9);
     }
 
     // ------------------------------------------------------------------
-    // validate_anomaly_state
+    // validate_anomaly_state (2 tests)
     // ------------------------------------------------------------------
 
     #[test]
-    fn test_validate_anomaly_state_active() {
-        let mut mgr = make_anomaly_mgr();
-        mgr.accumulate("enemy_1", ElementTag::Fire, 100.0);
-        // Fire anomaly accumulates to 100 = trigger threshold, becomes active
-        assert!(ResourceValidator::validate_anomaly_state(
-            &mgr,
-            "enemy_1",
-            &ElementTag::Fire,
-            "skill_1"
-        )
-        .is_ok());
+    fn test_anomaly_state_normal_resistance() {
+        let v = ResourceValidator::new();
+        let c = make_character("test", SpecialtyTag::Anomaly, ElementTag::Fire, 0.0, 8000.0);
+        let enemy = make_enemy();
+        assert!(v.validate_anomaly_state(&c, &enemy).is_ok());
     }
 
     #[test]
-    fn test_validate_anomaly_state_inactive() {
-        let mgr = make_anomaly_mgr();
-        let err = ResourceValidator::validate_anomaly_state(
-            &mgr,
-            "enemy_1",
-            &ElementTag::Fire,
-            "skill_1",
-        )
-        .unwrap_err();
-        assert_eq!(err.missing_resource, ResourceType::AnomalyState);
-        assert!((err.current_value - 0.0).abs() < 1e-9);
-        assert!((err.required_value - 1.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn test_validate_anomaly_state_different_element() {
-        let mut mgr = make_anomaly_mgr();
-        mgr.accumulate("enemy_1", ElementTag::Fire, 100.0);
-        // Fire is active, but we need Electric
-        let err = ResourceValidator::validate_anomaly_state(
-            &mgr,
-            "enemy_1",
-            &ElementTag::Electric,
-            "skill_1",
-        )
-        .unwrap_err();
-        assert_eq!(err.missing_resource, ResourceType::AnomalyState);
-    }
-
-    // ------------------------------------------------------------------
-    // validate_role
-    // ------------------------------------------------------------------
-
-    #[test]
-    fn test_validate_role_matches() {
-        let c = make_character(8000.0); // SpecialtyTag::Attack
-        assert!(ResourceValidator::validate_role(&c, &SpecialtyTag::Attack, "skill_1").is_ok());
-    }
-
-    #[test]
-    fn test_validate_role_mismatch() {
-        let c = make_character(8000.0);
-        let err =
-            ResourceValidator::validate_role(&c, &SpecialtyTag::Support, "skill_1").unwrap_err();
-        assert_eq!(err.missing_resource, ResourceType::Role);
-        assert!((err.current_value - 0.0).abs() < 1e-9);
-        assert!((err.required_value - 1.0).abs() < 1e-9);
-    }
-
-    // ------------------------------------------------------------------
-    // validate_all
-    // ------------------------------------------------------------------
-
-    #[test]
-    fn test_validate_all_passes() {
-        let mut c = make_character(8000.0);
-        c.resources.energy = 100.0;
-        c.resources.decibel = 3000.0;
-        c.resources.chain_points = 2;
-
-        let skill = make_skill_with_costs(40.0, 0.0, 2000.0, 30);
-        let team = make_team();
-        let mgr = make_anomaly_mgr();
-
-        let errors = ResourceValidator::validate_all(
-            &c,
-            &skill,
-            &team,
-            &mgr,
-            "enemy_1",
-            None,
-            None,
-            0,
-            50,  // last_used_tick
-            100, // current_tick
-            "skill_1",
+    fn test_anomaly_state_immune() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Anomaly,
+            ElementTag::Electric,
+            0.0,
+            8000.0,
         );
+        let enemy = make_enemy();
+        let err = v.validate_anomaly_state(&c, &enemy).unwrap_err();
+        assert_eq!(err.missing_resource, ResourceType::AnomalyResistance);
+        assert!((err.current_value - 0.0).abs() < 1e-9);
+    }
+
+    // ------------------------------------------------------------------
+    // validate_cooldown (2 tests)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_cooldown_ready() {
+        let v = ResourceValidator::new();
+        assert!(v.validate_cooldown("any_skill", 0).is_ok());
+    }
+
+    #[test]
+    fn test_cooldown_not_ready() {
+        let mut v = ResourceValidator::new();
+        v.set_cooldown("skill_a", 30, 0);
+        let err = v.validate_cooldown("skill_a", 10).unwrap_err();
+        assert_eq!(err.missing_resource, ResourceType::SkillCooldown);
+        assert!((err.current_value - 20.0).abs() < 1e-9);
+    }
+
+    // ------------------------------------------------------------------
+    // validate_role (3 tests)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_role_allowed_for_coordinated() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Support,
+            ElementTag::Physical,
+            0.0,
+            8000.0,
+        );
+        let s = make_skill("coord", SkillType::Coordinated, 0.0, 0.0, 0.0, 0);
+        assert!(v.validate_role(&c, &s).is_ok());
+    }
+
+    #[test]
+    fn test_role_not_allowed_for_coordinated() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            0.0,
+            8000.0,
+        );
+        let s = make_skill("coord", SkillType::Coordinated, 0.0, 0.0, 0.0, 0);
+        let err = v.validate_role(&c, &s).unwrap_err();
+        assert_eq!(err.missing_resource, ResourceType::RoleRequirement);
+    }
+
+    #[test]
+    fn test_role_no_restriction_passes() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            0.0,
+            8000.0,
+        );
+        let s = make_skill("normal_atk", SkillType::Normal, 0.0, 0.0, 0.0, 0);
+        assert!(v.validate_role(&c, &s).is_ok());
+    }
+
+    // ------------------------------------------------------------------
+    // validate_all (9 tests)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_validate_all_no_errors() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            100.0,
+            8000.0,
+        );
+        let s = make_skill("normal_atk", SkillType::Normal, 10.0, 0.0, 0.0, 0);
+        let mut team = make_team();
+        team.characters[0].resources.energy = 100.0;
+        let enemy = make_enemy();
+        let errors = v.validate_all(&c, &s, &team, 0, Some(&enemy));
         assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
     }
 
     #[test]
-    fn test_validate_all_energy_error() {
-        let c = make_character(8000.0); // energy = 0
-        let skill = make_skill_with_costs(40.0, 0.0, 0.0, 0);
-        let team = make_team();
-        let mgr = make_anomaly_mgr();
-
-        let errors = ResourceValidator::validate_all(
-            &c,
-            &skill,
-            &team,
-            &mgr,
-            "enemy_1",
-            None,
-            None,
-            0,
-            0,
-            100,
-            "skill_1",
+    fn test_validate_all_energy_failure() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            5.0,
+            8000.0,
         );
+        let s = make_skill("ult", SkillType::Ultimate, 40.0, 0.0, 0.0, 0);
+        let team = make_team();
+        let errors = v.validate_all(&c, &s, &team, 0, None);
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].missing_resource, ResourceType::Energy);
     }
 
     #[test]
     fn test_validate_all_multiple_errors() {
-        let c = make_character(500.0); // low HP, energy=0
-        let skill = make_skill_with_costs(40.0, 1000.0, 0.0, 0);
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            5.0,
+            300.0,
+        );
+        let s = make_skill("costly_skill", SkillType::Special, 40.0, 500.0, 0.0, 0);
+        let team = make_team();
+        let errors = v.validate_all(&c, &s, &team, 0, None);
+        assert_eq!(errors.len(), 2);
+        let types: Vec<_> = errors.iter().map(|e| &e.missing_resource).collect();
+        assert!(types.contains(&&ResourceType::Energy));
+        assert!(types.contains(&&ResourceType::Hp));
+    }
+
+    #[test]
+    fn test_validate_all_skip_anomaly_without_enemy() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Anomaly,
+            ElementTag::Electric,
+            0.0,
+            8000.0,
+        );
+        let s = make_skill("normal_atk", SkillType::Normal, 0.0, 0.0, 0.0, 0);
+        let team = make_team();
+        let errors = v.validate_all(&c, &s, &team, 0, None);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn test_validate_all_anomaly_immune_with_enemy() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Anomaly,
+            ElementTag::Electric,
+            0.0,
+            8000.0,
+        );
+        let s = make_skill("normal_atk", SkillType::Normal, 0.0, 0.0, 0.0, 0);
+        let team = make_team();
+        let enemy = make_enemy();
+        let errors = v.validate_all(&c, &s, &team, 0, Some(&enemy));
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].missing_resource, ResourceType::AnomalyResistance);
+    }
+
+    #[test]
+    fn test_validate_all_chain_point_check() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            0.0,
+            8000.0,
+        );
+        let s = make_skill("chain_atk", SkillType::Chain, 0.0, 0.0, 0.0, 0);
+        let team = make_team();
+        let errors = v.validate_all(&c, &s, &team, 0, None);
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].missing_resource, ResourceType::ChainPoint);
+    }
+
+    #[test]
+    fn test_validate_all_switch_cooldown_check() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            0.0,
+            8000.0,
+        );
+        let s = make_skill("quick_assist", SkillType::QuickAssist, 0.0, 0.0, 0.0, 0);
         let mut team = make_team();
         team.switch_cooldown_remaining = 10;
-        let mgr = make_anomaly_mgr();
-
-        let errors = ResourceValidator::validate_all(
-            &c,
-            &skill,
-            &team,
-            &mgr,
-            "enemy_1",
-            Some(&ElementTag::Fire),
-            None,
-            1,
-            0,
-            100,
-            "skill_1",
-        );
-        // Expected: energy + HP + switch_cooldown + anomaly_state + chain_point
-        assert_eq!(errors.len(), 5);
-        let types: Vec<ResourceType> = errors.iter().map(|e| e.missing_resource).collect();
-        assert!(types.contains(&ResourceType::Energy));
-        assert!(types.contains(&ResourceType::Hp));
-        assert!(types.contains(&ResourceType::SwitchCooldown));
-        assert!(types.contains(&ResourceType::AnomalyState));
-        assert!(types.contains(&ResourceType::ChainPoint));
-    }
-
-    #[test]
-    fn test_validate_all_skips_zero_cost() {
-        let mut c = make_character(8000.0);
-        c.resources.chain_points = 1;
-        let skill = make_skill_with_costs(0.0, 0.0, 0.0, 0);
-        let team = make_team();
-        let mgr = make_anomaly_mgr();
-
-        let errors = ResourceValidator::validate_all(
-            &c,
-            &skill,
-            &team,
-            &mgr,
-            "enemy_1",
-            None,
-            Some(&SpecialtyTag::Attack),
-            1,
-            0,
-            100,
-            "skill_1",
-        );
-        // No errors: only role (matches) and chain_points (sufficient) are checked
-        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
-    }
-
-    #[test]
-    fn test_validate_all_cooldown_error() {
-        let mut c = make_character(8000.0);
-        c.resources.energy = 100.0;
-        let skill = make_skill_with_costs(0.0, 0.0, 0.0, 30);
-        let team = make_team();
-        let mgr = make_anomaly_mgr();
-
-        let errors = ResourceValidator::validate_all(
-            &c,
-            &skill,
-            &team,
-            &mgr,
-            "enemy_1",
-            None,
-            None,
-            0,
-            50, // last_used_tick = 50, so ready_tick = 80
-            70, // current_tick = 70 < 80
-            "skill_1",
-        );
+        let errors = v.validate_all(&c, &s, &team, 0, None);
         assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].missing_resource, ResourceType::Cooldown);
+        assert_eq!(errors[0].missing_resource, ResourceType::SwitchCooldown);
+    }
+
+    #[test]
+    fn test_validate_all_non_chain_skips_chain_check() {
+        let v = ResourceValidator::new();
+        let c = make_character(
+            "test",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            0.0,
+            8000.0,
+        );
+        let s = make_skill("normal_atk", SkillType::Normal, 0.0, 0.0, 0.0, 0);
+        let team = make_team();
+        let errors = v.validate_all(&c, &s, &team, 0, None);
+        assert!(errors.is_empty());
     }
 
     // ------------------------------------------------------------------
-    // Display / error trait
+    // Integration: full flow with cooldown lifecycle (2 tests)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_full_validation_before_skill_execution() {
+        let v = ResourceValidator::new();
+        let character = make_character(
+            "agent",
+            SpecialtyTag::Attack,
+            ElementTag::Physical,
+            50.0,
+            8000.0,
+        );
+        let skill = make_skill("Ex_Special", SkillType::Special, 30.0, 200.0, 0.0, 15);
+        let mut team = make_team();
+        team.characters[0].resources.energy = 50.0;
+        let enemy = make_enemy();
+
+        // All checks should pass
+        let errors = v.validate_all(&character, &skill, &team, 0, Some(&enemy));
+        assert!(
+            errors.is_empty(),
+            "expected all validations to pass, got: {:?}",
+            errors
+        );
+
+        // Execute skill: set cooldown
+        let mut v = v;
+        v.set_cooldown(&skill.action_id, skill.cooldown_ticks, 0);
+
+        // Immediate re-use should fail cooldown
+        let errors = v.validate_all(&character, &skill, &team, 5, Some(&enemy));
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].missing_resource, ResourceType::SkillCooldown);
+
+        // After cooldown expires, should pass again
+        let errors = v.validate_all(&character, &skill, &team, 15, Some(&enemy));
+        assert!(
+            errors.is_empty(),
+            "expected cooldown to have expired, got: {:?}",
+            errors
+        );
+    }
+
+    #[test]
+    fn test_validate_all_zero_cost_skill() {
+        let v = ResourceValidator::new();
+        let c = make_character("agent", SpecialtyTag::Stun, ElementTag::Electric, 0.0, 0.0);
+        let s = make_skill("basic_atk", SkillType::Normal, 0.0, 0.0, 0.0, 0);
+        let team = make_team();
+        let errors = v.validate_all(&c, &s, &team, 0, None);
+        assert!(errors.is_empty());
+    }
+
+    // ------------------------------------------------------------------
+    // Error display & trait impl (2 tests)
     // ------------------------------------------------------------------
 
     #[test]
     fn test_validation_error_display() {
         let err = ValidationError {
-            action_id: "ult_1".into(),
+            action_id: "test_skill".to_string(),
             missing_resource: ResourceType::Energy,
             current_value: 10.0,
             required_value: 40.0,
         };
-        let msg = format!("{}", err);
-        assert!(msg.contains("ult_1"));
-        assert!(msg.contains("energy"));
-        assert!(msg.contains("10"));
-        assert!(msg.contains("40"));
-    }
-
-    #[test]
-    fn test_resource_type_display() {
-        assert_eq!(format!("{}", ResourceType::Energy), "energy");
-        assert_eq!(format!("{}", ResourceType::Hp), "HP");
-        assert_eq!(format!("{}", ResourceType::SwitchCooldown), "switch_cooldown");
-        assert_eq!(format!("{}", ResourceType::AnomalyState), "anomaly_state");
-        assert_eq!(format!("{}", ResourceType::Role), "role");
+        let msg = err.to_string();
+        assert!(msg.contains("test_skill"));
+        assert!(msg.contains("Energy"));
     }
 
     #[test]
     fn test_validation_error_implements_std_error() {
         let err = ValidationError {
-            action_id: "test".into(),
+            action_id: "test".to_string(),
             missing_resource: ResourceType::Energy,
             current_value: 5.0,
             required_value: 20.0,
@@ -772,10 +986,13 @@ mod tests {
         assert!(err_ref.downcast_ref::<ValidationError>().is_some());
     }
 
+    // ------------------------------------------------------------------
+    // Default impl
+    // ------------------------------------------------------------------
+
     #[test]
-    fn test_resource_type_clone_copy() {
-        let rt = ResourceType::Decibel;
-        let rt2 = rt; // Copy
-        assert_eq!(rt, rt2);
+    fn test_default_creates_empty() {
+        let v: ResourceValidator = Default::default();
+        assert_eq!(v.remaining_cooldown("anything", 0), 0);
     }
 }

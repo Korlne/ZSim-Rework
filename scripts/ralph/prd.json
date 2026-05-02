@@ -198,7 +198,7 @@
       ],
       "priority": 12,
       "passes": true,
-      "notes": "ResourceValidator unit struct with 8 validation methods + validate_all(). ValidationError with action_id/missing_resource/current_value/required_value. ResourceType enum (9 variants) for missing_resource discrimination. validate_cooldown treats 0 cooldown as always-ready. validate_all collects all errors (not short-circuit). 31 tests cover all 8 methods, validate_all aggregation, error display, error trait, and edge cases."
+      "notes": "ResourceValidator with stateful cooldown tracking (HashMap<String, u64>), instance methods. 8 validation methods: validate_energy/cooldown/hp/decibel/chain_point/switch_cooldown/anomaly_state/role. validate_anomaly_state checks enemy resistance_for(element) > 0.0 (not AnomalyDisorderManager). validate_role derives specialty requirements from SkillType (Coordinated restricted to Support/Anomaly/Rupture). validate_all accepts context (character, skill, team, tick, optional enemy) and applies conditional checks. 36 tests cover cooldown lifecycle, all 8 validators, validate_all aggregation with conditional checks, full integration flow, error display, and std::error::Error trait."
     },
     {
       "id": "US-013",
