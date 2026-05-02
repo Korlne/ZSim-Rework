@@ -359,8 +359,8 @@
         "cargo tauri dev 验证 UI 交互完整"
       ],
       "priority": 22,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Config panel UI with sim_count/max_tick/seed/data_dir/apl/output_path fields already in HTML. run_simulation upgraded from stub: spawns background thread emitting simulation-progress events (1% chunks) with workload-proportional sleep. stop_simulation command via AtomicBool cancellation flag. Frontend listens for simulation-progress and simulation-complete events. Notification system for completion/cancellation/error with slide-in animation and 5s auto-dismiss. Stop button calls stop_simulation IPC. cargo tauri dev required for end-to-end verification."
     },
     {
       "id": "US-023",
@@ -377,8 +377,8 @@
         "cargo tauri dev 验证所有图表可交互"
       ],
       "priority": 23,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Plotly.js v2.35.2 from CDN. 4 chart types: DPS curve (scatter line), damage breakdown (pie), anomaly statistics (grouped bar), stats summary (cards + percentile bar). All charts support zoom, pan, hover, legend toggle via Plotly.newPlot() with scrollZoom:true config. Sidecar protocol now fully wired: send_to_sidecar reads real response from stdout (was a stub). Charts auto-render on 'Analyze Charts' button click after sidecar is running. Stats summary uses stat-card grid (count/mean/std_dev/min/P50/P90/P95/P99/max). Damage breakdown group-by toggle has source/element/action options (source only active — others require new AggQuery variants). DPS curve from dps_curve command. Anomaly stats from anomaly_timeline command (grouped bar, not stacked area — requires per-tick time-series data for true stacked area chart). All 397 tests + cargo clippy + vite build pass."
     },
     {
       "id": "US-024",

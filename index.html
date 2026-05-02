@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ZSim Analyzer</title>
     <link rel="stylesheet" href="/src/styles.css" />
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
   </head>
   <body>
     <div id="app">
@@ -68,7 +69,46 @@
         <section id="results-panel" class="panel hidden">
           <h2>Analysis Results</h2>
           <div id="results-content">
-            <p>Results will appear here after simulation completes.</p>
+            <p class="text-muted">Simulation completed. Spawn the sidecar and click "Analyze" to view charts.</p>
+          </div>
+
+          <!-- Chart controls -->
+          <div class="chart-controls">
+            <button id="btn-analyze" class="btn btn-primary" disabled>Analyze Charts</button>
+            <span id="chart-status" class="status-text">Spawn sidecar first</span>
+          </div>
+
+          <!-- Stats Summary -->
+          <div id="stats-summary" class="stats-grid hidden"></div>
+          <div id="percentile-chart-container" class="chart-section hidden">
+            <div id="percentile-chart" class="chart-container" style="height:300px"></div>
+          </div>
+
+          <!-- DPS Curve -->
+          <div class="chart-section hidden" id="chart-section-dps">
+            <h3>DPS Curve</h3>
+            <div id="dps-chart" class="chart-container" style="height:380px"></div>
+          </div>
+
+          <!-- Damage Breakdown -->
+          <div class="chart-section hidden" id="chart-section-damage">
+            <h3>Damage Breakdown</h3>
+            <div class="chart-toolbar">
+              <label>Group by:
+                <select id="damage-group-by">
+                  <option value="source">Source</option>
+                  <option value="element" disabled>Element (requires new data)</option>
+                  <option value="action" disabled>Action Type (requires new data)</option>
+                </select>
+              </label>
+            </div>
+            <div id="damage-chart" class="chart-container" style="height:380px"></div>
+          </div>
+
+          <!-- Anomaly Statistics -->
+          <div class="chart-section hidden" id="chart-section-anomaly">
+            <h3>Anomaly Statistics</h3>
+            <div id="anomaly-chart" class="chart-container" style="height:380px"></div>
           </div>
         </section>
       </main>

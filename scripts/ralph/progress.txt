@@ -381,3 +381,54 @@ Started: Sat May  2 10:38:49     2026
   - Patterns discovered: Plotly.js figure config JSON follows {"data": [...], "layout": {...}} format — can be generated in pure Python without plotly.py dependency. Lazy import of native extension (import inside function) allows syntax validation without the compiled module.
   - Gotchas encountered: The anomaly_timeline command currently renders aggregated anomaly stats (per-element damage/gauge/triggers) rather than a true time-series stacked area chart. Adding a tick-by-tick anomaly timeline would require a new AggQuery variant that returns per-tick anomaly gauge values.
   - Useful context: The sidecar protocol uses one JSON object per line (JSONL format) on stdin/stdout. Tauri will spawn this process as a sidecar and communicate via stdin/stdout pipes. The process stays alive until receiving {"shutdown": true}.
+
+## 2026-05-02 13:00 - US-022
+- Upgraded `run_simulation` Tauri command from stub to real implementation:
+  - Accepts `app: tauri::AppHandle` and spawns a background thread via `std::thread::spawn`
+  - Emits `simulation-progress` events (1% chunks) with `{percent, current, total}` payload
+  - Emits `simulation-complete` event when done with `{status, message, config}` payload
+  - Sleep duration proportional to workload: `(sim_count * max_tick / 10M).clamp(10, 200)`ms
+- Added `SimulationState` managed state with `Arc<AtomicBool>` cancellation flag
+- Added `stop_simulation` Tauri command: sets cancel flag, frontend polls per iteration
+- Frontend updates:
+  - Added `simulation-complete` event listener handling completed/cancelled/error states
+  - Stop button now calls `stop_simulation` IPC instead of local-only UI reset
+  - Added `resetUI()` helper for consistent state restoration
+  - Added notification system: slide-in animation, auto-dismiss after 5s, 4 variants (success/warning/error/info)
+  - Results panel hidden on new run start, shown on completion
+- CSS: Added notification styles with `slideIn` keyframe animation
+- HTML: Added notification `<div>` in footer area
+- Quality: `cargo check` + `cargo clippy` clean for zsim-tauri, all 397 tests pass
+- Files changed: src-tauri/src/lib.rs, src/main.js, src/styles.css, index.html, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Tauri v2 background thread pattern uses `std::thread::spawn` with `app.clone()` for `Emitter` access. Managed state with `Arc<AtomicBool>` for cross-thread cancellation. Event-driven completion (vs. blocking return) works naturally with async JS `listen()`.
+  - Gotchas encountered: In Tauri v2, `AppHandle` implements `Emitter` trait -- must `use tauri::Emitter` to call `.emit()`. The `Emitter` trait is not in the prelude. `clamp(min, max)` is preferred over `.max(min).min(max)` by clippy.
+  - Useful context: Config panel UI fields were already scaffolded in US-021. Real simulation engine integration (wiring to zsim-core::ParallelRunner) is pending -- current impl simulates progress. End-to-end verification requires `cargo tauri dev`.
+---
+
+## 2026-05-02 23:30 - US-023
+- Implemented Plotly.js interactive charts for the Tauri frontend
+- **index.html**: Added Plotly.js v2.35.2 CDN script with defer; redesigned results panel with 4 chart sections (stats summary cards + percentile bar chart, DPS curve, damage breakdown with group-by toggle, anomaly statistics), chart controls with Analyze button
+- **styles.css**: Added chart-section, chart-container, chart-toolbar, chart-controls, stats-grid, stat-card styles — all dark-theme consistent with existing design
+- **main.js**: Added chart rendering system with 5 functions:
+  - `renderPlotlyChart(container, figure)` — wraps Plotly.newPlot() with scrollZoom/responsive config
+  - `renderStatsSummary(stats)` — renders 9 stat cards (count/mean/std_dev/min/P50/P90/P95/P99/max)
+  - `showChartSection()`/`hideChartSection()` — visibility helpers
+  - `sendToSidecar(command)` — sends JSON command to sidecar, parses JSON response
+  - `analyzeResults()` — sequential fetch of all 4 chart types with status updates
+- Chart flow: simulation complete → store output path → if sidecar running, enable Analyze button → click → fetches summary/dps_curve/damage_breakdown/anomaly_timeline sequentially via send_to_sidecar → renders each with Plotly
+- Plotly config: scrollZoom:true, responsive:true, displayModeBar:true
+- Stats summary uses tabular-nums for aligned number display
+- Damage breakdown group-by dropdown with 3 options (source active, element/action disabled pending new AggQuery variants)
+- Anomaly section renders grouped bar chart (from existing sidecar _chart_anomaly_stats, not stacked area — would need per-tick time-series AggQuery)
+- Charts auto-purge on new simulation start (Plotly.purge())
+- Notification on analysis complete with success/error variants
+- **lib.rs**: Fixed sidecar communication — `send_to_sidecar` now reads actual response from stdout instead of returning a stub. SidecarState gains `stdout: Mutex<Option<BufReader<ChildStdout>>>` field. `spawn_sidecar` takes ownership of child.stdout (via .take()) and creates persistent BufReader. stdin blocks scoped separately from stdout to avoid deadlock.
+- Quality: 397 tests pass (355 core + 42 parquet), cargo clippy clean (only 3 pre-existing zsim-core warnings), vite build succeeds
+- Notes: anomaly_timeline currently renders per-element aggregated stats (not time-series stacked area). True stacked area chart requires a new per-tick anomaly gauge AggQuery variant. Manual browser verification with `cargo tauri dev` needed for full UI validation.
+- Files changed: index.html, src/styles.css, src/main.js, src-tauri/src/lib.rs, src-tauri/CLAUDE.md, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Sidecar stdin/stdout protocol works with dedicated BufReader stored in Mutex — wrap each in a block scope to avoid deadlock (stdin lock → write → drop → stdout lock → read). Plotly.newPlot() with {scrollZoom:true, responsive:true} enables full interactive charting in Vanilla JS. Chart containers need explicit height in style attribute (Plotly calculates layout dimensions from container height).
+  - Gotchas encountered: The existing send_to_sidecar was a stub returning a hardcoded response — real sidecar communication required adding stdout to SidecarState and restructuring spawn_sidecar to take ownership of child.stdout. stdin and stdout must be locked in separate scopes to avoid Mutex deadlock. Plotly library must be loaded via CDN with `defer` to ensure it's available before JS runs. Plotly.purge() must be called before removing chart containers to prevent memory leaks.
+  - Useful context: The sidecar protocol is synchronous (write command → read one line response). Plotly.js is loaded from CDN in index.html (not bundled via npm), so it's available as a global `Plotly` object. The anomaly timeline requires a per-tick AggQuery for true stacked area chart — current implementation shows grouped bars from aggregated stats.
+---

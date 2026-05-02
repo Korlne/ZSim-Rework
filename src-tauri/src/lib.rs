@@ -1,5 +1,5 @@
 use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -11,6 +11,7 @@ use tauri::{Emitter, Manager};
 struct SidecarState {
     child: Mutex<Option<Child>>,
     stdin: Mutex<Option<ChildStdin>>,
+    stdout: Mutex<Option<BufReader<ChildStdout>>>,
 }
 
 /// Shared state for simulation cancellation.
@@ -164,23 +165,24 @@ fn spawn_sidecar(app: tauri::AppHandle) -> Result<String, String> {
         .take()
         .ok_or_else(|| "Failed to capture sidecar stdin".to_string())?;
 
+    // Take ownership of stdout and create a persistent BufReader
+    let child_stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "Failed to capture sidecar stdout".to_string())?;
+    let mut stdout_reader = BufReader::new(child_stdout);
+
     // Read the "ready" message from stdout
-    let ready_line = {
-        let stdout = child
-            .stdout
-            .as_mut()
-            .ok_or_else(|| "Failed to capture sidecar stdout".to_string())?;
-        let mut reader = BufReader::new(stdout);
-        let mut line = String::new();
-        reader
-            .read_line(&mut line)
-            .map_err(|e| format!("Failed to read sidecar output: {e}"))?;
-        line.trim().to_string()
-    };
+    let mut ready_buf = String::new();
+    stdout_reader
+        .read_line(&mut ready_buf)
+        .map_err(|e| format!("Failed to read sidecar output: {e}"))?;
+    let ready_line = ready_buf.trim().to_string();
 
     // Store handles in managed state
     *state.child.lock().map_err(|e| e.to_string())? = Some(child);
     *state.stdin.lock().map_err(|e| e.to_string())? = Some(child_stdin);
+    *state.stdout.lock().map_err(|e| e.to_string())? = Some(stdout_reader);
 
     Ok(ready_line)
 }
@@ -193,21 +195,29 @@ fn spawn_sidecar(app: tauri::AppHandle) -> Result<String, String> {
 fn send_to_sidecar(app: tauri::AppHandle, command: String) -> Result<String, String> {
     let state: tauri::State<'_, SidecarState> = app.state::<SidecarState>();
 
-    let mut guard = state.stdin.lock().map_err(|e| e.to_string())?;
-    let stdin = guard
-        .as_mut()
-        .ok_or_else(|| "Sidecar not spawned — call spawn_sidecar first".to_string())?;
-
     // Write the command followed by a newline (the sidecar uses line-delimited JSON)
-    writeln!(stdin, "{command}")
-        .map_err(|e| format!("Failed to write to sidecar: {e}"))?;
-    stdin
-        .flush()
-        .map_err(|e| format!("Failed to flush sidecar stdin: {e}"))?;
+    {
+        let mut guard = state.stdin.lock().map_err(|e| e.to_string())?;
+        let stdin = guard
+            .as_mut()
+            .ok_or_else(|| "Sidecar not spawned — call spawn_sidecar first".to_string())?;
+        writeln!(stdin, "{command}").map_err(|e| format!("Failed to write to sidecar: {e}"))?;
+        stdin
+            .flush()
+            .map_err(|e| format!("Failed to flush sidecar stdin: {e}"))?;
+    }
 
-    // Stub: real implementation will read the response from stdout
-    let response = serde_json::json!({ "type": "ok", "message": "Command sent (stub)" });
-    Ok(response.to_string())
+    // Read the response line from stdout
+    let mut guard = state.stdout.lock().map_err(|e| e.to_string())?;
+    let reader = guard
+        .as_mut()
+        .ok_or_else(|| "Sidecar stdout not available".to_string())?;
+    let mut line = String::new();
+    reader
+        .read_line(&mut line)
+        .map_err(|e| format!("Failed to read sidecar response: {e}"))?;
+
+    Ok(line.trim().to_string())
 }
 
 // --- Application entry point ---
@@ -218,6 +228,7 @@ pub fn run() {
         .manage(SidecarState {
             child: Mutex::new(None),
             stdin: Mutex::new(None),
+            stdout: Mutex::new(None),
         })
         .manage(SimulationState {
             cancel_flag: Arc::new(AtomicBool::new(false)),
