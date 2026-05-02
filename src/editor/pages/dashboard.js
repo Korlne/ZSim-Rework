@@ -1,4 +1,4 @@
-import { getDataSummary, initDatabase, reimportAll } from "../utils/api.js";
+import { getDataSummary, initDatabase, reimportAll, searchData } from "../utils/api.js";
 import { t } from "../../i18n.js";
 
 export function renderPage() {
@@ -9,6 +9,84 @@ export function renderPage() {
   header.className = "dashboard-header";
   header.innerHTML = `<h2>${t("editor.nav.dashboard")}</h2>`;
   container.appendChild(header);
+
+  // Quick search
+  const searchSection = document.createElement("div");
+  searchSection.className = "search-bar";
+  const searchInput = document.createElement("input");
+  searchInput.type = "text";
+  searchInput.placeholder = t("editor.dashboard.searchPlaceholder");
+  searchInput.id = "dashboard-search";
+  searchSection.appendChild(searchInput);
+
+  const searchResults = document.createElement("div");
+  searchResults.className = "search-results";
+  searchResults.id = "dashboard-search-results";
+  searchResults.style.display = "none";
+  searchSection.appendChild(searchResults);
+  container.appendChild(searchSection);
+
+  let searchTimeout = null;
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimeout);
+    const q = searchInput.value.trim();
+    if (!q) {
+      searchResults.style.display = "none";
+      searchResults.innerHTML = "";
+      return;
+    }
+    searchTimeout = setTimeout(async () => {
+      try {
+        const raw = await searchData(q, "all");
+        const results = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (!results || results.length === 0) {
+          searchResults.innerHTML = `<div class="search-result-empty">${t("editor.dashboard.searchNoResults")}</div>`;
+        } else {
+          searchResults.innerHTML = results.map(r => {
+            const typeLabel = {
+              characters: t("editor.dashboard.searchResultChars"),
+              skills: t("editor.dashboard.searchResultSkills"),
+              enemies: t("editor.dashboard.searchResultEnemies"),
+              w_engines: t("editor.dashboard.searchResultWEngines"),
+              disc_sets: t("editor.dashboard.searchResultDiscSets"),
+            }[r.data_type] || r.data_type;
+            return `<div class="search-result-item" data-type="${r.data_type}" data-id="${r.id}">
+              <span class="search-result-type">${typeLabel}</span>
+              <span class="search-result-id">${r.id}</span>
+              <span class="search-result-name">${r.name || ""}</span>
+            </div>`;
+          }).join("");
+          // Click handler to navigate
+          searchResults.querySelectorAll(".search-result-item").forEach(el => {
+            el.addEventListener("click", () => {
+              const type = el.dataset.type;
+              const route = {
+                characters: "characters",
+                skills: "skills",
+                enemies: "enemies",
+                w_engines: "w-engines",
+                disc_sets: "disc-sets",
+              }[type] || "dashboard";
+              searchResults.style.display = "none";
+              searchInput.value = "";
+              window.location.hash = `#/${route}`;
+            });
+          });
+        }
+        searchResults.style.display = "block";
+      } catch (err) {
+        searchResults.innerHTML = `<div class="search-result-empty error">${err.message}</div>`;
+        searchResults.style.display = "block";
+      }
+    }, 300);
+  });
+
+  // Dismiss search results on click outside
+  document.addEventListener("click", (e) => {
+    if (!searchSection.contains(e.target)) {
+      searchResults.style.display = "none";
+    }
+  });
 
   // Action buttons
   const actionRow = document.createElement("div");

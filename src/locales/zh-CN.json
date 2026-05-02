@@ -113,6 +113,14 @@
   "editor.dashboard.card.enemies": "敌人",
   "editor.dashboard.card.apl": "APL",
 
+  "editor.dashboard.searchPlaceholder": "搜索角色、技能、敌人...",
+  "editor.dashboard.searchNoResults": "未找到结果",
+  "editor.dashboard.searchResultChars": "角色",
+  "editor.dashboard.searchResultSkills": "技能",
+  "editor.dashboard.searchResultEnemies": "敌人",
+  "editor.dashboard.searchResultWEngines": "音擎",
+  "editor.dashboard.searchResultDiscSets": "驱动套装",
+
   "editor.action.save": "保存",
   "editor.action.cancel": "取消",
 
@@ -254,5 +262,26 @@
   "editor.enemies.sectionResistances": "抗性",
   "editor.enemies.addResistBtn": "添加抗性",
   "editor.enemies.sectionWeaknesses": "弱点",
-  "editor.enemies.weaknessPlaceholder": "输入元素名称后按 Enter"
+  "editor.enemies.weaknessPlaceholder": "输入元素名称后按 Enter",
+
+  "editor.import.scanBtn": "扫描数据目录",
+  "editor.import.noFiles": "未找到 JSON 文件。点击扫描搜索。",
+  "editor.import.fileCount": "{count} 个文件",
+  "editor.import.typeCharacters": "角色",
+  "editor.import.typeSkills": "技能",
+  "editor.import.typeEquipment": "装备",
+  "editor.import.typeEnemies": "敌人",
+  "editor.import.typeApl": "APL",
+  "editor.import.modeLabel": "导入模式",
+  "editor.import.modeOverwrite": "覆盖",
+  "editor.import.modeAppend": "追加",
+  "editor.import.modeOverwriteDesc": "导入前清空已有数据",
+  "editor.import.modeAppendDesc": "添加或更新记录（INSERT OR REPLACE）",
+  "editor.import.importBtn": "导入",
+  "editor.import.importAllBtn": "导入全部",
+  "editor.import.importing": "正在导入...",
+  "editor.import.resultSuccess": "{type}：{count} 条记录已导入",
+  "editor.import.resultErrors": "{type}：{count} 条错误",
+  "editor.import.scanError": "导入失败",
+  "editor.import.importAllDone": "全部数据导入成功"
 }

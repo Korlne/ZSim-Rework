@@ -113,6 +113,14 @@
   "editor.dashboard.card.enemies": "Enemies",
   "editor.dashboard.card.apl": "APL",
 
+  "editor.dashboard.searchPlaceholder": "Search characters, skills, enemies...",
+  "editor.dashboard.searchNoResults": "No results found",
+  "editor.dashboard.searchResultChars": "Character",
+  "editor.dashboard.searchResultSkills": "Skill",
+  "editor.dashboard.searchResultEnemies": "Enemy",
+  "editor.dashboard.searchResultWEngines": "W-Engine",
+  "editor.dashboard.searchResultDiscSets": "Disc Set",
+
   "editor.action.save": "Save",
   "editor.action.cancel": "Cancel",
 
@@ -252,6 +260,27 @@
   "editor.enemies.addResistBtn": "Add Resistance",
   "editor.enemies.sectionWeaknesses": "Weaknesses",
   "editor.enemies.weaknessPlaceholder": "Type element name and press Enter",
+
+  "editor.import.scanBtn": "Scan Data Directory",
+  "editor.import.noFiles": "No JSON files found. Click Scan to search.",
+  "editor.import.fileCount": "{count} files",
+  "editor.import.typeCharacters": "Characters",
+  "editor.import.typeSkills": "Skills",
+  "editor.import.typeEquipment": "Equipment",
+  "editor.import.typeEnemies": "Enemies",
+  "editor.import.typeApl": "APL",
+  "editor.import.modeLabel": "Import Mode",
+  "editor.import.modeOverwrite": "Overwrite",
+  "editor.import.modeAppend": "Append",
+  "editor.import.modeOverwriteDesc": "Clear existing data before importing",
+  "editor.import.modeAppendDesc": "Add or update records (INSERT OR REPLACE)",
+  "editor.import.importBtn": "Import",
+  "editor.import.importAllBtn": "Import All",
+  "editor.import.importing": "Importing...",
+  "editor.import.resultSuccess": "{type}: {count} records imported",
+  "editor.import.resultErrors": "{type}: {count} errors",
+  "editor.import.scanError": "Import failed",
+  "editor.import.importAllDone": "All data imported successfully",
 
   "editor.save": "Save",
   "editor.cancel": "Cancel"

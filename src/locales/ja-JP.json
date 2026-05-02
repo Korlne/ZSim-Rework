@@ -113,6 +113,14 @@
   "editor.dashboard.card.enemies": "敵",
   "editor.dashboard.card.apl": "APL",
 
+  "editor.dashboard.searchPlaceholder": "キャラクター、スキル、敵を検索...",
+  "editor.dashboard.searchNoResults": "結果が見つかりません",
+  "editor.dashboard.searchResultChars": "キャラクター",
+  "editor.dashboard.searchResultSkills": "スキル",
+  "editor.dashboard.searchResultEnemies": "敵",
+  "editor.dashboard.searchResultWEngines": "W-エンジン",
+  "editor.dashboard.searchResultDiscSets": "ディスクセット",
+
   "editor.action.edit": "編集",
   "editor.action.delete": "削除",
   "editor.action.save": "保存",
@@ -286,5 +294,26 @@
   "editor.enemies.sectionResistances": "耐性",
   "editor.enemies.addResistBtn": "耐性追加",
   "editor.enemies.sectionWeaknesses": "弱点",
-  "editor.enemies.weaknessPlaceholder": "元素名を入力して Enter"
+  "editor.enemies.weaknessPlaceholder": "元素名を入力して Enter",
+
+  "editor.import.scanBtn": "データディレクトリをスキャン",
+  "editor.import.noFiles": "JSON ファイルが見つかりません。スキャンをクリックしてください。",
+  "editor.import.fileCount": "{count} ファイル",
+  "editor.import.typeCharacters": "キャラクター",
+  "editor.import.typeSkills": "スキル",
+  "editor.import.typeEquipment": "装備",
+  "editor.import.typeEnemies": "敵",
+  "editor.import.typeApl": "APL",
+  "editor.import.modeLabel": "インポートモード",
+  "editor.import.modeOverwrite": "上書き",
+  "editor.import.modeAppend": "追加",
+  "editor.import.modeOverwriteDesc": "既存データをクリアしてからインポート",
+  "editor.import.modeAppendDesc": "レコードを追加または更新（INSERT OR REPLACE）",
+  "editor.import.importBtn": "インポート",
+  "editor.import.importAllBtn": "すべてインポート",
+  "editor.import.importing": "インポート中...",
+  "editor.import.resultSuccess": "{type}: {count} 件インポート完了",
+  "editor.import.resultErrors": "{type}: {count} 件のエラー",
+  "editor.import.scanError": "インポートに失敗しました",
+  "editor.import.importAllDone": "すべてのデータをインポートしました"
 }

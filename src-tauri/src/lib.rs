@@ -1,5 +1,6 @@
 mod data_entry;
 
+use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -682,6 +683,79 @@ fn search_data(
     data_entry::queries::cmd_search_data(&conn, query, data_type)
 }
 
+/// 扫描 data/ 目录下的 JSON 文件，按数据类型分组返回文件列表。
+#[tauri::command]
+fn scan_data_files(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let data_dir = &state.data_dir;
+    let subdirs = ["characters", "skills", "equipment", "enemies", "apl"];
+    let mut result = serde_json::Map::new();
+
+    for subdir in &subdirs {
+        let path = data_dir.join(subdir);
+        let mut files: Vec<String> = Vec::new();
+        if path.exists() && path.is_dir() {
+            if let Ok(entries) = fs::read_dir(path) {
+                for entry in entries.flatten() {
+                    let file_path = entry.path();
+                    if file_path.extension().map(|e| e == "json").unwrap_or(false) {
+                        if let Some(name) = file_path.file_name().and_then(|n| n.to_str()) {
+                            files.push(name.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        files.sort();
+        result.insert(
+            subdir.to_string(),
+            serde_json::Value::Array(files.into_iter().map(serde_json::Value::String).collect()),
+        );
+    }
+
+    Ok(serde_json::to_string(&result).unwrap_or_else(|_| "{}".to_string()))
+}
+
+/// 清除指定数据类型的全部记录。
+/// 用于覆盖导入前清空旧数据。
+#[tauri::command]
+fn clear_data_type(state: tauri::State<'_, DataDirState>, data_type: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    match data_type.as_str() {
+        "characters" | "character" => {
+            conn.execute_batch("DELETE FROM characters;")
+                .map_err(|e| format!("Failed to clear characters: {e}"))?;
+        }
+        "skills" => {
+            conn.execute_batch("DELETE FROM skills;")
+                .map_err(|e| format!("Failed to clear skills: {e}"))?;
+        }
+        "equipment" => {
+            conn.execute_batch("DELETE FROM w_engines; DELETE FROM drive_discs; DELETE FROM disc_sets;")
+                .map_err(|e| format!("Failed to clear equipment: {e}"))?;
+        }
+        "enemies" | "enemy" => {
+            conn.execute_batch("DELETE FROM enemies;")
+                .map_err(|e| format!("Failed to clear enemies: {e}"))?;
+        }
+        "apl" => {
+            conn.execute_batch("DELETE FROM apl;")
+                .map_err(|e| format!("Failed to clear apl: {e}"))?;
+        }
+        _ => {
+            return Err(format!(
+                "Unknown data type '{data_type}'. Must be one of: characters, skills, equipment, enemies, apl"
+            ));
+        }
+    }
+
+    Ok(serde_json::json!({"status": "ok", "data_type": data_type}).to_string())
+}
+
 pub fn run() {
     // 数据目录：开发环境下为项目根目录下的 data/，生产环境使用应用资源目录
     let data_dir = std::env::current_dir()
@@ -733,6 +807,9 @@ pub fn run() {
             delete_enemy,
             get_data_summary,
             search_data,
+            scan_data_files,
+            clear_data_type,
+            export_to_json,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

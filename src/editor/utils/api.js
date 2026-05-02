@@ -134,6 +134,18 @@ export async function deleteEnemy(enemyId) {
   return JSON.parse(raw);
 }
 
+// ── Data Directory Scan ──────────────────────────────────
+
+export async function scanDataFiles() {
+  const raw = await invoke("scan_data_files");
+  return JSON.parse(raw);
+}
+
+export async function clearDataType(dataType) {
+  const raw = await invoke("clear_data_type", { dataType });
+  return JSON.parse(raw);
+}
+
 // ── Data Queries ───────────────────────────────────────
 
 export async function getDataSummary() {
