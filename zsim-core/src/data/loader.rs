@@ -10,7 +10,9 @@ use crate::data::apl::{APLData, Track};
 use crate::data::equipment::{DiscBonus, DiscSet, DriveDisc, EquipmentData, StatEntry, WEngine};
 use crate::entities::character::{Character, ResourceSet};
 use crate::entities::enemy::EnemyState;
-use crate::entities::enums::{CharacterState, ElementTag, EnemyType, FactionTag, SkillType, SpecialtyTag};
+use crate::entities::enums::{
+    CharacterState, ElementTag, EnemyType, FactionTag, SkillType, SpecialtyTag,
+};
 use crate::entities::models::BaseStats;
 
 /// Central data loader that reads game data from a SQLite database.
@@ -51,44 +53,61 @@ impl DataLoader {
 
         let rows = stmt.query_map([], |row| {
             Ok((
-                row.get::<_, String>(0)?,   // char_id
-                row.get::<_, String>(1)?,   // name
-                row.get::<_, String>(2)?,   // faction
-                row.get::<_, String>(3)?,   // specialty
-                row.get::<_, String>(4)?,   // element
-                row.get::<_, i64>(5)?,      // level
-                row.get::<_, i64>(6)?,      // ascension
-                row.get::<_, f64>(7)?,      // hp
-                row.get::<_, f64>(8)?,      // atk
-                row.get::<_, f64>(9)?,      // def
-                row.get::<_, f64>(10)?,     // impact
-                row.get::<_, f64>(11)?,     // crit_rate
-                row.get::<_, f64>(12)?,     // crit_dmg
-                row.get::<_, f64>(13)?,     // pen_ratio
-                row.get::<_, f64>(14)?,     // pen_fixed
-                row.get::<_, f64>(15)?,     // anomaly_mastery
-                row.get::<_, f64>(16)?,     // anomaly_proficiency
-                row.get::<_, f64>(17)?,     // energy_regen
-                row.get::<_, f64>(18)?,     // energy_gen_rate
-                row.get::<_, String>(19)?,  // constellations (JSON)
-                row.get::<_, String>(20)?,  // action_dict (JSON)
+                row.get::<_, String>(0)?,  // char_id
+                row.get::<_, String>(1)?,  // name
+                row.get::<_, String>(2)?,  // faction
+                row.get::<_, String>(3)?,  // specialty
+                row.get::<_, String>(4)?,  // element
+                row.get::<_, i64>(5)?,     // level
+                row.get::<_, i64>(6)?,     // ascension
+                row.get::<_, f64>(7)?,     // hp
+                row.get::<_, f64>(8)?,     // atk
+                row.get::<_, f64>(9)?,     // def
+                row.get::<_, f64>(10)?,    // impact
+                row.get::<_, f64>(11)?,    // crit_rate
+                row.get::<_, f64>(12)?,    // crit_dmg
+                row.get::<_, f64>(13)?,    // pen_ratio
+                row.get::<_, f64>(14)?,    // pen_fixed
+                row.get::<_, f64>(15)?,    // anomaly_mastery
+                row.get::<_, f64>(16)?,    // anomaly_proficiency
+                row.get::<_, f64>(17)?,    // energy_regen
+                row.get::<_, f64>(18)?,    // energy_gen_rate
+                row.get::<_, String>(19)?, // constellations (JSON)
+                row.get::<_, String>(20)?, // action_dict (JSON)
             ))
         })?;
 
         let mut characters = Vec::new();
         for row in rows {
             let (
-                char_id, name, faction_str, specialty_str, element_str,
-                level, ascension,
-                hp, atk, def, impact, crit_rate, crit_dmg, pen_ratio, pen_fixed,
-                anomaly_mastery, anomaly_proficiency, energy_regen, energy_gen_rate,
-                constellations_json, action_dict_json,
+                char_id,
+                name,
+                faction_str,
+                specialty_str,
+                element_str,
+                level,
+                ascension,
+                hp,
+                atk,
+                def,
+                impact,
+                crit_rate,
+                crit_dmg,
+                pen_ratio,
+                pen_fixed,
+                anomaly_mastery,
+                anomaly_proficiency,
+                energy_regen,
+                energy_gen_rate,
+                constellations_json,
+                action_dict_json,
             ) = row?;
 
             let faction: FactionTag = serde_json::from_str(&format!("\"{}\"", faction_str))
                 .with_context(|| format!("invalid faction string: {faction_str}"))?;
-            let specialty: SpecialtyTag = serde_json::from_str(&format!("\"{}\"", specialty_str))
-                .with_context(|| format!("invalid specialty string: {specialty_str}"))?;
+            let specialty: SpecialtyTag =
+                serde_json::from_str(&format!("\"{}\"", specialty_str))
+                    .with_context(|| format!("invalid specialty string: {specialty_str}"))?;
             let element: ElementTag = serde_json::from_str(&format!("\"{}\"", element_str))
                 .with_context(|| format!("invalid element string: {element_str}"))?;
 
@@ -165,8 +184,17 @@ impl DataLoader {
         let mut enemies = Vec::new();
         for row in rows {
             let (
-                enemy_id, enemy_type_str, _name, _level, hp, def_val, base_res, daze_max,
-                resistances_json, weaknesses_json, anomaly_buildup_json,
+                enemy_id,
+                enemy_type_str,
+                _name,
+                _level,
+                hp,
+                def_val,
+                base_res,
+                daze_max,
+                resistances_json,
+                weaknesses_json,
+                anomaly_buildup_json,
             ) = row?;
 
             let enemy_type: EnemyType = serde_json::from_str(&format!("\"{}\"", enemy_type_str))
@@ -251,9 +279,9 @@ impl DataLoader {
             .collect();
 
         // We need to map skill_id → char_id → action_id. Let's get the skill_id→action_id map first.
-        let mut id_map_stmt = self.conn.prepare(
-            "SELECT id, action_id FROM skills WHERE char_id = ?1",
-        )?;
+        let mut id_map_stmt = self
+            .conn
+            .prepare("SELECT id, action_id FROM skills WHERE char_id = ?1")?;
         let id_map: HashMap<i64, String> = id_map_stmt
             .query_map(params![char_id], |row| Ok((row.get(0)?, row.get(1)?)))?
             .filter_map(|r| r.ok())
@@ -273,9 +301,16 @@ impl DataLoader {
         let mut skills = Vec::new();
         for row in skill_rows {
             let (
-                action_id, action_type_str, daze_multiplier,
-                energy_cost, decibel_cost, hp_cost, cooldown_ticks,
-                animation_frames, interruptible_frame, is_snapshot,
+                action_id,
+                action_type_str,
+                daze_multiplier,
+                energy_cost,
+                decibel_cost,
+                hp_cost,
+                cooldown_ticks,
+                animation_frames,
+                interruptible_frame,
+                is_snapshot,
                 prerequisite_action_id,
             ) = row?;
 
@@ -309,7 +344,9 @@ impl DataLoader {
 
     /// Load skills across all characters.
     pub fn load_all_skills(&self) -> Result<Vec<SkillData>> {
-        let mut stmt = self.conn.prepare("SELECT DISTINCT char_id FROM skills ORDER BY char_id")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT DISTINCT char_id FROM skills ORDER BY char_id")?;
         let char_ids: Vec<String> = stmt
             .query_map([], |row| row.get(0))?
             .filter_map(|r| r.ok())
@@ -365,8 +402,17 @@ impl DataLoader {
         let mut engines = Vec::new();
         for row in rows {
             let (
-                id, name, level, ascension,
-                atk, crit_rate, crit_dmg, pen_ratio, energy_regen, impact, anomaly_mastery,
+                id,
+                name,
+                level,
+                ascension,
+                atk,
+                crit_rate,
+                crit_dmg,
+                pen_ratio,
+                energy_regen,
+                impact,
+                anomaly_mastery,
                 passive_json,
             ) = row?;
 
@@ -429,16 +475,55 @@ impl DataLoader {
         let mut discs = Vec::new();
         for row in rows {
             let (
-                id, slot, level, set_id,
-                main_stat_name, main_stat_value,
-                sn1, sv1, sn2, sv2, sn3, sv3, sn4, sv4,
+                id,
+                slot,
+                level,
+                set_id,
+                main_stat_name,
+                main_stat_value,
+                sn1,
+                sv1,
+                sn2,
+                sv2,
+                sn3,
+                sv3,
+                sn4,
+                sv4,
             ) = row?;
 
             let mut sub_stats = Vec::new();
-            if let Some(n) = sn1 { if !n.is_empty() { sub_stats.push(StatEntry { stat_name: n, value: sv1.unwrap_or(0.0) }); } }
-            if let Some(n) = sn2 { if !n.is_empty() { sub_stats.push(StatEntry { stat_name: n, value: sv2.unwrap_or(0.0) }); } }
-            if let Some(n) = sn3 { if !n.is_empty() { sub_stats.push(StatEntry { stat_name: n, value: sv3.unwrap_or(0.0) }); } }
-            if let Some(n) = sn4 { if !n.is_empty() { sub_stats.push(StatEntry { stat_name: n, value: sv4.unwrap_or(0.0) }); } }
+            if let Some(n) = sn1 {
+                if !n.is_empty() {
+                    sub_stats.push(StatEntry {
+                        stat_name: n,
+                        value: sv1.unwrap_or(0.0),
+                    });
+                }
+            }
+            if let Some(n) = sn2 {
+                if !n.is_empty() {
+                    sub_stats.push(StatEntry {
+                        stat_name: n,
+                        value: sv2.unwrap_or(0.0),
+                    });
+                }
+            }
+            if let Some(n) = sn3 {
+                if !n.is_empty() {
+                    sub_stats.push(StatEntry {
+                        stat_name: n,
+                        value: sv3.unwrap_or(0.0),
+                    });
+                }
+            }
+            if let Some(n) = sn4 {
+                if !n.is_empty() {
+                    sub_stats.push(StatEntry {
+                        stat_name: n,
+                        value: sv4.unwrap_or(0.0),
+                    });
+                }
+            }
 
             discs.push(DriveDisc {
                 id,
@@ -839,7 +924,10 @@ impl DataLoader {
                         skill.prerequisite_action_id,
                     ],
                 ) {
-                    eprintln!("Warning: failed to insert skill {}/{}: {e}", char_id, skill.action_id);
+                    eprintln!(
+                        "Warning: failed to insert skill {}/{}: {e}",
+                        char_id, skill.action_id
+                    );
                     continue;
                 }
 
@@ -896,10 +984,17 @@ impl DataLoader {
                          ?5, ?6, ?7, ?8, ?9, ?10, ?11,
                          ?12, datetime('now'))",
                 params![
-                    we.id, we.name, we.level, we.ascension,
-                    we.base_stats.atk, we.base_stats.crit_rate, we.base_stats.crit_dmg,
-                    we.base_stats.pen_ratio, we.base_stats.energy_regen,
-                    we.base_stats.impact, we.base_stats.anomaly_mastery,
+                    we.id,
+                    we.name,
+                    we.level,
+                    we.ascension,
+                    we.base_stats.atk,
+                    we.base_stats.crit_rate,
+                    we.base_stats.crit_dmg,
+                    we.base_stats.pen_ratio,
+                    we.base_stats.energy_regen,
+                    we.base_stats.impact,
+                    we.base_stats.anomaly_mastery,
                     passive_json,
                 ],
             );
@@ -908,10 +1003,22 @@ impl DataLoader {
         // Drive discs
         for dd in &equipment.drive_discs {
             let sub = &dd.sub_stats;
-            let (sn1, sv1) = sub.get(0).map(|s| (s.stat_name.as_str(), s.value)).unwrap_or(("", 0.0));
-            let (sn2, sv2) = sub.get(1).map(|s| (s.stat_name.as_str(), s.value)).unwrap_or(("", 0.0));
-            let (sn3, sv3) = sub.get(2).map(|s| (s.stat_name.as_str(), s.value)).unwrap_or(("", 0.0));
-            let (sn4, sv4) = sub.get(3).map(|s| (s.stat_name.as_str(), s.value)).unwrap_or(("", 0.0));
+            let (sn1, sv1) = sub
+                .get(0)
+                .map(|s| (s.stat_name.as_str(), s.value))
+                .unwrap_or(("", 0.0));
+            let (sn2, sv2) = sub
+                .get(1)
+                .map(|s| (s.stat_name.as_str(), s.value))
+                .unwrap_or(("", 0.0));
+            let (sn3, sv3) = sub
+                .get(2)
+                .map(|s| (s.stat_name.as_str(), s.value))
+                .unwrap_or(("", 0.0));
+            let (sn4, sv4) = sub
+                .get(3)
+                .map(|s| (s.stat_name.as_str(), s.value))
+                .unwrap_or(("", 0.0));
 
             let _ = conn.execute(
                 "INSERT OR REPLACE INTO drive_discs
@@ -928,9 +1035,20 @@ impl DataLoader {
                          ?11, ?12, ?13, ?14,
                          datetime('now'))",
                 params![
-                    dd.id, dd.slot, dd.level, dd.set_id,
-                    dd.main_stat.stat_name, dd.main_stat.value,
-                    sn1, sv1, sn2, sv2, sn3, sv3, sn4, sv4,
+                    dd.id,
+                    dd.slot,
+                    dd.level,
+                    dd.set_id,
+                    dd.main_stat.stat_name,
+                    dd.main_stat.value,
+                    sn1,
+                    sv1,
+                    sn2,
+                    sv2,
+                    sn3,
+                    sv3,
+                    sn4,
+                    sv4,
                 ],
             );
         }
@@ -1106,7 +1224,8 @@ mod tests {
             "INSERT INTO characters (char_id, name, faction, specialty, element)
              VALUES ('anby_demara', 'Anby', 'Gentle_House', 'Stun', 'Electric')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         conn.execute(
             "INSERT INTO skills (char_id, action_id, action_type, daze_multiplier,
@@ -1114,7 +1233,8 @@ mod tests {
              VALUES ('anby_demara', 'Attack_Normal_1', 'Normal', 0.4,
              0.0, 0, 30, 25, 0)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         conn.execute(
             "INSERT INTO skills (char_id, action_id, action_type, daze_multiplier,
@@ -1122,15 +1242,24 @@ mod tests {
              VALUES ('anby_demara', 'Skill_Ex_1', 'Special', 2.5,
              40.0, 8, 50, 45)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         // Get skill IDs and insert multipliers
-        let skill1_id: i64 = conn.query_row(
-            "SELECT id FROM skills WHERE action_id = 'Attack_Normal_1'", [], |row| row.get(0)
-        ).unwrap();
-        let skill2_id: i64 = conn.query_row(
-            "SELECT id FROM skills WHERE action_id = 'Skill_Ex_1'", [], |row| row.get(0)
-        ).unwrap();
+        let skill1_id: i64 = conn
+            .query_row(
+                "SELECT id FROM skills WHERE action_id = 'Attack_Normal_1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let skill2_id: i64 = conn
+            .query_row(
+                "SELECT id FROM skills WHERE action_id = 'Skill_Ex_1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
 
         conn.execute(
             "INSERT INTO skill_multipliers (skill_id, segment_index, frame, multiplier) VALUES (?1, 1, 8, 0.5)",
@@ -1211,7 +1340,8 @@ mod tests {
              VALUES ('boss_dullahan', 'Boss', 150000.0, 600.0, 0.15, 200.0,
              '{\"Ice\":0.4,\"Ether\":0.6}', '[\"Fire\",\"Physical\"]')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         let loader = DataLoader { conn };
         let enemies = loader.load_enemies().expect("load enemies");
@@ -1252,7 +1382,10 @@ mod tests {
 
         assert_eq!(skills.len(), 2);
 
-        let normal = skills.iter().find(|s| s.action_id == "Attack_Normal_1").unwrap();
+        let normal = skills
+            .iter()
+            .find(|s| s.action_id == "Attack_Normal_1")
+            .unwrap();
         assert_eq!(normal.action_type, SkillType::Normal);
         assert_eq!(normal.daze_multiplier, 0.4);
         assert_eq!(normal.damage_multipliers.len(), 2);
@@ -1312,7 +1445,8 @@ mod tests {
              'hp', 2200.0,
              'atk', 80.0)",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         // Disc set
         conn.execute(
@@ -1323,7 +1457,8 @@ mod tests {
              '+10% Electric DMG', 'buff_electric_dmg_10',
              'ATK +20%', 'buff_thunder_atk_20')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         let loader = DataLoader { conn };
         let eq = loader.load_equipment().expect("load equipment");
@@ -1453,7 +1588,11 @@ mod tests {
         let data_dir = tmp.path().join("data");
         let db_path = tmp.path().join("zsim.db");
 
-        write_json(&data_dir, "characters", "anby_demara.json", r#"{
+        write_json(
+            &data_dir,
+            "characters",
+            "anby_demara.json",
+            r#"{
             "char_id": "anby_demara",
             "name": "Anby Demara",
             "faction": "Gentle_House",
@@ -1467,9 +1606,14 @@ mod tests {
                 "energy_regen": 1.2, "energy_gen_rate": 0.3},
             "action_dict": ["Attack_Normal_1"],
             "constellations": [true,false,false,false,false,false]
-        }"#);
+        }"#,
+        );
 
-        write_json(&data_dir, "enemies", "boss_dullahan.json", r#"{
+        write_json(
+            &data_dir,
+            "enemies",
+            "boss_dullahan.json",
+            r#"{
             "enemy_id": "boss_dullahan",
             "enemy_type": "Boss",
             "hp": 150000.0,
@@ -1478,7 +1622,8 @@ mod tests {
             "daze_max": 200.0,
             "resistances": {"Ice": 0.4},
             "weaknesses": ["Fire"]
-        }"#);
+        }"#,
+        );
 
         let loader = DataLoader::from_json_dir(&db_path, &data_dir).expect("from_json_dir");
 
@@ -1505,12 +1650,14 @@ mod tests {
             "INSERT INTO characters (char_id, name, faction, specialty, element)
              VALUES ('z_last', 'Z Last', 'Other', 'Attack', 'Fire')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO characters (char_id, name, faction, specialty, element)
              VALUES ('a_first', 'A First', 'Other', 'Support', 'Ice')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
         let loader = DataLoader { conn };
         let chars = loader.load_characters().unwrap();
@@ -1528,16 +1675,18 @@ mod tests {
             "INSERT INTO characters (char_id, name, faction, specialty, element)
              VALUES ('c1', 'C1', 'Other', 'Attack', 'Fire')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO skills (char_id, action_id, action_type)
              VALUES ('c1', 'atk_normal', 'Normal')",
             [],
-        ).unwrap();
+        )
+        .unwrap();
 
-        let skill_id: i64 = conn.query_row(
-            "SELECT id FROM skills", [], |row| row.get(0)
-        ).unwrap();
+        let skill_id: i64 = conn
+            .query_row("SELECT id FROM skills", [], |row| row.get(0))
+            .unwrap();
 
         // Insert out of order
         conn.execute(
@@ -1576,7 +1725,8 @@ mod tests {
                 "INSERT INTO characters (char_id, name, faction, specialty, element)
                  VALUES ('test', 'Test', 'Other', 'Attack', 'Physical')",
                 [],
-            ).unwrap();
+            )
+            .unwrap();
         }
 
         // Reopen with DataLoader::new

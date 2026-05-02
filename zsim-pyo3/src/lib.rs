@@ -68,8 +68,8 @@ fn summary(parquet_path: &str) -> PyResult<String> {
 ///     JSON 序列化的 DPS 点数组。
 #[pyfunction]
 fn dps_curve(parquet_path: &str, window_ticks: u64) -> PyResult<String> {
-    let result =
-        pq_aggregate(Path::new(parquet_path), &AggQuery::DPS { window_ticks }).map_err(to_py_err)?;
+    let result = pq_aggregate(Path::new(parquet_path), &AggQuery::DPS { window_ticks })
+        .map_err(to_py_err)?;
     serde_json::to_string(&result)
         .map_err(|e| PyIOError::new_err(format!("Serialize error: {}", e)))
 }

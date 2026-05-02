@@ -39,11 +39,11 @@ fn run_simulations(
     let (loader, _tmp) = make_loader();
 
     let characters = Arc::new(
-        loader.load_characters().expect("load_characters should succeed"),
+        loader
+            .load_characters()
+            .expect("load_characters should succeed"),
     );
-    let enemies = Arc::new(
-        loader.load_enemies().expect("load_enemies should succeed"),
-    );
+    let enemies = Arc::new(loader.load_enemies().expect("load_enemies should succeed"));
     let skills: Arc<HashMap<String, zsim_core::combat::skill::SkillData>> = Arc::new(
         loader
             .load_all_skills()
@@ -191,13 +191,8 @@ fn test_e2e_write_parquet_and_aggregate() {
         panic!("Expected StatsSummary result, got {:?}", summary);
     }
 
-    let dps = ParquetAggregator::aggregate(
-        &path,
-        &AggQuery::DPS {
-            window_ticks: 60,
-        },
-    )
-    .expect("DPS aggregation");
+    let dps = ParquetAggregator::aggregate(&path, &AggQuery::DPS { window_ticks: 60 })
+        .expect("DPS aggregation");
     assert!(
         matches!(&dps, AggResult::DPS(_)),
         "Expected DPS result, got {:?}",
@@ -241,8 +236,8 @@ fn test_e2e_aggregation_returns_sensible_values() {
     let results = run_simulations(5, 42, 300);
     let (_tmp, path) = write_parquet_temp(&results);
 
-    let crit = ParquetAggregator::aggregate(&path, &AggQuery::CritRate)
-        .expect("CritRate aggregation");
+    let crit =
+        ParquetAggregator::aggregate(&path, &AggQuery::CritRate).expect("CritRate aggregation");
     if let AggResult::CritRate(r) = &crit {
         assert!(
             r.crit_rate >= 0.0 && r.crit_rate <= 1.0,
@@ -274,8 +269,8 @@ fn test_e2e_aggregation_returns_sensible_values() {
         }
     }
 
-    let stun = ParquetAggregator::aggregate(&path, &AggQuery::StunStats)
-        .expect("StunStats aggregation");
+    let stun =
+        ParquetAggregator::aggregate(&path, &AggQuery::StunStats).expect("StunStats aggregation");
     if let AggResult::StunStats(s) = &stun {
         assert!(
             s.total_stun_damage >= 0.0,
