@@ -25,7 +25,7 @@ export function renderPage() {
 
   const selectorLabel = document.createElement("label");
   selectorLabel.className = "form-label";
-  selectorLabel.textContent = t("editor.skills.selectCharacter") + ":";
+  selectorLabel.textContent = t("editor.skills.charSelect") + ":";
   selectorRow.appendChild(selectorLabel);
 
   const charSelect = document.createElement("select");
