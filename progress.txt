@@ -193,3 +193,12 @@
   - Gotchas encountered: When locale files are restructured from dotted keys to flat keys, ALL usages must be updated in sync. The datatable hardcodes Edit/Del buttons — these should be i18n-ized for full localization. LF/CRLF warnings on Windows are cosmetic in git.
   - Useful context: The ralph/ submodule prd.json already had US-010 as passing — the scripts/ralph/prd.json copy needed syncing. Outer project and submodule have separate prd.json files that must both be updated.
 ---
+## 2026-05-03 02:30 - US-011
+- Marked US-011 (frontend skill editor page) as passing in PRD — the implementation was already completed in the same commit as US-010 (commit bce3a98) but the PRD was not updated
+- skills.js has all 7 acceptance criteria: character dropdown with skill loading, skill table (action_id/type/energy/cooldown/actions), inline edit panel with all basic params, dynamic multiplier rows (add/delete segment/frame/multiplier/decay), effect_id free input, prerequisite action dropdown from existing skills, save/cancel/delete with confirmation
+- Files changed: scripts/ralph/prd.json, progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Skills editor follows the same pattern as the characters editor page — inline edit panel appended below the table, per-page notification helper
+  - Gotchas encountered: When multiple frontend pages are implemented in one commit, the PRD must be updated for each user story, not just the primary one
+  - Useful context: The skills.js page has a complete implementation even though US-011 was previously marked as not passing in the PRD
+---
