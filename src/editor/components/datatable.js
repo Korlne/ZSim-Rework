@@ -1,3 +1,5 @@
+import { t } from "../../i18n.js";
+
 /**
  * Reusable data table component.
  *
@@ -25,7 +27,7 @@ export function createDataTable(columns, rows, options = {}) {
   if (options.onEdit || options.onDelete) {
     const th = document.createElement("th");
     th.className = "col-actions";
-    th.textContent = "Actions";
+    th.textContent = t("editor.action.actions");
     headerRow.appendChild(th);
   }
   thead.appendChild(headerRow);
