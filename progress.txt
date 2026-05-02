@@ -104,3 +104,18 @@
   - Gotchas encountered: `last_insert_rowid()` works correctly with `ON CONFLICT DO UPDATE` in SQLite 3.35+ — returns the rowid for both insert and update paths. Must use `ON CONFLICT(char_id, action_id)` (the UNIQUE constraint columns), not the PK id.
   - Useful context: Multiplier replacement strategy (DELETE all + re-insert) is simpler than diff-based updates and safe within a transaction. The `SkillWithMultipliers` struct is reused for both GET responses and SAVE input. Multiplier `decay_coeff` is Option<f64> to handle DB NULLs with serde default.
 ---
+## 2026-05-03 00:35 - US-007
+- Implemented equipment CRUD Rust backend: `src-tauri/src/data_entry/equipment.rs`
+  - W-Engine CRUD: `get_w_engines`, `save_w_engine`, `delete_w_engine`
+  - Drive Disc CRUD: `get_drive_discs`, `save_drive_disc`, `delete_drive_disc` (slot validation 1-6)
+  - Disc Set CRUD: `get_disc_sets`, `save_disc_set`, `delete_disc_set`
+  - `get_all_equipment`: combined query returning all three types as `{ w_engines, drive_discs, disc_sets }`
+  - Validation: id/name/set_id required, slot 1-6 range check
+- Added `pub mod equipment;` to `data_entry/mod.rs`
+- Added 9 Tauri commands in `src-tauri/src/lib.rs` and registered in `generate_handler![]`
+- 13 unit tests for equipment CRUD (all pass), full workspace 470+ tests pass
+- **Learnings for future iterations:**
+  - Patterns discovered: Equipment CRUD follows the same flat-struct + per-command Connection pattern. The `AllEquipment` wrapper struct provides a single endpoint for the frontend to load all equipment data at once.
+  - Gotchas encountered: Drive disc has no FK constraint to disc_sets in the schema, so disc set lookup failures must be handled at the application layer. The sub_stats columns are nullable (4 pairs of name+value).
+  - Useful context: Equipment data has 3 distinct types but only one file (equipment.json) — the CRUD reflects separating them into independent tables. `get_all_equipment` is convenient for dashboard loading but individual getters are more efficient for targeted updates.
+---
