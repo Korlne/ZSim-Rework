@@ -168,3 +168,23 @@ Started: Sat May  2 10:38:49     2026
   - Gotchas encountered: The old `state.rs` in the lib root was orphan/duplicate — always check for pre-existing files in the module tree before creating new ones. The old `lib.rs` also had a dangling `pub mod engine;` reference with no corresponding file.
   - Useful context: GameState lives in `combat::game_state` (not top-level `state`), consistent with other combat systems. TeamManager is a dependency of GameState (not the other way around), so TeamManager's minimal API was extracted as part of US-010.
 ---
+
+## 2026-05-02 17:00 - US-011
+- Implemented full TeamManager in zsim-core/src/combat/team.rs
+- Team struct: characters(Vec<Character>), bangboo(Option<Character>), current_on_field_index(usize), switch_cooldown_remaining(u64)
+- switch_to(index) with SwitchError handling: InvalidIndex, AlreadyOnField, OnCooldown, TargetDead. Switch cooldown = 30 ticks (~0.5s @ 60fps)
+- add_decibel(amount) adds to ALL characters (capped at 3000); consume_decibel(amount) deducts from on-field character only
+- add_chain_point() / consume_chain_point() on on-field character's ResourceSet
+- get_on_field() / get_on_field_mut() immutable & mutable references to active character
+- get_off_field(index) / get_off_field_mut(index) for off-field character access (None if on-field or OOB)
+- on_tick() decrements switch cooldown (saturating_sub)
+- with_bangboo() constructor pattern — bangboo companion (no decibel/energy mechanics)
+- SwitchError and InsufficientResource error types with Display impl
+- 43 tests: creation, switch mechanics, cooldown lifecycle, decibel (add/consume/cap/off-field isolation), chain points (add/consume/switch-scoped), get_on_field/get_off_field (all variants), full rotation integration
+- PRD synced: US-011 passes: true, notes added
+- All 223 tests pass, clippy clean (0 new warnings), fmt clean
+- Files changed: zsim-core/src/combat/team.rs (minimal -> full impl), scripts/ralph/prd.json (passes:true)
+- **Learnings for future iterations:**
+  - Patterns discovered: TeamManager uses CharacterState::Active/Standby for on-field/off-field tracking. Switch cooldown managed with saturating_sub for tick-based decrement. Decibel is added team-wide but consumed from on-field character only.
+  - Gotchas encountered: Chain points are stored on the on-field character's ResourceSet (not team-wide), so chain points are lost if the character switches off field. This matches the per-character ResourceSet model but differs from some team-wide interpretations.
+  - Useful context: The old `state.rs` and duplicate test modules can cause compilation errors. Always check for orphaned code when refactoring. GameState references TeamManager's all_dead() and characters.len() — these are preserved.

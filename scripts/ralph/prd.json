@@ -182,8 +182,8 @@
         "cargo test 通过（22+ tests）"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "TeamManager with switch_to (cooldown 30 ticks), add_decibel/consume_decibel (per-character, max 3000), add_chain_point/consume_chain_point (on-field character), get_on_field/get_off_field (immutable & mutable). Bangboo support via with_bangboo(). SwitchError and InsufficientResource error types. 43 tests covering creation, switch, cooldown, decibel, chain points, accessors, full integration rotation."
     },
     {
       "id": "US-012",
