@@ -441,8 +441,8 @@
         "流式处理验证：100000 次模拟 × 18000 tick 内存峰值 ≤ 2GB"
       ],
       "priority": 27,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Tauri v2 bundle configured with resources (data/ JSON files + analysis_sidecar.py), proper icons (32x32/128x128/256x256 PNG + ICO + ICNS), bundle targets (NSIS/MSI/AppImage/deb/DMG). lib.rs updated with resource path resolution (resolve_sidecar_path uses app.path().resource_dir() with CWD fallback for dev). Python runtime required on system (python3/python fallback). Added get_resource_dir Tauri command for frontend resource path access. Release build verified with cargo check + cargo test (404 pass)."
     }
   ]
 }

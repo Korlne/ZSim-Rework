@@ -24,6 +24,8 @@ Started: Sat May  2 10:38:49     2026
 - LoggedEvent has 6 optional extended payload fields (element, anomaly_gauge, stun_dmg, buff_id, buff_value, coordinated_flag) that can be populated as events are generated for richer Parquet output.
 - zsim-parquet crate depends on zsim-core for type access (SimResult, LoggedEvent, EventType).
 - ParquetAggregator pattern: unit struct with `aggregate(path, &AggQuery) -> AggResult`. Each of 7 query types has a dedicated private function. Batch iteration over all row groups with in-memory event_type filtering. StatsSummary uses Welford's online algorithm for O(n) mean+variance, and R7 interpolation for percentiles.
+- Tauri v2 bundle config: Use `bundle.resources` to glob-pattern data/ and scripts into the installer. Use `app.path().resource_dir()` at runtime to resolve bundled resource paths — resource_dir exists in dev mode too but with different content. For sidecar scripts (Python), resolve via `resource_dir().join("analysis_sidecar.py")` with CWD fallback for development.
+- Multi-platform bundle targets: `tauri.conf.json` `bundle.targets` can be `["nsis", "msi", "appimage", "deb", "dmg"]` — each platform uses only its applicable targets. Tauri auto-downloads WiX for MSI and uses system NSIS for NSIS installer. Icon requirements: Tauri v2 needs 32x32.png, 128x128.png, 128x128@2x.png, icon.ico, icon.icns (minimal set).
 ---
 ## 2026-05-02 23:00 - US-018
 - Implemented ParquetAggregator in zsim-parquet/src/aggregator.rs
@@ -490,3 +492,29 @@ Started: Sat May  2 10:38:49     2026
   - Patterns discovered: NamedTempFile from tempfile crate auto-deletes on drop — keep tmp alive while reading from its path. Use (tmp, path) tuple return pattern to ensure lifetime is managed by caller. mock.patch.object(module, "attr", create=True) works for injecting attributes that don't exist yet.
   - Gotchas encountered: E2E tests with real game data may produce zero combat events (character/skill/APL IDs don't match up) — tests should verify the pipeline (load → simulate → write → read/aggregate), not combat behavior. Root .gitignore with un-anchored `tests/` pattern silently ignores all crate-level test directories. analysis_sidecar.py's zsim_rs import was in the wrong scope — handle_command() needed it as a module global but it was in main()'s local scope.
   - Useful context: ParallelRunner produces events reliably while SimulationRunner may not depending on data quality — use ParallelRunner for consistent test results. For pipeline tests, keep assertions resilient to empty event data (count>=0, mean is finite). The /tests gitignore pattern was likely intended for the Python v1 engine's root-level tests/ directory.
+
+## 2026-05-02 14:15 - US-026
+- Configured Tauri v2 bundle for release packaging
+- **tauri.conf.json**: Updated bundle section with:
+  - Full icon set: 32x32.png, 128x128.png, 128x128@2x.png, icon.ico, icon.icns (generated via Python Pillow)
+  - Bundle targets: ["nsis", "msi", "appimage", "deb", "dmg"] — platform-specific, each builds on its respective OS
+  - Resources: glob patterns for data/**/*.json and analysis_sidecar.py
+  - Windows NSIS: installMode = "currentUser" for per-user install
+  - macOS: minimumSystemVersion = "10.15"
+  - Linux deb: python3/python3-pip dependencies
+- **lib.rs**:
+  - Added resolve_sidecar_path() using app.path().resource_dir() with CWD fallback for dev mode
+  - Added get_resource_dir Tauri command to expose resource path to frontend
+  - spawn_sidecar now tries python3 first, then python fallback
+  - Registered get_resource_dir in generate_handler!
+- **build artifacts**:
+  - Release binary: target/release/zsim-tauri.exe at 11.5 MB
+  - NSIS installer: ZSim Analyzer_0.1.0_x64-setup.exe at 2.5 MB
+  - MSI installer: ZSim Analyzer_0.1.0_x64_en-US.msi at 3.8 MB
+  - Both bundles well under 200 MB limit
+- **Quality**: cargo check + cargo test (404 pass) + cargo clippy clean; vite build succeeds; npx tauri build generates NSIS + MSI bundles
+- Files changed: src-tauri/tauri.conf.json, src-tauri/src/lib.rs, src-tauri/icons/ (5 new icon files), scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Tauri v2 bundles resources relative to src-tauri/ directory (../data/**/*.json for project root). Resource paths at runtime use app.path().resource_dir(). NSIS becomes available automatically on Windows. Icon set minimum: 32x32.png + 128x128.png + 128x128@2x.png + icon.ico + icon.icns.
+  - Gotchas encountered: npx tauri build only generates installers for current platform. Cross-platform builds require CI (GitHub Actions matrix). Python runtime is a system dependency. .cargo/config.toml with MSVC linker path needed to avoid Git link.exe shadowing.
+  - Useful context: Bundle sizes (2.5 MB NSIS, 3.8 MB MSI) well under 200 MB limit. For true self-contained packaging, Python embedded runtime bundling would require embeddable Python zip extraction at first run — deferred as future enhancement.
