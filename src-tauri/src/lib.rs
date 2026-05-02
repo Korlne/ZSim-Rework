@@ -442,6 +442,44 @@ fn delete_character(state: tauri::State<'_, DataDirState>, char_id: String) -> R
     data_entry::characters::cmd_delete_character(&conn, char_id)
 }
 
+// --- 技能 CRUD 命令 ---
+
+/// 获取指定角色的所有技能（含倍率段）。
+#[tauri::command]
+fn get_skills(state: tauri::State<'_, DataDirState>, char_id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::skills::cmd_get_skills(&conn, char_id)
+}
+
+/// 创建或更新技能（含倍率段）。使用事务原子写入。
+#[tauri::command]
+fn save_skill(state: tauri::State<'_, DataDirState>, data: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::skills::cmd_save_skill(&conn, data)
+}
+
+/// 删除技能（倍率段级联删除）。
+#[tauri::command]
+fn delete_skill(state: tauri::State<'_, DataDirState>, skill_id: i64) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::skills::cmd_delete_skill(&conn, skill_id)
+}
+
 pub fn run() {
     // 数据目录：开发环境下为项目根目录下的 data/，生产环境使用应用资源目录
     let data_dir = std::env::current_dir()
@@ -474,6 +512,9 @@ pub fn run() {
             get_character,
             save_character,
             delete_character,
+            get_skills,
+            save_skill,
+            delete_skill,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
