@@ -1,0 +1,31 @@
+# Ralph Progress Log
+Started: Sat May  2 10:38:49     2026
+
+## Codebase Patterns
+- Damage calculation modules: Use unit structs with `fn calc(&self, input: &CalcInput, rng: &mut RNGManager) -> CalcOutput` signature. CalcInput has Default impl with safe defaults (res_factor=1.0, anomaly_threshold=100.0).
+- Defense formula: `effective_def = (def * (1 - pen_ratio) - pen).max(0.0)` and `def_factor = 1.0 / (1.0 + effective_def / 1000.0)`.
+- Anomaly damage never crits. Proficiency factor = `1 + anomaly_proficiency / 100`.
+- Anomaly accumulation: `gauge_added = anomaly_mastery * multiplier`, trigger at threshold.
+- Stun is deterministic (no RNG). Resources/DR also have no RNG dependency.
+---
+## 2026-05-02 11:00 - US-005
+- Implemented 6 damage calculation modules in zsim-core/src/calculation/damage.rs
+- RegularMul: ATK × multiplier × (1+DMG_BONUS) × crit_factor × def_factor × res_factor × (1-DR)
+  - Effective DEF = DEF×(1-PEN_RATIO)-PEN, clamped to 0; def_factor = 1/(1+effective_DEF/1000)
+  - Uses RNG for crit check; crit_factor = 1.0 (non-crit) or 1+CRIT_DMG (crit)
+- AnomalyMul: ATK × anomaly_multiplier × (1+proficiency/100) × (1+anomaly_dmg_bonus) — never crits
+- StunMul: IMPACT × daze_multiplier × (1+daze_bonus) × (1-daze_resistance) — deterministic
+- CalAnomaly: gauge_added = anomaly_mastery × multiplier; triggered = cumulative_gauge ≥ threshold
+- CalDisorder: (old_gauge + new_gauge) × disorder_multiplier
+- CalPolarityDisorder: same as CalDisorder × 1.5 (polarity factor)
+- CalcInput: shared input struct with Default impl (all 20+ fields, safe defaults)
+- CalcOutput: shared output struct with damage/is_crit/stun_damage/anomaly_gauge/triggered_anomaly
+- 20 new tests: basic calculations, crit/pen/resist/DR, proficiency scaling, gauge threshold, disorder, polarity ratio, determinism, precision ≤ 1e-9
+- Files changed: zsim-core/src/calculation/damage.rs (full rewrite from placeholder)
+- 86 tests pass total, clippy clean, fmt clean
+- **Learnings for future iterations:**
+  - Patterns discovered: Unit struct design for stateless calc modules works cleanly. Default on CalcInput with sensible base values (res_factor=1.0) allows partial struct initialization in tests.
+  - Gotchas encountered: `(600.0 * 0.8 - 50.0).max(0.0)` causes "ambiguous numeric type" error when compiler can't infer the float type — use explicit `f64::max(...)` or let-bind the intermediate.
+  - Useful context: Defense formula assumes level scaling is pre-baked into the DEF value passed via CalcInput. The 1.5× polarity factor is a placeholder — actual game value may differ and should be tunable in future iterations.
+---
+
