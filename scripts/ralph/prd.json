@@ -31,8 +31,8 @@
         "cargo test 通过"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "BaseStats (12 f64 fields with serde aliases), Character, EnemyState, ResourceSet structs. 8 enum types (FactionTag 15 variants, SpecialtyTag 6, ElementTag 8, CharacterState 3, EnemyType 3, SkillType 8, TriggerType 5, SimMode 2). 31 tests including file-based deserialization from data/characters/ and data/enemies/."
     },
     {
       "id": "US-003",
@@ -47,8 +47,8 @@
         "cargo test 通过"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "DataLoader with 5 load methods (load_characters/enemies/skills/equipment/apl). SkillData (HitFrame, ChargeBranch), APLData (Track, ActionEntry), EquipmentData (WEngine, DriveDisc, DiscSet) structs. 53 tests. anyhow::Context error reporting with file paths."
     },
     {
       "id": "US-004",
@@ -63,8 +63,8 @@
         "cargo test 通过"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "RNGManager wrapping ChaCha8Rng with seed/call_count tracking. gen_range/gen_bool/gen_crit methods. snapshot()/restore() via RngSnapshot. 12 tests covering determinism, call_count, bounds, multi-snapshot replay, 10-run reproducibility."
     },
     {
       "id": "US-005",
@@ -99,8 +99,8 @@
         "cargo test 通过"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "BuffManager with HashMap<String, Vec<ActiveBuff>> keyed by character ID. BuffData with 8 categories, 3 stack types (Replace/Additive/Independent), max_stacks, duration_ticks, modifiers. apply_buff() per stack_type, remove_expired(), on_tick(), get_effective_modifiers() -> ModifierSnapshot with 15 stat fields. 28 tests, all pass."
     },
     {
       "id": "US-007",

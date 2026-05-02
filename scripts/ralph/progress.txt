@@ -2,6 +2,9 @@
 Started: Sat May  2 10:38:49     2026
 
 ## Codebase Patterns
+- Ralph tracking files are at `scripts/ralph/prd.json` and `scripts/ralph/progress.txt`. The `ralph/` directory at project root is a separate Claude Code plugin repo with its own `.git`.
+- Rust toolchain: Always use `stable-x86_64-pc-windows-gnu` as default. The MSVC toolchain builds cached artifacts but fails when rebuilds are needed because `link.exe` from Git for Windows shadows the MSVC linker. `rustup default stable-x86_64-pc-windows-gnu` fixes this.
+- When using `data` in a struct literal like `ActiveBuff { data, remaining_ticks: data.duration_ticks }`, read the field BEFORE the move: `let duration = data.duration_ticks; ActiveBuff { data, remaining_ticks: duration, ... }`.
 - Damage calculation modules: Use unit structs with `fn calc(&self, input: &CalcInput, rng: &mut RNGManager) -> CalcOutput` signature. CalcInput has Default impl with safe defaults (res_factor=1.0, anomaly_threshold=100.0).
 - Defense formula: `effective_def = (def * (1 - pen_ratio) - pen).max(0.0)` and `def_factor = 1.0 / (1.0 + effective_def / 1000.0)`.
 - Anomaly damage never crits. Proficiency factor = `1 + anomaly_proficiency / 100`.
@@ -27,5 +30,30 @@ Started: Sat May  2 10:38:49     2026
   - Patterns discovered: Unit struct design for stateless calc modules works cleanly. Default on CalcInput with sensible base values (res_factor=1.0) allows partial struct initialization in tests.
   - Gotchas encountered: `(600.0 * 0.8 - 50.0).max(0.0)` causes "ambiguous numeric type" error when compiler can't infer the float type — use explicit `f64::max(...)` or let-bind the intermediate.
   - Useful context: Defense formula assumes level scaling is pre-baked into the DEF value passed via CalcInput. The 1.5× polarity factor is a placeholder — actual game value may differ and should be tunable in future iterations.
+---
+
+## 2026-05-02 11:30 - US-005 (supplement: quality fixes + PRD sync)
+- Fixed clippy warnings in rng.rs (manual Range::contains → `.contains(&v)`)
+- Synced `scripts/ralph/prd.json` to reflect actual codebase state:
+  - US-002/003/004 marked as `passes: true` with notes (already implemented in prior iterations)
+  - US-005 already correctly marked as `passes: true`
+- All 86 tests pass, clippy clean, fmt clean
+- **Learnings for future iterations:**
+  - Patterns discovered: The Ralph tracking files are at `scripts/ralph/prd.json` and `scripts/ralph/progress.txt` — not at `ralph/` (which is a separate plugin repo).
+  - Gotchas encountered: The `ralph/` directory at project root is a Claude Code plugin repo with its own `.git`, not the Ralph agent state. Always use `scripts/ralph/` for Ralph tracking.
+  - Useful context: `cargo clippy --all-targets` triggers MSVC linker issues on this machine due to Git `link.exe` shadowing. Use `cargo clippy` (without `--all-targets`) to avoid rebuild of build scripts.
+---
+
+## 2026-05-02 12:00 - US-006
+- Fixed compilation errors in buff.rs (moved-value: read `duration_ticks` before moving `data` into ActiveBuff)
+- Ran `cargo fmt` on buff.rs to fix formatting issues from previous writer
+- BuffManager with full lifecycle: apply_buff (Replace/Additive/Independent), remove_expired, on_tick, get_effective_modifiers → ModifierSnapshot with 15 stat fields
+- 28 tests cover all stack types, expiration, tick decrement, modifier aggregation, combine, builder
+- All 100 tests pass, clippy clean, fmt clean
+- PRD synced: US-002/003/004/006 marked passes: true
+- **Learnings for future iterations:**
+  - Patterns discovered: Rust build scripts fail on this machine if the target switches between MSVC and GNU. Always use `stable-x86_64-pc-windows-gnu` as default.
+  - Gotchas encountered: `data` field in struct literal `ActiveBuff { data, ... }` moves the whole struct; read `data.field` BEFORE moving it into the struct.
+  - Useful context: The MSVC toolchain has linker issues because `link.exe` from Git is in PATH and shadows the MSVC linker. The GNU toolchain works correctly once set as default.
 ---
 
