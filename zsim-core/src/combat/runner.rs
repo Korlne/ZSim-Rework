@@ -1,0 +1,832 @@
+//! Simulation runner — the main event loop that drives all subsystems
+//! tick by tick until a termination condition is met.
+//!
+//! Per-tick execution order:
+//! 1. Publish TickStart event
+//! 2. State updates: buff expiry, anomaly tick, switch cooldown
+//! 3. APL processing — advance animations, dispatch new actions
+//! 4. Convert PendingActions to GameEvents, publish to EventBus
+//! 5. Coordinated action processing — react to tick events
+//! 6. Check termination
+//! 7. Advance tick
+
+use std::collections::HashMap;
+
+use crate::calculation::anomaly::AnomalyDisorderManager;
+use crate::calculation::buff::BuffManager;
+use crate::combat::apl::{APLManager, PendingAction};
+use crate::combat::coordinated::CoordinatedActionSystem;
+use crate::combat::game_state::GameState;
+use crate::combat::skill::SkillData;
+use crate::combat::team::TeamManager;
+use crate::data::apl::APLData;
+use crate::entities::character::Character;
+use crate::entities::enemy::EnemyState;
+use crate::entities::enums::SimMode;
+use crate::events::event_bus::EventBus;
+use crate::events::signals::{EventType, GameEvent};
+
+/// Configuration for a single simulation run.
+#[derive(Debug, Clone)]
+pub struct SimConfig {
+    pub team_characters: Vec<Character>,
+    pub enemies: Vec<EnemyState>,
+    pub skills: HashMap<String, SkillData>,
+    pub apl: APLData,
+    pub max_tick: u64,
+    pub seed: u64,
+    pub mode: SimMode,
+    pub bangboo: Option<Character>,
+}
+
+impl Default for SimConfig {
+    fn default() -> Self {
+        Self {
+            team_characters: Vec::new(),
+            enemies: Vec::new(),
+            skills: HashMap::new(),
+            apl: APLData { tracks: Vec::new() },
+            max_tick: 18000,
+            seed: 42,
+            mode: SimMode::Single,
+            bangboo: None,
+        }
+    }
+}
+
+/// A single recorded event from the simulation, suitable for output / logging.
+#[derive(Debug, Clone)]
+pub struct LoggedEvent {
+    pub tick: u64,
+    pub event_type: EventType,
+    pub source_id: Option<String>,
+    pub target_id: Option<String>,
+    pub action_id: Option<String>,
+    pub damage: Option<f64>,
+    pub is_crit: Option<bool>,
+}
+
+/// The result of a single simulation run.
+#[derive(Debug, Clone)]
+pub struct SimulationResult {
+    pub total_ticks: u64,
+    pub termination_reason: Option<String>,
+    pub events: Vec<LoggedEvent>,
+    pub seed: u64,
+}
+
+/// Main simulation driver.
+///
+/// Creates and owns all subsystems for a single run.
+pub struct SimulationRunner;
+
+impl SimulationRunner {
+    /// Execute a simulation with the given [`SimConfig`].
+    ///
+    /// The tick loop follows this fixed order each iteration:
+    /// 1. Broadcast `TickStart`
+    /// 2. State updates (buff expiry, anomaly tick, switch cooldown)
+    /// 3. `APLManager::process_next_action` — advance animations, dispatch new actions
+    /// 4. Convert pending APL actions to `GameEvent`s, publish to the `EventBus`
+    /// 5. `CoordinatedActionSystem::process_events` — let listeners react
+    /// 6. `GameState::check_termination` — decide whether to stop
+    /// 7. `GameState::advance_tick`
+    pub fn run(config: SimConfig) -> SimulationResult {
+        // ── initialise all subsystems ──────────────────────────────────
+        let team =
+            TeamManager::with_bangboo(config.team_characters.clone(), config.bangboo.clone());
+        let mut game_state = GameState::new(team, config.mode);
+        let mut buff_mgr = BuffManager::new();
+        let mut anomaly_mgr = AnomalyDisorderManager::new();
+        let event_bus = EventBus::new();
+        let mut apl_mgr = APLManager::new(config.apl.clone());
+        let mut coordinated_system = CoordinatedActionSystem::new();
+        let enemies = config.enemies.clone();
+
+        let mut logged_events: Vec<LoggedEvent> = Vec::new();
+        let mut processed_ticks: u64 = 0;
+
+        // ── main tick loop ─────────────────────────────────────────────
+        loop {
+            let tick = game_state.current_tick;
+
+            // Pre-check static termination conditions (enemies, characters, max_tick).
+            // We pass `apl_exhausted = false` here — APL exhaustion is only
+            // meaningful *after* processing, so it is handled in the post-check below.
+            if game_state.check_termination(&enemies, config.max_tick, false) {
+                break;
+            }
+
+            // 1. Tick start — broadcast event
+            event_bus.publish(GameEvent::new(EventType::TickStart, tick));
+
+            // 2. State updates
+            buff_mgr.on_tick(tick);
+            buff_mgr.remove_expired(tick);
+            anomaly_mgr.on_tick(tick);
+            game_state.team.on_tick(); // switch cooldown decrement
+
+            // 3. APL processing — advance animations and dispatch new actions
+            let _validation_errors =
+                apl_mgr.process_next_action(tick, &mut game_state.team, &config.skills, &enemies);
+
+            // 4. Collect pending actions, convert to GameEvents, publish & log
+            let pending = apl_mgr.get_pending_actions();
+            let mut tick_events: Vec<GameEvent> = Vec::new();
+
+            for action in &pending {
+                if let Some(ev) = pending_action_to_event(action, tick) {
+                    event_bus.publish(ev.clone());
+                    tick_events.push(ev.clone());
+
+                    logged_events.push(LoggedEvent {
+                        tick,
+                        event_type: ev.event_type.clone(),
+                        source_id: ev.source_id.clone(),
+                        target_id: ev.target_id.clone(),
+                        action_id: ev
+                            .payload
+                            .as_ref()
+                            .and_then(|p| p.get("action_id"))
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
+                        damage: ev
+                            .payload
+                            .as_ref()
+                            .and_then(|p| p.get("damage"))
+                            .and_then(|v| v.as_f64()),
+                        is_crit: ev
+                            .payload
+                            .as_ref()
+                            .and_then(|p| p.get("is_crit"))
+                            .and_then(|v| v.as_bool()),
+                    });
+                }
+            }
+
+            // 5. Coordinated action processing — react to tick events
+            coordinated_system.process_events(&tick_events, &game_state);
+            let coordinated_actions = coordinated_system.get_pending_actions();
+
+            for ca in &coordinated_actions {
+                let ev = GameEvent::new(EventType::CoordinatedAction, tick)
+                    .with_source(ca.source_id.clone())
+                    .with_target(ca.target_id.clone())
+                    .with_payload(serde_json::json!({"action_id": ca.action_id.clone()}));
+                event_bus.publish(ev);
+                logged_events.push(LoggedEvent {
+                    tick,
+                    event_type: EventType::CoordinatedAction,
+                    source_id: Some(ca.source_id.clone()),
+                    target_id: Some(ca.target_id.clone()),
+                    action_id: Some(ca.action_id.clone()),
+                    damage: None,
+                    is_crit: None,
+                });
+            }
+
+            // 6. Post-check — APL exhaustion only (enemies/characters/max_tick
+            //    were already checked at the top of the loop).
+            // Empty APL (no tracks) is NOT considered exhausted — the
+            // simulation runs to max_tick by default.  Only when a plan
+            // exists and all its tracks are consumed do we stop.
+            processed_ticks += 1;
+            let has_tracks = !config.apl.tracks.is_empty();
+            if has_tracks && apl_mgr.all_tracks_exhausted() {
+                game_state.terminate("APL tracks exhausted");
+                break;
+            }
+
+            // 7. Advance to next tick
+            game_state.advance_tick();
+        }
+
+        SimulationResult {
+            total_ticks: processed_ticks,
+            termination_reason: game_state.termination_reason.clone(),
+            events: logged_events,
+            seed: config.seed,
+        }
+    }
+}
+
+/// Convert a [`PendingAction`] into an optional [`GameEvent`].
+///
+/// Only actions that map naturally to an [`EventType`] variant produce an
+/// event; internal bookkeeping actions (`ActionCompleted`, `ChargingCompleted`)
+/// are filtered out.
+fn pending_action_to_event(action: &PendingAction, tick: u64) -> Option<GameEvent> {
+    match action {
+        PendingAction::ActionStarted { char_id, action_id } => Some(
+            GameEvent::new(EventType::ActionStart, tick)
+                .with_source(char_id.clone())
+                .with_payload(serde_json::json!({"action_id": action_id})),
+        ),
+        PendingAction::HitFrameTriggered {
+            char_id,
+            action_id,
+            frame,
+            multiplier,
+        } => Some(
+            GameEvent::new(EventType::DamageDealt, tick)
+                .with_source(char_id.clone())
+                .with_payload(serde_json::json!({
+                    "action_id": action_id,
+                    "frame": frame,
+                    "multiplier": multiplier,
+                })),
+        ),
+        PendingAction::ActionFailed {
+            char_id,
+            action_id,
+            reason,
+        } => Some(
+            GameEvent::new(EventType::ErrorRaised, tick)
+                .with_source(char_id.clone())
+                .with_payload(serde_json::json!({
+                    "action_id": action_id,
+                    "reason": reason,
+                })),
+        ),
+        PendingAction::ChargingStarted {
+            char_id,
+            action_id,
+            charge_duration,
+        } => Some(
+            GameEvent::new(EventType::ActionStart, tick)
+                .with_source(char_id.clone())
+                .with_payload(serde_json::json!({
+                    "action_id": action_id,
+                    "charge_duration": charge_duration,
+                })),
+        ),
+        // Internal bookkeeping: no matching event type
+        PendingAction::ActionCompleted { .. } | PendingAction::ChargingCompleted { .. } => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::combat::coordinated::CoordinatedListener;
+    use crate::combat::skill::SkillData;
+    use crate::data::apl::{ActionEntry, Track};
+    use crate::entities::character::Character;
+    use crate::entities::enemy::EnemyState;
+    use crate::entities::enums::{ElementTag, EnemyType, FactionTag, SkillType, SpecialtyTag};
+    use crate::entities::models::BaseStats;
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    fn make_character(
+        char_id: &str,
+        specialty: SpecialtyTag,
+        element: ElementTag,
+        energy: f64,
+        hp: f64,
+    ) -> Character {
+        let mut c = Character::new(
+            char_id,
+            FactionTag::GentleHouse,
+            specialty,
+            element,
+            BaseStats::default().with_hp(hp),
+        );
+        c.resources.energy = energy;
+        c.current_stats.hp = hp;
+        c
+    }
+
+    fn make_team() -> TeamManager {
+        TeamManager::new(vec![
+            make_character(
+                "char_0",
+                SpecialtyTag::Attack,
+                ElementTag::Physical,
+                100.0,
+                8000.0,
+            ),
+            make_character(
+                "char_1",
+                SpecialtyTag::Support,
+                ElementTag::Ether,
+                120.0,
+                6000.0,
+            ),
+        ])
+    }
+
+    fn make_skill(
+        action_id: &str,
+        action_type: SkillType,
+        energy_cost: f64,
+        hp_cost: f64,
+        decibel_cost: f64,
+        cooldown_ticks: u64,
+    ) -> SkillData {
+        SkillData {
+            action_id: action_id.to_string(),
+            action_type,
+            damage_multipliers: vec![],
+            daze_multiplier: 0.0,
+            hit_frames: vec![],
+            invincible_frames: vec![],
+            interruptible_frame: 0,
+            is_snapshot: false,
+            charge_branches: vec![],
+            prerequisite_action_id: None,
+            hp_cost,
+            energy_cost,
+            decibel_cost,
+            cooldown_ticks,
+            animation_frames: 1, // default: instant completion
+        }
+    }
+
+    fn make_enemy(hp: f64) -> EnemyState {
+        let mut enemy = EnemyState::new("test_enemy", EnemyType::Elite, 100.0);
+        enemy.hp = hp;
+        enemy
+    }
+
+    fn make_skills_map(skills: Vec<SkillData>) -> HashMap<String, SkillData> {
+        skills
+            .into_iter()
+            .map(|s| (s.action_id.clone(), s))
+            .collect()
+    }
+
+    fn single_track_apl(char_id: &str, actions: Vec<ActionEntry>) -> APLData {
+        APLData {
+            tracks: vec![Track {
+                track_id: "t1".into(),
+                char_id: char_id.into(),
+                actions,
+            }],
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Default config & basic run
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_default_config_no_crash() {
+        // Empty config with no enemies → "All enemies defeated" (vacuously true).
+        let cfg = SimConfig::default();
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 0);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("All enemies defeated")
+        );
+    }
+
+    #[test]
+    fn test_default_config_with_enemies() {
+        // enemies alive + no APL → runs to max_tick
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 5;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 5);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("Max tick reached")
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Termination: max tick
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_termination_by_max_tick() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 10;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 10);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("Max tick reached")
+        );
+    }
+
+    #[test]
+    fn test_termination_by_max_tick_large_value() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 100;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 100);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("Max tick reached")
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Termination: APL exhausted
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_termination_by_apl_exhausted() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 1000;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        cfg.skills = make_skills_map(vec![make_skill(
+            "normal_atk",
+            SkillType::Normal,
+            0.0,
+            0.0,
+            0.0,
+            0,
+        )]);
+        cfg.apl = single_track_apl(
+            "char_0",
+            vec![ActionEntry {
+                action_id: "normal_atk".into(),
+                at: 0,
+            }],
+        );
+        let result = SimulationRunner::run(cfg);
+        // One action at tick 0 → dispatched immediately, APL exhausted
+        // at tick 1 → terminates with APL exhausted
+        assert_eq!(result.total_ticks, 1);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("APL tracks exhausted")
+        );
+    }
+
+    #[test]
+    fn test_termination_by_apl_exhausted_multi_track() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 1000;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        cfg.skills = make_skills_map(vec![make_skill(
+            "normal_atk",
+            SkillType::Normal,
+            0.0,
+            0.0,
+            0.0,
+            0,
+        )]);
+        cfg.apl = APLData {
+            tracks: vec![
+                Track {
+                    track_id: "t1".into(),
+                    char_id: "char_0".into(),
+                    actions: vec![ActionEntry {
+                        action_id: "normal_atk".into(),
+                        at: 0,
+                    }],
+                },
+                Track {
+                    track_id: "t2".into(),
+                    char_id: "char_1".into(),
+                    actions: vec![ActionEntry {
+                        action_id: "normal_atk".into(),
+                        at: 0,
+                    }],
+                },
+            ],
+        };
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 1);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("APL tracks exhausted")
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Termination: enemy death
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_termination_by_enemy_death_zero_hp() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 1000;
+        cfg.enemies = vec![make_enemy(0.0)]; // already dead
+        cfg.team_characters = make_team().characters;
+        // No APL → should terminate on "All enemies defeated" at tick 0
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 0);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("All enemies defeated")
+        );
+    }
+
+    #[test]
+    fn test_termination_by_enemy_death_negative_hp() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 1000;
+        cfg.enemies = vec![make_enemy(-100.0)];
+        cfg.team_characters = make_team().characters;
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 0);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("All enemies defeated")
+        );
+    }
+
+    #[test]
+    fn test_termination_by_enemy_death_multi_enemy() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 1000;
+        cfg.enemies = vec![make_enemy(0.0), make_enemy(0.0)];
+        cfg.team_characters = make_team().characters;
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 0);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("All enemies defeated")
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Termination: character death
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_termination_by_character_death() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 1000;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = vec![
+            make_character(
+                "dead_0",
+                SpecialtyTag::Attack,
+                ElementTag::Physical,
+                0.0,
+                0.0,
+            ),
+            make_character("dead_1", SpecialtyTag::Support, ElementTag::Ether, 0.0, 0.0),
+        ];
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 0);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("All characters defeated")
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Event logging
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_logged_events_contain_action_events() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 100;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        cfg.skills = make_skills_map(vec![make_skill(
+            "normal_atk",
+            SkillType::Normal,
+            0.0,
+            0.0,
+            0.0,
+            0,
+        )]);
+        cfg.apl = single_track_apl(
+            "char_0",
+            vec![ActionEntry {
+                action_id: "normal_atk".into(),
+                at: 0,
+            }],
+        );
+
+        let result = SimulationRunner::run(cfg);
+
+        // Should contain at least one ActionStart event for normal_atk
+        let action_starts: Vec<&LoggedEvent> = result
+            .events
+            .iter()
+            .filter(|e| e.event_type == EventType::ActionStart)
+            .collect();
+        assert!(!action_starts.is_empty(), "Expected ActionStart events");
+        assert_eq!(action_starts[0].action_id.as_deref(), Some("normal_atk"));
+        assert_eq!(action_starts[0].source_id.as_deref(), Some("char_0"));
+    }
+
+    #[test]
+    fn test_logged_events_hit_frame_damage() {
+        let mut skill = make_skill("combo", SkillType::Normal, 0.0, 0.0, 0.0, 0);
+        skill.damage_multipliers = vec![crate::combat::skill::HitFrame {
+            frame: 1,
+            multiplier: 1.2,
+        }];
+        skill.animation_frames = 1;
+
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 100;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        cfg.skills = make_skills_map(vec![skill]);
+        cfg.apl = single_track_apl(
+            "char_0",
+            vec![ActionEntry {
+                action_id: "combo".into(),
+                at: 0,
+            }],
+        );
+
+        let result = SimulationRunner::run(cfg);
+
+        // Should contain DamageDealt event
+        let dmg_events: Vec<&LoggedEvent> = result
+            .events
+            .iter()
+            .filter(|e| e.event_type == EventType::DamageDealt)
+            .collect();
+        assert_eq!(dmg_events.len(), 1);
+        assert_eq!(dmg_events[0].source_id.as_deref(), Some("char_0"));
+        assert_eq!(dmg_events[0].action_id.as_deref(), Some("combo"));
+    }
+
+    #[test]
+    fn test_logged_events_is_empty_with_no_apl() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 5;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        // No APL tracks
+        let result = SimulationRunner::run(cfg);
+        // No actions dispatched → no action events
+        assert!(result
+            .events
+            .iter()
+            .all(|e| e.event_type != EventType::ActionStart));
+    }
+
+    // ------------------------------------------------------------------
+    // Tick accuracy
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_tick_count_matches_config() {
+        for ticks in &[0u64, 1, 5, 10, 50] {
+            let mut cfg = SimConfig::default();
+            cfg.max_tick = *ticks;
+            cfg.enemies = vec![make_enemy(50000.0)];
+            cfg.team_characters = make_team().characters;
+            let result = SimulationRunner::run(cfg);
+            assert_eq!(
+                result.total_ticks, *ticks,
+                "expected {} ticks, got {}",
+                ticks, result.total_ticks
+            );
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Repeated runs produce identical results (determinism)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_repeated_run_identical() {
+        let mut config = SimConfig::default();
+        config.max_tick = 20;
+        config.enemies = vec![make_enemy(50000.0)];
+        config.team_characters = make_team().characters;
+        config.skills = make_skills_map(vec![make_skill(
+            "normal_atk",
+            SkillType::Normal,
+            0.0,
+            0.0,
+            0.0,
+            0,
+        )]);
+        config.apl = single_track_apl(
+            "char_0",
+            vec![
+                ActionEntry {
+                    action_id: "normal_atk".into(),
+                    at: 0,
+                },
+                ActionEntry {
+                    action_id: "normal_atk".into(),
+                    at: 10,
+                },
+            ],
+        );
+
+        let r1 = SimulationRunner::run(config.clone());
+        let r2 = SimulationRunner::run(config);
+
+        assert_eq!(r1.total_ticks, r2.total_ticks);
+        assert_eq!(r1.termination_reason, r2.termination_reason);
+        assert_eq!(r1.events.len(), r2.events.len());
+    }
+
+    // ------------------------------------------------------------------
+    // Coordinated action system integration
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_coordinated_system_no_crash() {
+        // The runner calls coordinated_system.process_events() each tick.
+        // With no listeners registered, it should be a no-op.
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 10;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        cfg.skills = make_skills_map(vec![make_skill(
+            "normal_atk",
+            SkillType::Normal,
+            0.0,
+            0.0,
+            0.0,
+            0,
+        )]);
+        cfg.apl = single_track_apl(
+            "char_0",
+            vec![ActionEntry {
+                action_id: "normal_atk".into(),
+                at: 0,
+            }],
+        );
+
+        let result = SimulationRunner::run(cfg);
+        assert!(result.total_ticks > 0);
+        // No CoordinatedAction events without registered listeners
+        assert!(result
+            .events
+            .iter()
+            .all(|e| e.event_type != EventType::CoordinatedAction));
+    }
+
+    // ------------------------------------------------------------------
+    // Edge cases
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_run_with_zero_max_tick_terminates_immediately() {
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 0;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 0);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("Max tick reached")
+        );
+    }
+
+    #[test]
+    fn test_run_with_partial_apl_exhaustion() {
+        // Two actions scheduled at tick 0 and tick 50. Max tick = 20.
+        // The second action should never dispatch, and we terminate by max_tick.
+        let mut cfg = SimConfig::default();
+        cfg.max_tick = 20;
+        cfg.enemies = vec![make_enemy(50000.0)];
+        cfg.team_characters = make_team().characters;
+        cfg.skills = make_skills_map(vec![make_skill(
+            "normal_atk",
+            SkillType::Normal,
+            0.0,
+            0.0,
+            0.0,
+            0,
+        )]);
+        cfg.apl = single_track_apl(
+            "char_0",
+            vec![
+                ActionEntry {
+                    action_id: "normal_atk".into(),
+                    at: 0,
+                },
+                ActionEntry {
+                    action_id: "normal_atk".into(),
+                    at: 50,
+                },
+            ],
+        );
+        let result = SimulationRunner::run(cfg);
+        assert_eq!(result.total_ticks, 20);
+        assert_eq!(
+            result.termination_reason.as_deref(),
+            Some("Max tick reached")
+        );
+        // Only one action should have been dispatched (at tick 0)
+        let action_starts: Vec<&LoggedEvent> = result
+            .events
+            .iter()
+            .filter(|e| e.event_type == EventType::ActionStart)
+            .collect();
+        assert_eq!(action_starts.len(), 1);
+    }
+}

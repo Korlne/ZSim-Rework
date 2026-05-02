@@ -265,3 +265,20 @@ Started: Sat May  2 10:38:49     2026
   - Gotchas encountered: Initializing last_trigger_tick = 0 blocks first trigger when cooldown > 0 (0 < 0 + cooldown → always blocked). Solution: use Option<u64>, start at None.
   - Useful context: SimpleCoordinatedListener uses the event's target_id for the derived action. No-target events fall back to "enemy_default". The CoordinatedListener trait's Debug supertrait is required for the CoordinatedActionSystem to derive Debug.
 ---
+
+## 2026-05-02 20:00 - US-015
+- SimulationRunner already implemented in zsim-core/src/combat/runner.rs (untracked, from prior session)
+- SimConfig: team_characters, enemies, skills, apl, max_tick, seed, mode, bangboo with Default impl
+- SimulationResult: total_ticks, termination_reason, events, seed
+- LoggedEvent: tick, event_type, source_id, target_id, action_id, damage, is_crit
+- Per-tick order: TickStart → state updates (buff expiry, anomaly tick, switch cooldown) → APLManager.process_next_action → PendingAction→GameEvent conversion (pending_action_to_event) → CoordinatedActionSystem.process_events → check_termination → advance_tick
+- pending_action_to_event(): maps ActionStarted→ActionStart, HitFrameTriggered→DamageDealt, ActionFailed→ErrorRaised, ChargingStarted→ActionStart. ActionCompleted and ChargingCompleted filtered (internal bookkeeping)
+- 18 tests: default config (no crash, with enemies), all 4 termination conditions (max tick, APL exhausted single/multi-track, enemy death 0/negative/multi, character death), event logging (action events, hit frame damage, empty APL), tick accuracy (0/1/5/10/50), determinism (repeated run identical), coordinated system integration (no-crash, no events without listeners), edge cases (zero max tick, partial APL exhaustion)
+- Added `pub mod runner;` to combat/mod.rs
+- Fixed: rebuild resolved test failures (stale build from before runner.rs was part of the crate)
+- All 348 tests pass, clippy clean (3 pre-existing warnings), fmt clean
+- Files changed: zsim-core/src/combat/runner.rs (new, 855 lines), zsim-core/src/combat/mod.rs (+1 line), scripts/ralph/prd.json (US-015 passes:true)
+- **Learnings for future iterations:**
+  - Patterns discovered: The runner was already implemented in a prior session as untracked work - always check git status for untracked files before assuming a US hasn't been started. Runner follows the same unit-struct pattern as other combat systems (SimulationRunner::run).
+  - Gotchas encountered: Runner tests depend on being compiled with the full crate. First run after adding `pub mod runner` fails (stale build) then passes on rebuild. Always do a clean `cargo test` after adding new modules.
+  - Useful context: Runner doesn't register CoordinatedListeners by default — SimConfig needs extension for listener registration (future US-016 parallel runner). EquipmentManager is setup-only, not part of the per-tick loop. APL exhaustion tracks must have non-empty tracks (empty tracks = no APL = run to max_tick).

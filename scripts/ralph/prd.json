@@ -245,8 +245,8 @@
         "cargo test 通过（验证完整 Tick 循环、终止条件、事件顺序）"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "SimulationRunner in combat::runner with SimConfig, SimulationResult, LoggedEvent. Per-tick order: TickStart → state updates (buff expiry, anomaly tick, switch cooldown) → APLManager.process_next_action → PendingAction→GameEvent conversion → CoordinatedActionSystem.process_events → check_termination → advance_tick. pending_action_to_event() converter maps PendingAction variants to GameEvents. 18 tests covering all 4 termination conditions (max tick, APL exhausted, enemy death, character death), event logging, tick accuracy, determinism, coordinated system integration, and edge cases."
     },
     {
       "id": "US-016",
