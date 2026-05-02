@@ -150,8 +150,8 @@
         "cargo test 通过（验证事件广播、多订阅者、Drop 清理）"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "EventBus with mpsc-based pub-sub (simpler than Tokio broadcast for sync engine). 13 EventType variants (12 specified + StunTriggered). GameEvent builder pattern (with_source/with_target/with_payload). subscribe/publish/publish_event/cleanup/subscriber_count/has_subscribers. 12 tests covering subscribe+publish, multiple subscribers, type filtering, dropped receiver cleanup, no-subscriber safety, independent types, subscriber count, has_subscribers, all 13 types, builder pattern, publish_event shorthand."
     },
     {
       "id": "US-010",

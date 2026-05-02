@@ -15,7 +15,10 @@ Started: Sat May  2 10:38:49     2026
 - Anomaly accumulation: `gauge_added = anomaly_mastery * multiplier`, trigger at threshold.
 - Stun is deterministic (no RNG). Resources/DR also have no RNG dependency.
 - EquipmentManager pattern: use `from_equipment_data()` to index disc sets into `HashMap<String, DiscSet>` for O(1) set bonus lookup. Disc set bonus resolution counts discs per set_id and checks thresholds (2-piece >= 2 discs, 4-piece >= 4 discs).
-- Buff resolution via string ID: define a `resolve_buff(buff_id: &str) -> Option<BuffData>` match-based method on the manager. Unknown IDs return None and are silently skipped. This pattern is extensible as more buff IDs are added.---
+- Buff resolution via string ID: define a `resolve_buff(buff_id: &str) -> Option<BuffData>` match-based method on the manager. Unknown IDs return None and are silently skipped. This pattern is extensible as more buff IDs are added.
+- EventBus pattern: use `std::sync::mpsc` channels for sync pub-sub event bus (simpler than Tokio broadcast for zero-async simulation engines). Each subscriber gets a dedicated channel. Dropping the receiver auto-cleans up.
+- W-Engine base stats and Drive Disc main/sub stats should be registered as individual buffs with unique IDs to allow the BuffManager to aggregate them correctly.
+---
 ## 2026-05-02 11:00 - US-005
 - Implemented 6 damage calculation modules in zsim-core/src/calculation/damage.rs
 - RegularMul: ATK × multiplier × (1+DMG_BONUS) × crit_factor × def_factor × res_factor × (1-DR)
@@ -109,3 +112,28 @@ Started: Sat May  2 10:38:49     2026
   - Patterns discovered: Disc set bonus resolution is a counting problem -- group discs by set_id, check count thresholds. Equipment buffs are registered via the existing BuffManager API, not stored separately.
   - Gotchas encountered: `resolve_buff()` is a match-based static method. New buff IDs (from data files or future passives) must be added here. Unknown IDs don't crash but produce no effect -- important to log/track missing IDs in production.
   - Useful context: EquipmentManager currently treats set bonuses as always-active buffs. Conditional effects (e.g., "on dealing Electric DMG") require event-based application which will be handled by EventBus (US-009). Disc bonus `buff_id` strings refer to entries in `resolve_buff()` -- the resolver and data must stay in sync.
+---
+
+## 2026-05-02 14:30 - US-008 (supplement: stat buff improvements)
+- Linter/auto-implement pass added substantial improvements to EquipmentManager:
+  - `EQUIPMENT_BUFF_DURATION` constant (18_000 ticks = max sim length) for permanent equipment stats
+  - `map_stat_name()` helper: maps equipment JSON names (hp/atk/def/pen_fixed) to BuffManager modifier names (hp_flat/atk_flat/def_flat/pen)
+  - `build_wengine_stats_buff()`: creates a single multi-modifier buff from W-Engine base stats (all 12 fields, skips zero values)
+  - `apply_equipment_buffs()` expanded: now also registers W-Engine base stats, Drive Disc main stats, and Drive Disc sub-stats as individual buffs with unique IDs
+- 6 existing tests updated to match new buff counts and expected values
+- 4 new tests: map_stat_name_mappings, map_stat_name_passthrough, build_wengine_stats_buff_all_zeros, build_wengine_stats_buff_with_stats
+- All 167 tests pass (including auto-implemented US-009 EventBus tests)
+
+## 2026-05-02 14:30 - US-009
+- EventBus auto-implemented in zsim-core/src/events/event_bus.rs and zsim-core/src/events/signals.rs
+- EventType enum: 13 variants (12 per PRD + StunTriggered)
+- GameEvent struct with builder pattern (with_source/with_target/with_payload)
+- EventBus: subscribe(publisher) / publish(event) / publish_event() / cleanup() / subscriber_count() / has_subscribers()
+- Uses std::sync::mpsc channels (not Tokio broadcast) -- zero-async, appropriate for sync simulation engine
+- 12 tests: subscribe+publish, multiple subscribers, type filtering, dropped receiver cleanup, no-subscriber safety, independent types, subscriber count, has_subscribers, all 13 types, builder pattern, publish_event shorthand
+- All 167 tests pass, clippy clean, fmt clean
+- Files changed: zsim-core/src/events/event_bus.rs (placeholder -> 277 lines), zsim-core/src/events/signals.rs (placeholder -> 58 lines), scripts/ralph/prd.json (US-009 passes)
+- **Learnings for future iterations:**
+  - Patterns discovered: mpsc channels work well for sync event bus -- no async runtime needed. Each subscriber gets a dedicated channel; receiver Drop auto-cleans. No manual disconnect needed.
+  - Gotchas encountered: The PRD specified Tokio broadcast, but since the simulation engine is purely synchronous, std::sync::mpsc is more appropriate. EventType has 13 variants (not 12) because StunTriggered was added as a practical bonus.
+  - Useful context: EventBus is ready to be wired into AnomalyDisorderManager (US-007), EquipmentManager conditional effects (US-008), and the main simulation loop (US-015).
