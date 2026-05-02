@@ -392,6 +392,56 @@ fn reimport_all(state: tauri::State<'_, DataDirState>) -> Result<String, String>
     }).to_string())
 }
 
+// --- 角色 CRUD 命令 ---
+
+/// 获取所有角色列表，返回 JSON 数组。
+#[tauri::command]
+fn get_characters(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::characters::cmd_get_characters(&conn)
+}
+
+/// 获取单个角色（含关联技能），返回 JSON 对象。
+#[tauri::command]
+fn get_character(state: tauri::State<'_, DataDirState>, char_id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::characters::cmd_get_character(&conn, char_id)
+}
+
+/// 创建或保存角色。接受匹配 CharacterRecord 结构的 JSON 字符串。
+#[tauri::command]
+fn save_character(state: tauri::State<'_, DataDirState>, data: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::characters::cmd_save_character(&conn, data)
+}
+
+/// 删除角色及其级联关联的技能和倍率段。
+#[tauri::command]
+fn delete_character(state: tauri::State<'_, DataDirState>, char_id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::characters::cmd_delete_character(&conn, char_id)
+}
+
 pub fn run() {
     // 数据目录：开发环境下为项目根目录下的 data/，生产环境使用应用资源目录
     let data_dir = std::env::current_dir()
@@ -420,6 +470,10 @@ pub fn run() {
             init_database,
             import_from_json,
             reimport_all,
+            get_characters,
+            get_character,
+            save_character,
+            delete_character,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
