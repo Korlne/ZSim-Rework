@@ -70,7 +70,7 @@
       ],
       "priority": 4,
       "passes": true,
-      "notes": "已实现。characters.rs 含完整 CRUD（get_characters/get_character/save_character/delete_character），char_id 格式验证，16 个单元测试全部通过。Tauri 命令已注册。"
+      "notes": "已实现。commit 1ad6eca。characters.rs 含完整 CRUD（get_characters/get_character/save_character/delete_character），char_id 格式验证，16 个单元测试全部通过。Tauri 命令已注册。"
     },
     {
       "id": "US-005",
