@@ -222,9 +222,18 @@ fn send_to_sidecar(app: tauri::AppHandle, command: String) -> Result<String, Str
 
 // --- Application entry point ---
 
+/// Write content to a file at the given path.
+/// Used by the frontend to export charts and data.
+#[tauri::command]
+fn write_file(path: String, content: String) -> Result<String, String> {
+    std::fs::write(&path, &content).map_err(|e| format!("Failed to write file: {e}"))?;
+    Ok(serde_json::json!({"status": "saved", "path": path}).to_string())
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(SidecarState {
             child: Mutex::new(None),
             stdin: Mutex::new(None),
@@ -238,6 +247,7 @@ pub fn run() {
             stop_simulation,
             spawn_sidecar,
             send_to_sidecar,
+            write_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
