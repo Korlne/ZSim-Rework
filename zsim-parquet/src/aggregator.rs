@@ -1,8 +1,18 @@
 //! Parquet aggregation queries for ZSim 2.0 simulation results.
 //!
 //! Provides columnar read and aggregation over the 15-column Parquet schema
-//! defined by [`crate::writer`].  Each query type reads only the columns it
-//! needs from the Parquet file and produces a JSON-serializable result.
+//! defined by [`crate::writer`].  Each query type uses **projection pushdown**
+//! to read only the columns it needs from the file, minimising I/O.
+//!
+//! | Query              | Columns read                                          |
+//! |--------------------|-------------------------------------------------------|
+//! | `TotalDamage`      | event_type, damage                                    |
+//! | `DPS`              | tick, event_type, damage                              |
+//! | `DamageBreakdown`  | event_type, source_id, damage                         |
+//! | `AnomalyStats`     | event_type, element, damage, anomaly_gauge            |
+//! | `StunStats`        | stun_dmg                                              |
+//! | `CritRate`         | event_type, crit                                      |
+//! | `StatsSummary`     | event_type, damage                                    |
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -12,6 +22,7 @@ use anyhow::{Context, Result};
 use arrow::array::*;
 use arrow::record_batch::RecordBatch;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use parquet::arrow::ProjectionMask;
 use serde::{Deserialize, Serialize};
 
 // ── Query / Result types ─────────────────────────────────────────────────
@@ -153,41 +164,17 @@ impl ParquetAggregator {
     /// [`ParquetWriter`](crate::writer::ParquetWriter).
     pub fn aggregate(path: &Path, query: &AggQuery) -> Result<AggResult> {
         match query {
-            AggQuery::TotalDamage => {
-                let batches = read_damage_batches(path)?;
-                let total = aggregate_total_damage(&batches);
-                Ok(AggResult::TotalDamage(total))
-            }
+            AggQuery::TotalDamage => Ok(AggResult::TotalDamage(aggregate_total_damage(path)?)),
             AggQuery::DPS { window_ticks } => {
-                let batches = read_dps_batches(path)?;
-                let points = aggregate_dps(&batches, *window_ticks);
-                Ok(AggResult::DPS(points))
+                Ok(AggResult::DPS(aggregate_dps(path, *window_ticks)?))
             }
-            AggQuery::DamageBreakdown => {
-                let batches = read_damage_breakdown_batches(path)?;
-                let breakdown = aggregate_damage_breakdown(&batches);
-                Ok(AggResult::DamageBreakdown(breakdown))
-            }
-            AggQuery::AnomalyStats => {
-                let batches = read_anomaly_batches(path)?;
-                let stats = aggregate_anomaly_stats(&batches);
-                Ok(AggResult::AnomalyStats(stats))
-            }
-            AggQuery::StunStats => {
-                let batches = read_stun_batches(path)?;
-                let stats = aggregate_stun_stats(&batches);
-                Ok(AggResult::StunStats(stats))
-            }
-            AggQuery::CritRate => {
-                let batches = read_crit_batches(path)?;
-                let stats = aggregate_crit_rate(&batches);
-                Ok(AggResult::CritRate(stats))
-            }
-            AggQuery::StatsSummary => {
-                let batches = read_damage_batches(path)?;
-                let summary = aggregate_stats_summary(&batches);
-                Ok(AggResult::StatsSummary(summary))
-            }
+            AggQuery::DamageBreakdown => Ok(AggResult::DamageBreakdown(
+                aggregate_damage_breakdown(path)?,
+            )),
+            AggQuery::AnomalyStats => Ok(AggResult::AnomalyStats(aggregate_anomaly_stats(path)?)),
+            AggQuery::StunStats => Ok(AggResult::StunStats(aggregate_stun_stats(path)?)),
+            AggQuery::CritRate => Ok(AggResult::CritRate(aggregate_crit_rate(path)?)),
+            AggQuery::StatsSummary => Ok(AggResult::StatsSummary(aggregate_stats_summary(path)?)),
         }
     }
 }
@@ -197,7 +184,7 @@ pub fn aggregate(path: &Path, query: &AggQuery) -> Result<AggResult> {
     ParquetAggregator::aggregate(path, query)
 }
 
-// ── Parquet reading helpers ──────────────────────────────────────────────
+// ── Column indices (original 15-column schema) ──────────────────────────
 
 /// Column indices in the 15-column schema.
 #[allow(dead_code)]
@@ -219,45 +206,30 @@ mod col {
     pub const TIMESTAMP: usize = 14;
 }
 
-/// Read all row groups from a Parquet file, optionally selecting columns.
-fn read_all_batches(path: &Path) -> Result<Vec<RecordBatch>> {
+// ── Projected reader ────────────────────────────────────────────────────
+
+/// Open a Parquet file with column projection and return all row groups.
+///
+/// Only the columns listed in `columns` (0-based indices into the original
+/// 15-column schema) are deserialised from the file.  The returned batches
+/// contain only the projected columns, accessed by 0-based index in the
+/// order specified by `columns`.
+fn read_projected(path: &Path, columns: &[usize]) -> Result<Vec<RecordBatch>> {
     let file = File::open(path)
         .with_context(|| format!("Failed to open Parquet file: {}", path.display()))?;
-    let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+
+    let mut builder = ParquetRecordBatchReaderBuilder::try_new(file)
         .with_context(|| format!("Failed to create Parquet reader: {}", path.display()))?;
+
+    if !columns.is_empty() {
+        let parquet_schema = builder.metadata().file_metadata().schema_descr();
+        let mask = ProjectionMask::leaves(parquet_schema, columns.iter().copied());
+        builder = builder.with_projection(mask);
+    }
+
     let reader = builder.build()?;
     let batches: Result<Vec<_>, _> = reader.collect();
     batches.context("Failed to read Parquet row groups")
-}
-
-/// Read batches filtering for DamageDealt events (columns: tick, event_type, damage).
-fn read_damage_batches(path: &Path) -> Result<Vec<RecordBatch>> {
-    read_all_batches(path)
-}
-
-/// Read batches for DPS query (columns: tick, event_type, damage).
-fn read_dps_batches(path: &Path) -> Result<Vec<RecordBatch>> {
-    read_all_batches(path)
-}
-
-/// Read batches for DamageBreakdown (columns: event_type, source_id, damage).
-fn read_damage_breakdown_batches(path: &Path) -> Result<Vec<RecordBatch>> {
-    read_all_batches(path)
-}
-
-/// Read batches for AnomalyStats (columns: event_type, element, damage, anomaly_gauge).
-fn read_anomaly_batches(path: &Path) -> Result<Vec<RecordBatch>> {
-    read_all_batches(path)
-}
-
-/// Read batches for StunStats (columns: event_type, stun_dmg).
-fn read_stun_batches(path: &Path) -> Result<Vec<RecordBatch>> {
-    read_all_batches(path)
-}
-
-/// Read batches for CritRate (columns: event_type, crit).
-fn read_crit_batches(path: &Path) -> Result<Vec<RecordBatch>> {
-    read_all_batches(path)
 }
 
 // ── Column access helpers ────────────────────────────────────────────────
@@ -273,17 +245,18 @@ macro_rules! get_col {
     };
 }
 
-/// Iterate over rows of a [`StringArray`], yielding `Option<&str>`.
+/// Iterate over rows of a [`StringArray`], yielding `Option<String>`.
 fn iter_string(col_idx: usize, batch: &RecordBatch) -> Result<Vec<Option<String>>> {
     let arr = get_col!(batch, col_idx, StringArray);
-    Ok((0..arr.len()).map(|i| {
-        if arr.is_null(i) {
-            None
-        } else {
-            Some(arr.value(i).to_string())
-        }
-    })
-    .collect())
+    Ok((0..arr.len())
+        .map(|i| {
+            if arr.is_null(i) {
+                None
+            } else {
+                Some(arr.value(i).to_string())
+            }
+        })
+        .collect())
 }
 
 /// Iterate over rows of a [`Float64Array`], yielding `Option<f64>`.
@@ -323,17 +296,14 @@ fn iter_bool(col_idx: usize, batch: &RecordBatch) -> Result<Vec<Option<bool>>> {
 // ── Aggregation implementations ──────────────────────────────────────────
 
 /// Sum all non-null damage values in DamageDealt events.
-fn aggregate_total_damage(batches: &[RecordBatch]) -> f64 {
+///
+/// Projection: [EVENT_TYPE(2), DAMAGE(6)] → projected [0 = et, 1 = dmg].
+fn aggregate_total_damage(path: &Path) -> Result<f64> {
+    let batches = read_projected(path, &[col::EVENT_TYPE, col::DAMAGE])?;
     let mut total = 0.0_f64;
-    for batch in batches {
-        let event_types = match iter_string(col::EVENT_TYPE, batch) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
-        let damages = match iter_f64(col::DAMAGE, batch) {
-            Ok(v) => v,
-            Err(_) => continue,
-        };
+    for batch in &batches {
+        let event_types = iter_string(0, batch)?; // projected col 0 = EVENT_TYPE
+        let damages = iter_f64(1, batch)?; // projected col 1 = DAMAGE
         for (i, et) in event_types.iter().enumerate() {
             if et.as_deref() == Some("DamageDealt") {
                 if let Some(dmg) = damages[i] {
@@ -342,17 +312,24 @@ fn aggregate_total_damage(batches: &[RecordBatch]) -> f64 {
             }
         }
     }
-    total
+    Ok(total)
 }
 
 /// Compute DPS time series over sliding windows.
-fn aggregate_dps(batches: &[RecordBatch], window_ticks: u64) -> Vec<DpsPoint> {
-    // Collect all (tick, damage) pairs for DamageDealt events
+///
+/// Projection: [TICK(1), EVENT_TYPE(2), DAMAGE(6)] → projected [0 = tick, 1 = et, 2 = dmg].
+fn aggregate_dps(path: &Path, window_ticks: u64) -> Result<Vec<DpsPoint>> {
+    if window_ticks == 0 {
+        return Ok(Vec::new());
+    }
+
+    let batches = read_projected(path, &[col::TICK, col::EVENT_TYPE, col::DAMAGE])?;
+
     let mut events: Vec<(u64, f64)> = Vec::new();
-    for batch in batches {
-        let Ok(event_types) = iter_string(col::EVENT_TYPE, batch) else { continue };
-        let Ok(ticks) = iter_u64(col::TICK, batch) else { continue };
-        let Ok(damages) = iter_f64(col::DAMAGE, batch) else { continue };
+    for batch in &batches {
+        let ticks = iter_u64(0, batch)?; // projected col 0 = TICK
+        let event_types = iter_string(1, batch)?; // projected col 1 = EVENT_TYPE
+        let damages = iter_f64(2, batch)?; // projected col 2 = DAMAGE
 
         for (i, et) in event_types.iter().enumerate() {
             if et.as_deref() == Some("DamageDealt") {
@@ -363,20 +340,18 @@ fn aggregate_dps(batches: &[RecordBatch], window_ticks: u64) -> Vec<DpsPoint> {
         }
     }
 
-    if events.is_empty() || window_ticks == 0 {
-        return Vec::new();
+    if events.is_empty() {
+        return Ok(Vec::new());
     }
 
-    // Determine tick range
     let min_tick = events.iter().map(|(t, _)| *t).min().unwrap_or(0);
     let max_tick = events.iter().map(|(t, _)| *t).max().unwrap_or(0);
 
-    // Group into windows
     let first_window = min_tick / window_ticks;
     let last_window = max_tick / window_ticks;
     let num_windows = (last_window - first_window + 1) as usize;
-
     let mut window_damage = vec![0.0_f64; num_windows];
+
     for (tick, dmg) in &events {
         let idx = (tick / window_ticks - first_window) as usize;
         if idx < window_damage.len() {
@@ -384,9 +359,8 @@ fn aggregate_dps(batches: &[RecordBatch], window_ticks: u64) -> Vec<DpsPoint> {
         }
     }
 
-    // Convert to DPS points
-    let window_duration_secs = window_ticks as f64 / 60.0; // 60 ticks/s
-    window_damage
+    let window_duration_secs = window_ticks as f64 / 60.0;
+    Ok(window_damage
         .into_iter()
         .enumerate()
         .map(|(i, total)| {
@@ -404,16 +378,20 @@ fn aggregate_dps(batches: &[RecordBatch], window_ticks: u64) -> Vec<DpsPoint> {
                 },
             }
         })
-        .collect()
+        .collect())
 }
 
 /// Group damage by source entity.
-fn aggregate_damage_breakdown(batches: &[RecordBatch]) -> HashMap<String, f64> {
+///
+/// Projection: [EVENT_TYPE(2), SOURCE_ID(3), DAMAGE(6)] → projected [0 = et, 1 = src, 2 = dmg].
+fn aggregate_damage_breakdown(path: &Path) -> Result<HashMap<String, f64>> {
+    let batches = read_projected(path, &[col::EVENT_TYPE, col::SOURCE_ID, col::DAMAGE])?;
     let mut breakdown: HashMap<String, f64> = HashMap::new();
-    for batch in batches {
-        let Ok(event_types) = iter_string(col::EVENT_TYPE, batch) else { continue };
-        let Ok(sources) = iter_string(col::SOURCE_ID, batch) else { continue };
-        let Ok(damages) = iter_f64(col::DAMAGE, batch) else { continue };
+
+    for batch in &batches {
+        let event_types = iter_string(0, batch)?; // projected col 0 = EVENT_TYPE
+        let sources = iter_string(1, batch)?; // projected col 1 = SOURCE_ID
+        let damages = iter_f64(2, batch)?; // projected col 2 = DAMAGE
 
         for (i, et) in event_types.iter().enumerate() {
             if et.as_deref() == Some("DamageDealt") {
@@ -424,21 +402,36 @@ fn aggregate_damage_breakdown(batches: &[RecordBatch]) -> HashMap<String, f64> {
             }
         }
     }
-    breakdown
+
+    Ok(breakdown)
 }
 
 /// Aggregate anomaly statistics.
-fn aggregate_anomaly_stats(batches: &[RecordBatch]) -> AnomalyStatsResult {
+///
+/// Projection: [EVENT_TYPE(2), DAMAGE(6), ELEMENT(8), ANOMALY_GAUGE(9)]
+///             (sorted by original schema order)
+///             → projected [0 = et, 1 = dmg, 2 = el, 3 = ag].
+fn aggregate_anomaly_stats(path: &Path) -> Result<AnomalyStatsResult> {
+    let batches = read_projected(
+        path,
+        &[
+            col::EVENT_TYPE,
+            col::ELEMENT,
+            col::DAMAGE,
+            col::ANOMALY_GAUGE,
+        ],
+    )?;
+
     let mut total_triggers = 0_u64;
     let mut total_anomaly_damage = 0.0_f64;
     let mut total_gauge = 0.0_f64;
     let mut per_element: HashMap<String, ElementAnomalyStats> = HashMap::new();
 
-    for batch in batches {
-        let Ok(event_types) = iter_string(col::EVENT_TYPE, batch) else { continue };
-        let Ok(elements) = iter_string(col::ELEMENT, batch) else { continue };
-        let Ok(damages) = iter_f64(col::DAMAGE, batch) else { continue };
-        let Ok(gauges) = iter_f64(col::ANOMALY_GAUGE, batch) else { continue };
+    for batch in &batches {
+        let event_types = iter_string(0, batch)?; // projected col 0 = EVENT_TYPE
+        let damages = iter_f64(1, batch)?; // projected col 1 = DAMAGE
+        let elements = iter_string(2, batch)?; // projected col 2 = ELEMENT
+        let gauges = iter_f64(3, batch)?; // projected col 3 = ANOMALY_GAUGE
 
         for (i, et) in event_types.iter().enumerate() {
             let elem = elements[i].as_deref().unwrap_or("unknown").to_string();
@@ -448,7 +441,6 @@ fn aggregate_anomaly_stats(batches: &[RecordBatch]) -> AnomalyStatsResult {
             {
                 total_triggers += 1;
                 if let Some(dmg) = damages[i] {
-                    // AnomalyTriggered has damage in the damage field; DisorderTriggered also
                     total_anomaly_damage += dmg;
                     let entry = per_element
                         .entry(elem.clone())
@@ -462,36 +454,37 @@ fn aggregate_anomaly_stats(batches: &[RecordBatch]) -> AnomalyStatsResult {
                 }
             }
 
-            // Track gauge accumulation — any event with anomaly_gauge set
             if let Some(gauge) = gauges[i] {
-                let entry = per_element
-                    .entry(elem)
-                    .or_insert(ElementAnomalyStats {
-                        triggers: 0,
-                        damage: 0.0,
-                        gauge: 0.0,
-                    });
+                let entry = per_element.entry(elem).or_insert(ElementAnomalyStats {
+                    triggers: 0,
+                    damage: 0.0,
+                    gauge: 0.0,
+                });
                 entry.gauge += gauge;
                 total_gauge += gauge;
             }
         }
     }
 
-    AnomalyStatsResult {
+    Ok(AnomalyStatsResult {
         total_triggers,
         total_anomaly_damage,
         total_gauge,
         per_element,
-    }
+    })
 }
 
 /// Aggregate stun damage statistics.
-fn aggregate_stun_stats(batches: &[RecordBatch]) -> StunStatsResult {
+///
+/// Projection: [STUN_DMG(10)] → projected [0 = stun].
+fn aggregate_stun_stats(path: &Path) -> Result<StunStatsResult> {
+    let batches = read_projected(path, &[col::STUN_DMG])?;
+
     let mut total_stun_damage = 0.0_f64;
     let mut total_stun_events = 0_u64;
 
-    for batch in batches {
-        let Ok(stun_dmgs) = iter_f64(col::STUN_DMG, batch) else { continue };
+    for batch in &batches {
+        let stun_dmgs = iter_f64(0, batch)?; // projected col 0 = STUN_DMG
 
         for v in stun_dmgs.iter().flatten() {
             total_stun_damage += v;
@@ -499,20 +492,24 @@ fn aggregate_stun_stats(batches: &[RecordBatch]) -> StunStatsResult {
         }
     }
 
-    StunStatsResult {
+    Ok(StunStatsResult {
         total_stun_damage,
         total_stun_events,
-    }
+    })
 }
 
 /// Aggregate critical hit rate.
-fn aggregate_crit_rate(batches: &[RecordBatch]) -> CritRateResult {
+///
+/// Projection: [EVENT_TYPE(2), CRIT(7)] → projected [0 = et, 1 = crit].
+fn aggregate_crit_rate(path: &Path) -> Result<CritRateResult> {
+    let batches = read_projected(path, &[col::EVENT_TYPE, col::CRIT])?;
+
     let mut total_hits = 0_u64;
     let mut crit_hits = 0_u64;
 
-    for batch in batches {
-        let Ok(event_types) = iter_string(col::EVENT_TYPE, batch) else { continue };
-        let Ok(crits) = iter_bool(col::CRIT, batch) else { continue };
+    for batch in &batches {
+        let event_types = iter_string(0, batch)?; // projected col 0 = EVENT_TYPE
+        let crits = iter_bool(1, batch)?; // projected col 1 = CRIT
 
         for (i, et) in event_types.iter().enumerate() {
             if et.as_deref() == Some("DamageDealt") {
@@ -524,7 +521,7 @@ fn aggregate_crit_rate(batches: &[RecordBatch]) -> CritRateResult {
         }
     }
 
-    CritRateResult {
+    Ok(CritRateResult {
         total_hits,
         crit_hits,
         crit_rate: if total_hits > 0 {
@@ -532,16 +529,19 @@ fn aggregate_crit_rate(batches: &[RecordBatch]) -> CritRateResult {
         } else {
             0.0
         },
-    }
+    })
 }
 
 /// Compute descriptive statistics over all damage values.
-fn aggregate_stats_summary(batches: &[RecordBatch]) -> StatsSummaryResult {
-    // Collect all damage values
+///
+/// Projection: [EVENT_TYPE(2), DAMAGE(6)] → projected [0 = et, 1 = dmg].
+fn aggregate_stats_summary(path: &Path) -> Result<StatsSummaryResult> {
+    let batches = read_projected(path, &[col::EVENT_TYPE, col::DAMAGE])?;
+
     let mut values: Vec<f64> = Vec::new();
-    for batch in batches {
-        let Ok(event_types) = iter_string(col::EVENT_TYPE, batch) else { continue };
-        let Ok(damages) = iter_f64(col::DAMAGE, batch) else { continue };
+    for batch in &batches {
+        let event_types = iter_string(0, batch)?; // projected col 0 = EVENT_TYPE
+        let damages = iter_f64(1, batch)?; // projected col 1 = DAMAGE
 
         for (i, et) in event_types.iter().enumerate() {
             if et.as_deref() == Some("DamageDealt") {
@@ -555,7 +555,7 @@ fn aggregate_stats_summary(batches: &[RecordBatch]) -> StatsSummaryResult {
     let count = values.len() as u64;
 
     if count == 0 {
-        return StatsSummaryResult {
+        return Ok(StatsSummaryResult {
             count: 0,
             mean: 0.0,
             variance: 0.0,
@@ -566,10 +566,10 @@ fn aggregate_stats_summary(batches: &[RecordBatch]) -> StatsSummaryResult {
             p90: 0.0,
             p95: 0.0,
             p99: 0.0,
-        };
+        });
     }
 
-    // Welford's online algorithm for mean + variance
+    // Welford's online algorithm for mean + variance (single pass)
     let mut n = 0.0_f64;
     let mut mean = 0.0_f64;
     let mut m2 = 0.0_f64;
@@ -593,26 +593,21 @@ fn aggregate_stats_summary(batches: &[RecordBatch]) -> StatsSummaryResult {
     let variance = if count > 1 { m2 / count as f64 } else { 0.0 };
     let std_dev = variance.sqrt();
 
-    // Percentiles: sort values, then index
+    // Percentiles: sort values, then index (R7 method)
     values.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
-    let p50 = percentile(&values, 50.0);
-    let p90 = percentile(&values, 90.0);
-    let p95 = percentile(&values, 95.0);
-    let p99 = percentile(&values, 99.0);
-
-    StatsSummaryResult {
+    Ok(StatsSummaryResult {
         count,
         mean,
         variance,
         std_dev,
         min: min_val,
         max: max_val,
-        p50,
-        p90,
-        p95,
-        p99,
-    }
+        p50: percentile(&values, 50.0),
+        p90: percentile(&values, 90.0),
+        p95: percentile(&values, 95.0),
+        p99: percentile(&values, 99.0),
+    })
 }
 
 /// Compute the p-th percentile from a sorted slice.
@@ -721,10 +716,54 @@ mod tests {
     fn test_total_damage_basic() {
         let path = temp_path("td_basic.parquet");
         let events = vec![
-            make_event(0, EventType::ActionStart, Some("a"), None, Some("s1"), None, None, None, None, None),
-            make_event(1, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(100.0), Some(false), None, None, None),
-            make_event(2, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(250.5), Some(true), None, None, None),
-            make_event(3, EventType::TickStart, None, None, None, None, None, None, None, None),
+            make_event(
+                0,
+                EventType::ActionStart,
+                Some("a"),
+                None,
+                Some("s1"),
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                1,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s1"),
+                Some(100.0),
+                Some(false),
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                2,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s1"),
+                Some(250.5),
+                Some(true),
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                3,
+                EventType::TickStart,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
         ];
         write_test_data(&path, vec![make_result(0, 42, 10, "test", events)]);
 
@@ -739,8 +778,30 @@ mod tests {
     fn test_total_damage_no_damage_events() {
         let path = temp_path("td_none.parquet");
         let events = vec![
-            make_event(0, EventType::TickStart, None, None, None, None, None, None, None, None),
-            make_event(1, EventType::ActionStart, Some("a"), None, Some("s1"), None, None, None, None, None),
+            make_event(
+                0,
+                EventType::TickStart,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                1,
+                EventType::ActionStart,
+                Some("a"),
+                None,
+                Some("s1"),
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
         ];
         write_test_data(&path, vec![make_result(0, 42, 5, "no_dmg", events)]);
 
@@ -780,7 +841,7 @@ mod tests {
 
         let result = ParquetAggregator::aggregate(&path, &AggQuery::TotalDamage).unwrap();
         match result {
-            AggResult::TotalDamage(dmg) => assert!((dmg - 600.0).abs() < 1e-9), // 100 + 200 + 300
+            AggResult::TotalDamage(dmg) => assert!((dmg - 600.0).abs() < 1e-9),
             _ => panic!("expected TotalDamage"),
         }
     }
@@ -792,7 +853,6 @@ mod tests {
     #[test]
     fn test_dps_basic() {
         let path = temp_path("dps_basic.parquet");
-        // 60 ticks of damage events, 1 event per tick, 100 damage each
         let events: Vec<LoggedEvent> = (0..60)
             .map(|t| {
                 make_event(
@@ -811,15 +871,15 @@ mod tests {
             .collect();
         write_test_data(&path, vec![make_result(0, 42, 60, "test", events)]);
 
-        // Window = 60 ticks (1 second) → all damage in one window, DPS = 6000
-        let result = ParquetAggregator::aggregate(&path, &AggQuery::DPS { window_ticks: 60 }).unwrap();
+        let result =
+            ParquetAggregator::aggregate(&path, &AggQuery::DPS { window_ticks: 60 }).unwrap();
         match result {
             AggResult::DPS(points) => {
                 assert_eq!(points.len(), 1);
                 assert_eq!(points[0].tick_start, 0);
                 assert_eq!(points[0].tick_end, 60);
                 assert!((points[0].total_damage - 6000.0).abs() < 1e-9);
-                assert!((points[0].dps - 6000.0).abs() < 1e-9); // 6000 dmg / 1 sec
+                assert!((points[0].dps - 6000.0).abs() < 1e-9);
             }
             _ => panic!("expected DPS"),
         }
@@ -828,7 +888,6 @@ mod tests {
     #[test]
     fn test_dps_multiple_windows() {
         let path = temp_path("dps_multi.parquet");
-        // 120 ticks (2 seconds) of damage, 50 damage per tick
         let events: Vec<LoggedEvent> = (0..120)
             .map(|t| {
                 make_event(
@@ -847,11 +906,12 @@ mod tests {
             .collect();
         write_test_data(&path, vec![make_result(0, 42, 120, "test", events)]);
 
-        let result = ParquetAggregator::aggregate(&path, &AggQuery::DPS { window_ticks: 60 }).unwrap();
+        let result =
+            ParquetAggregator::aggregate(&path, &AggQuery::DPS { window_ticks: 60 }).unwrap();
         match result {
             AggResult::DPS(points) => {
                 assert_eq!(points.len(), 2, "should have 2 windows for 120 ticks");
-                assert!((points[0].total_damage - 3000.0).abs() < 1e-9); // 60 * 50
+                assert!((points[0].total_damage - 3000.0).abs() < 1e-9);
                 assert!((points[0].dps - 3000.0).abs() < 1e-9);
                 assert!((points[1].total_damage - 3000.0).abs() < 1e-9);
                 assert!((points[1].dps - 3000.0).abs() < 1e-9);
@@ -865,7 +925,8 @@ mod tests {
         let path = temp_path("dps_empty.parquet");
         write_test_data(&path, vec![make_result(0, 42, 0, "empty", vec![])]);
 
-        let result = ParquetAggregator::aggregate(&path, &AggQuery::DPS { window_ticks: 60 }).unwrap();
+        let result =
+            ParquetAggregator::aggregate(&path, &AggQuery::DPS { window_ticks: 60 }).unwrap();
         match result {
             AggResult::DPS(points) => assert!(points.is_empty()),
             _ => panic!("expected DPS"),
@@ -880,10 +941,54 @@ mod tests {
     fn test_damage_breakdown_basic() {
         let path = temp_path("db_basic.parquet");
         let events = vec![
-            make_event(0, EventType::DamageDealt, Some("char_0"), Some("e"), Some("atk"), Some(100.0), None, None, None, None),
-            make_event(1, EventType::DamageDealt, Some("char_1"), Some("e"), Some("atk"), Some(200.0), None, None, None, None),
-            make_event(2, EventType::DamageDealt, Some("char_0"), Some("e"), Some("atk"), Some(50.0), None, None, None, None),
-            make_event(3, EventType::ActionStart, Some("char_0"), None, Some("atk"), None, None, None, None, None),
+            make_event(
+                0,
+                EventType::DamageDealt,
+                Some("char_0"),
+                Some("e"),
+                Some("atk"),
+                Some(100.0),
+                None,
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                1,
+                EventType::DamageDealt,
+                Some("char_1"),
+                Some("e"),
+                Some("atk"),
+                Some(200.0),
+                None,
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                2,
+                EventType::DamageDealt,
+                Some("char_0"),
+                Some("e"),
+                Some("atk"),
+                Some(50.0),
+                None,
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                3,
+                EventType::ActionStart,
+                Some("char_0"),
+                None,
+                Some("atk"),
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
         ];
         write_test_data(&path, vec![make_result(0, 42, 10, "test", events)]);
 
@@ -901,9 +1006,18 @@ mod tests {
     #[test]
     fn test_damage_breakdown_unknown_source() {
         let path = temp_path("db_unknown.parquet");
-        let events = vec![
-            make_event(0, EventType::DamageDealt, None, Some("e"), Some("atk"), Some(99.0), None, None, None, None),
-        ];
+        let events = vec![make_event(
+            0,
+            EventType::DamageDealt,
+            None,
+            Some("e"),
+            Some("atk"),
+            Some(99.0),
+            None,
+            None,
+            None,
+            None,
+        )];
         write_test_data(&path, vec![make_result(0, 42, 5, "test", events)]);
 
         let result = ParquetAggregator::aggregate(&path, &AggQuery::DamageBreakdown).unwrap();
@@ -923,9 +1037,42 @@ mod tests {
     fn test_anomaly_stats_basic() {
         let path = temp_path("anomaly_basic.parquet");
         let events = vec![
-            make_event(0, EventType::AnomalyTriggered, Some("a"), Some("e"), None, Some(5000.0), None, Some("Fire"), Some(100.0), None),
-            make_event(10, EventType::DisorderTriggered, Some("a"), Some("e"), None, Some(8000.0), None, Some("Fire"), None, None),
-            make_event(20, EventType::AnomalyTriggered, Some("a"), Some("e"), None, Some(3000.0), None, Some("Electric"), Some(100.0), None),
+            make_event(
+                0,
+                EventType::AnomalyTriggered,
+                Some("a"),
+                Some("e"),
+                None,
+                Some(5000.0),
+                None,
+                Some("Fire"),
+                Some(100.0),
+                None,
+            ),
+            make_event(
+                10,
+                EventType::DisorderTriggered,
+                Some("a"),
+                Some("e"),
+                None,
+                Some(8000.0),
+                None,
+                Some("Fire"),
+                None,
+                None,
+            ),
+            make_event(
+                20,
+                EventType::AnomalyTriggered,
+                Some("a"),
+                Some("e"),
+                None,
+                Some(3000.0),
+                None,
+                Some("Electric"),
+                Some(100.0),
+                None,
+            ),
         ];
         write_test_data(&path, vec![make_result(0, 42, 30, "test", events)]);
 
@@ -936,12 +1083,10 @@ mod tests {
                 assert!((stats.total_anomaly_damage - 16000.0).abs() < 1e-9);
                 assert!((stats.total_gauge - 200.0).abs() < 1e-9);
                 assert_eq!(stats.per_element.len(), 2);
-                // Fire: 2 triggers, 13000 damage, 100 gauge
                 let fire = &stats.per_element["Fire"];
                 assert_eq!(fire.triggers, 2);
                 assert!((fire.damage - 13000.0).abs() < 1e-9);
                 assert!((fire.gauge - 100.0).abs() < 1e-9);
-                // Electric: 1 trigger, 3000 damage, 100 gauge
                 let elec = &stats.per_element["Electric"];
                 assert_eq!(elec.triggers, 1);
                 assert!((elec.damage - 3000.0).abs() < 1e-9);
@@ -959,10 +1104,54 @@ mod tests {
     fn test_stun_stats_basic() {
         let path = temp_path("stun_basic.parquet");
         let events = vec![
-            make_event(0, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(100.0), None, None, None, Some(50.0)),
-            make_event(1, EventType::DamageDealt, Some("a"), Some("e"), Some("s2"), Some(200.0), None, None, None, Some(75.5)),
-            make_event(2, EventType::TickStart, None, None, None, None, None, None, None, None),
-            make_event(3, EventType::DamageDealt, Some("a"), Some("e"), Some("s3"), Some(300.0), None, None, None, Some(30.0)),
+            make_event(
+                0,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s1"),
+                Some(100.0),
+                None,
+                None,
+                None,
+                Some(50.0),
+            ),
+            make_event(
+                1,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s2"),
+                Some(200.0),
+                None,
+                None,
+                None,
+                Some(75.5),
+            ),
+            make_event(
+                2,
+                EventType::TickStart,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                3,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s3"),
+                Some(300.0),
+                None,
+                None,
+                None,
+                Some(30.0),
+            ),
         ];
         write_test_data(&path, vec![make_result(0, 42, 10, "test", events)]);
 
@@ -979,9 +1168,18 @@ mod tests {
     #[test]
     fn test_stun_stats_no_stun() {
         let path = temp_path("stun_none.parquet");
-        let events = vec![
-            make_event(0, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(100.0), None, None, None, None),
-        ];
+        let events = vec![make_event(
+            0,
+            EventType::DamageDealt,
+            Some("a"),
+            Some("e"),
+            Some("s1"),
+            Some(100.0),
+            None,
+            None,
+            None,
+            None,
+        )];
         write_test_data(&path, vec![make_result(0, 42, 5, "test", events)]);
 
         let result = ParquetAggregator::aggregate(&path, &AggQuery::StunStats).unwrap();
@@ -1002,12 +1200,78 @@ mod tests {
     fn test_crit_rate_basic() {
         let path = temp_path("crit_basic.parquet");
         let events = vec![
-            make_event(0, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(100.0), Some(true), None, None, None),
-            make_event(1, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(100.0), Some(false), None, None, None),
-            make_event(2, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(100.0), Some(true), None, None, None),
-            make_event(3, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(100.0), Some(false), None, None, None),
-            make_event(4, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(100.0), Some(false), None, None, None),
-            make_event(5, EventType::TickStart, None, None, None, None, None, None, None, None),
+            make_event(
+                0,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s1"),
+                Some(100.0),
+                Some(true),
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                1,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s1"),
+                Some(100.0),
+                Some(false),
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                2,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s1"),
+                Some(100.0),
+                Some(true),
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                3,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s1"),
+                Some(100.0),
+                Some(false),
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                4,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s1"),
+                Some(100.0),
+                Some(false),
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                5,
+                EventType::TickStart,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
         ];
         write_test_data(&path, vec![make_result(0, 42, 10, "test", events)]);
 
@@ -1042,8 +1306,30 @@ mod tests {
     fn test_crit_rate_null_crit() {
         let path = temp_path("crit_null.parquet");
         let events = vec![
-            make_event(0, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(100.0), None, None, None, None),
-            make_event(1, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(200.0), Some(true), None, None, None),
+            make_event(
+                0,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s1"),
+                Some(100.0),
+                None,
+                None,
+                None,
+                None,
+            ),
+            make_event(
+                1,
+                EventType::DamageDealt,
+                Some("a"),
+                Some("e"),
+                Some("s1"),
+                Some(200.0),
+                Some(true),
+                None,
+                None,
+                None,
+            ),
         ];
         write_test_data(&path, vec![make_result(0, 42, 5, "test", events)]);
 
@@ -1065,7 +1351,6 @@ mod tests {
     #[test]
     fn test_stats_summary_basic() {
         let path = temp_path("ss_basic.parquet");
-        // Values: 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
         let events: Vec<LoggedEvent> = (1..=10)
             .map(|i| {
                 make_event(
@@ -1093,10 +1378,9 @@ mod tests {
                 assert!((stats.max - 100.0).abs() < 1e-9);
                 assert!(stats.variance > 0.0);
                 assert!(stats.std_dev > 0.0);
-                // Percentiles for evenly-spaced {10,20,...,100}
-                assert!((stats.p50 - 55.0).abs() < 1e-9); // median of 10 items = avg(5th,6th) = avg(50,60) = 55
-                assert!((stats.p90 - 91.0).abs() < 1e-9); // R7: 0.9*9 = 8.1, 90 + 0.1*10 = 91
-                assert!((stats.p95 - 95.5).abs() < 1e-9); // R7: 0.95*9 = 8.55, 90 + 0.55*10 = 95.5
+                assert!((stats.p50 - 55.0).abs() < 1e-9);
+                assert!((stats.p90 - 91.0).abs() < 1e-9);
+                assert!((stats.p95 - 95.5).abs() < 1e-9);
             }
             _ => panic!("expected StatsSummary"),
         }
@@ -1105,7 +1389,18 @@ mod tests {
     #[test]
     fn test_stats_summary_single_value() {
         let path = temp_path("ss_single.parquet");
-        let events = vec![make_event(0, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(42.0), Some(false), None, None, None)];
+        let events = vec![make_event(
+            0,
+            EventType::DamageDealt,
+            Some("a"),
+            Some("e"),
+            Some("s1"),
+            Some(42.0),
+            Some(false),
+            None,
+            None,
+            None,
+        )];
         write_test_data(&path, vec![make_result(0, 42, 1, "test", events)]);
 
         let result = ParquetAggregator::aggregate(&path, &AggQuery::StatsSummary).unwrap();
@@ -1146,9 +1441,18 @@ mod tests {
     #[test]
     fn test_convenience_aggregate_fn() {
         let path = temp_path("convenience.parquet");
-        let events = vec![
-            make_event(0, EventType::DamageDealt, Some("a"), Some("e"), Some("s1"), Some(100.0), Some(false), None, None, None),
-        ];
+        let events = vec![make_event(
+            0,
+            EventType::DamageDealt,
+            Some("a"),
+            Some("e"),
+            Some("s1"),
+            Some(100.0),
+            Some(false),
+            None,
+            None,
+            None,
+        )];
         write_test_data(&path, vec![make_result(0, 42, 5, "test", events)]);
 
         let result = aggregate(&path, &AggQuery::TotalDamage).unwrap();
@@ -1164,13 +1468,11 @@ mod tests {
 
     #[test]
     fn test_agg_result_serialization() {
-        // Verify that AggResult serializes with type+data tags
         let result = AggResult::TotalDamage(1234.5);
         let json = serde_json::to_string(&result).unwrap();
         assert!(json.contains("\"TotalDamage\""));
         assert!(json.contains("1234.5"));
 
-        // Verify StatsSummary serialization
         let summary = AggResult::StatsSummary(StatsSummaryResult {
             count: 100,
             mean: 50.0,
@@ -1191,12 +1493,10 @@ mod tests {
 
     #[test]
     fn test_agg_query_deserialization() {
-        // External tagging: unit variant → bare string
         let json = r#""TotalDamage""#;
         let query: AggQuery = serde_json::from_str(json).unwrap();
         assert!(matches!(query, AggQuery::TotalDamage));
 
-        // Struct-like variant → {"VariantName": {field: value}}
         let json = r#"{"DPS": {"window_ticks": 60}}"#;
         let query: AggQuery = serde_json::from_str(json).unwrap();
         match query {
@@ -1252,7 +1552,98 @@ mod tests {
             _ => panic!("expected StatsSummary"),
         };
 
-        // Total should equal mean * count
         assert!((total - summary.mean * summary.count as f64).abs() < 1e-9);
+    }
+
+    // ------------------------------------------------------------------
+    // Projection correctness: verify column projection works
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_projection_reduces_column_count() {
+        // StunStats reads only 1 column (stun_dmg) instead of all 15
+        let path = temp_path("projection_col_count.parquet");
+        let events = vec![make_event(
+            0,
+            EventType::DamageDealt,
+            Some("a"),
+            Some("e"),
+            Some("s1"),
+            Some(100.0),
+            Some(true),
+            Some("Fire"),
+            Some(50.0),
+            Some(25.0),
+        )];
+        write_test_data(&path, vec![make_result(0, 42, 5, "test", events)]);
+
+        // Open with projection and verify internal batch has only 1 column
+        let batches = read_projected(&path, &[col::STUN_DMG]).unwrap();
+        assert!(!batches.is_empty());
+        assert_eq!(
+            batches[0].num_columns(),
+            1,
+            "projection should yield 1 column for stun"
+        );
+
+        let result = ParquetAggregator::aggregate(&path, &AggQuery::StunStats).unwrap();
+        match result {
+            AggResult::StunStats(stats) => {
+                assert!((stats.total_stun_damage - 25.0).abs() < 1e-9);
+                assert_eq!(stats.total_stun_events, 1);
+            }
+            _ => panic!("expected StunStats"),
+        }
+    }
+
+    #[test]
+    fn test_projection_event_type_and_damage() {
+        let path = temp_path("projection_et_dmg.parquet");
+        let events = vec![make_event(
+            0,
+            EventType::DamageDealt,
+            Some("a"),
+            Some("e"),
+            Some("s1"),
+            Some(100.0),
+            Some(false),
+            None,
+            None,
+            None,
+        )];
+        write_test_data(&path, vec![make_result(0, 42, 5, "test", events)]);
+
+        let batches = read_projected(&path, &[col::EVENT_TYPE, col::DAMAGE]).unwrap();
+        assert!(!batches.is_empty());
+        assert_eq!(
+            batches[0].num_columns(),
+            2,
+            "projection should yield 2 columns"
+        );
+    }
+
+    #[test]
+    fn test_projection_tick_damage_dps() {
+        let path = temp_path("projection_dps.parquet");
+        let events = vec![make_event(
+            0,
+            EventType::DamageDealt,
+            Some("a"),
+            Some("e"),
+            Some("s1"),
+            Some(60.0),
+            Some(false),
+            None,
+            None,
+            None,
+        )];
+        write_test_data(&path, vec![make_result(0, 42, 1, "test", events)]);
+
+        let batches = read_projected(&path, &[col::TICK, col::EVENT_TYPE, col::DAMAGE]).unwrap();
+        assert_eq!(
+            batches[0].num_columns(),
+            3,
+            "DPS projection should yield 3 columns"
+        );
     }
 }
