@@ -12,4 +12,5 @@ crate-type = ["cdylib"]
 pyo3 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+anyhow = { workspace = true }
 zsim-parquet = { path = "../zsim-parquet" }

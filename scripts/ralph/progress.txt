@@ -344,3 +344,18 @@ Started: Sat May  2 10:38:49     2026
   - Patterns discovered: ArrowWriter::flush() creates row-group boundaries -- call after each SimResult's RecordBatch. WriterProperties.set_compression() takes ZstdLevel (not Option<i32>) in parquet 55. SerializedFileReader (from parquet::file::serialized_reader) provides metadata().num_row_groups() for true row-group counts (ParquetRecordBatchReaderBuilder merges row groups on read).
   - Gotchas encountered: The default max_row_group_size in ArrowWriter is very large, so all batches get combined into one row group unless flush() is called explicitly. Compression::ZSTD takes ZstdLevel (a newtype), not Option<i32> or i32. LoggedEvent's new fields must be explicitly set at both construction sites in runner.rs -- failing to do so causes compiler errors.
   - Useful context: zsim-parquet now depends on zsim-core for SimResult/LoggedEvent/EventType types. The writer module is self-contained in zsim-parquet/src/writer.rs. EventType to string conversion uses Debug format (PascalCase variant names). Timestamps are derived from tick via tick * 1000 / 60 at 60fps, stored as Int64 milliseconds.
+---
+## 2026-05-02 23:45 - US-019
+- Implemented zsim-pyo3 crate with 4 Python-callable functions delegating to zsim-parquet aggregator
+- aggregate(parquet_path, query_json): deserializes AggQuery from JSON, calls ParquetAggregator::aggregate, returns JSON string
+- summary(parquet_path): convenience wrapper querying StatsSummary
+- dps_curve(parquet_path, window_ticks): convenience wrapper querying DPS with sliding window
+- damage_breakdown(parquet_path): convenience wrapper querying DamageBreakdown
+- All functions return JSON strings (not Python objects) and use PyIOError for error reporting
+- Workspace pyo3 0.24 with extension-module feature (.pyd/.so/.dylib output)
+- Aggregation logic is fully tested by zsim-parquet's 18+ tests (pyo3 integration tests require `maturin develop`)
+- Files changed: zsim-pyo3/Cargo.toml (+anyhow dep), zsim-pyo3/src/lib.rs (stub->real impl), scripts/ralph/prd.json (US-019 passes:true), scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: PyO3 `#[pyfunction]` annotations produce regular Rust functions that return `PyResult<T>` -- the pyo3 layer is trivially thin (just wraps the aggregator + serialization). The `to_py_err` helper converts anyhow::Error -> PyErr for clean error messages in Python.
+  - Gotchas encountered: `cdylib` crate test binaries need Python DLL on Windows at runtime -- cannot run Rust unit tests that call `#[pyfunction]` functions in a cdylib crate. Solution: keep pyo3 functions as thin wrappers and test the underlying logic in the dependency crate (zsim-parquet).
+  - Useful context: Adding `anyhow` as a direct dependency of zsim-pyo3 is needed for the `to_py_err` conversion. zsim-parquet's aggregator provides all the aggregation logic -- zsim-pyo3 is purely a bridging layer. Integration testing requires `maturin develop` to build the .pyd and test from Python.

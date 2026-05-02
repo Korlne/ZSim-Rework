@@ -1449,6 +1449,7 @@ dependencies = [
 name = "zsim-pyo3"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "pyo3",
  "serde",
  "serde_json",

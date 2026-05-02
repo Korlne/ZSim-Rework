@@ -311,8 +311,8 @@
         "Wheel 包可通过 pip install zsim_rs 安装"
       ],
       "priority": 19,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "zsim-pyo3 crate with 4 pyfunctions (aggregate/summary/dps_curve/damage_breakdown), all delegating to zsim-parquet's ParquetAggregator. Returns JSON strings (not Python objects). cdylib crate-type for .pyd/.so/.dylib output. Workspace pyo3 0.24 with extension-module feature. anyhow + serde_json for error/serialization. Integration testing with real Python requires `maturin develop`."
     },
     {
       "id": "US-020",
