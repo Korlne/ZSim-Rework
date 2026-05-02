@@ -197,8 +197,8 @@
         "cargo test 通过（25+ tests）"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "ResourceValidator unit struct with 8 validation methods + validate_all(). ValidationError with action_id/missing_resource/current_value/required_value. ResourceType enum (9 variants) for missing_resource discrimination. validate_cooldown treats 0 cooldown as always-ready. validate_all collects all errors (not short-circuit). 31 tests cover all 8 methods, validate_all aggregation, error display, error trait, and edge cases."
     },
     {
       "id": "US-013",
