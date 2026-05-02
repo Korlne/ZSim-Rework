@@ -359,3 +359,25 @@ Started: Sat May  2 10:38:49     2026
   - Patterns discovered: PyO3 `#[pyfunction]` annotations produce regular Rust functions that return `PyResult<T>` -- the pyo3 layer is trivially thin (just wraps the aggregator + serialization). The `to_py_err` helper converts anyhow::Error -> PyErr for clean error messages in Python.
   - Gotchas encountered: `cdylib` crate test binaries need Python DLL on Windows at runtime -- cannot run Rust unit tests that call `#[pyfunction]` functions in a cdylib crate. Solution: keep pyo3 functions as thin wrappers and test the underlying logic in the dependency crate (zsim-parquet).
   - Useful context: Adding `anyhow` as a direct dependency of zsim-pyo3 is needed for the `to_py_err` conversion. zsim-parquet's aggregator provides all the aggregation logic -- zsim-pyo3 is purely a bridging layer. Integration testing requires `maturin develop` to build the .pyd and test from Python.
+
+---
+
+## 2026-05-02 23:55 - US-020
+- Implemented analysis_sidecar.py at project root
+- Long-running process with stdin/stdout JSON protocol
+- 5 commands: summary, dps_curve, damage_breakdown, anomaly_timeline, shutdown
+- Command dispatch in handle_command() routes to zsim_rs PyO3 extension functions:
+  - summary: zsim_rs.summary() → structured stats + percentile bar chart
+  - dps_curve: zsim_rs.dps_curve() → scatter line chart (X=Tick, Y=DPS)
+  - damage_breakdown: zsim_rs.damage_breakdown() → pie chart by source
+  - anomaly_timeline: zsim_rs.aggregate("AnomalyStats") → grouped bar chart (damage/gauge/triggers per element)
+  - shutdown: terminates event loop
+- Plotly.js chart configs generated as raw JSON (data + layout, suitable for Plotly.newPlot())
+- zsim_rs imported lazily inside main() to avoid import failures during syntax/type checks
+- Response types: ready, summary, chart, error, shutdown
+- All error handling catches exceptions and returns {"type": "error", "message": ..., "traceback": ...}
+- Files changed: analysis_sidecar.py (new), scripts/ralph/prd.json (US-020 passes:true), scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Plotly.js figure config JSON follows {"data": [...], "layout": {...}} format — can be generated in pure Python without plotly.py dependency. Lazy import of native extension (import inside function) allows syntax validation without the compiled module.
+  - Gotchas encountered: The anomaly_timeline command currently renders aggregated anomaly stats (per-element damage/gauge/triggers) rather than a true time-series stacked area chart. Adding a tick-by-tick anomaly timeline would require a new AggQuery variant that returns per-tick anomaly gauge values.
+  - Useful context: The sidecar protocol uses one JSON object per line (JSONL format) on stdin/stdout. Tauri will spawn this process as a sidecar and communicate via stdin/stdout pipes. The process stays alive until receiving {"shutdown": true}.

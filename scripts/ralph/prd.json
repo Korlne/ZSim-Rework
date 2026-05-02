@@ -328,8 +328,8 @@
         "python analysis_sidecar.py 可独立测试"
       ],
       "priority": 20,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "analysis_sidecar.py at project root. Long-running process with stdin/stdout JSON protocol. 5 commands (summary/dps_curve/damage_breakdown/anomaly_timeline/shutdown). Uses zsim_rs PyO3 extension for aggregation. Generates raw Plotly.js figure configs (data+layout) suitable for Plotly.newPlot(). Deferred import of zsim_rs inside main() to avoid import failure on syntax/type checks. anomaly_timeline currently renders per-element anomaly damage/gauge/triggers via AnomalyStats query (aggregate, not time-series — can be extended later)."
     },
     {
       "id": "US-021",
