@@ -22,6 +22,16 @@ Tauri v2 desktop shell for ZSim Analyzer.
 - **NSIS**: Tauri can auto-generate NSIS installer. `bundle.windows.nsis.installMode = "currentUser"` for per-user install.
 - **Bundle sizes**: Release binary ~11 MB, NSIS installer ~2.5 MB, MSI ~3.8 MB (well under 200 MB limit).
 
+## Data Entry / SQLite
+
+- **Module structure**: `data_entry/` in `src-tauri/src/` with `mod.rs` (module exports) and task-specific files (`db.rs`, etc.). Declare `mod data_entry;` in `lib.rs` to register.
+- **Schema init**: `data_entry::db::init_db(conn)` uses `CREATE TABLE IF NOT EXISTS` for all DDL — safe to call multiple times. Creates `schema_version` metadata table for migration tracking.
+- **SQLite lib**: Use `rusqlite = { version = "0.31", features = ["bundled"] }` — the `bundled` feature statically compiles SQLite so no system install is needed.
+- **Foreign keys**: Enable via `PRAGMA foreign_keys = ON;` (off by default in rusqlite). Use `ON DELETE CASCADE` on foreign keys for automatic cascade deletes.
+- **Parameterized queries**: Always use `?N` placeholders (e.g., `conn.execute(sql, [param1, param2])`) — never string interpolation for user input.
+- **ID columns**: Integer PKs use `AUTOINCREMENT`, text-based IDs use `TEXT PRIMARY KEY`. Skill+character uniqueness enforced via `UNIQUE(char_id, action_id)`.
+- **JSON in TEXT**: Complex nested data (constellations, resistances, tracks) stored as JSON `TEXT` columns, parsed in the application layer with `serde_json`.
+
 ## Dev Setup
 
 - Frontend: Vanilla JS + Vite 6 in `src/` and `package.json` at project root

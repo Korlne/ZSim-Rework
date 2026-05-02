@@ -12,3 +12,4 @@ rand_chacha = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 rayon = { workspace = true }
+rusqlite = { version = "0.31", features = ["bundled"] }
