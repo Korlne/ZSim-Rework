@@ -170,8 +170,8 @@
         "删除有二次确认弹窗"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现。characters.js 含完整角色管理（列表/筛选/编辑/保存/删除），char_id 只读编辑，12 面板字段两列布局，6 影画开关，动作列表标签输入，保存验证。datatable.js 添加 i18n 支持，modal.js 模态框组件。所有 3 种语言 i18n 键覆盖。vite build 通过。"
     },
     {
       "id": "US-011",

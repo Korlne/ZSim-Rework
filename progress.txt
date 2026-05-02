@@ -175,3 +175,21 @@
   - Gotchas encountered: When moving files to a deeper directory, import paths for `i18n.js` must be adjusted (one more `../` level). The vite build catches broken imports — always run `npx vite build` to verify after restructuring.
   - Useful context: Validation utilities use a simple `validate(value, validators)` combinator pattern and `validateForm(fieldMap)` for batch form validation. Format utilities are stateless pure functions suitable for use in datatable column `format` callbacks.
 ---
+## 2026-05-03 01:45 - US-010
+- Completed frontend character management page implementation
+- Characters list table with faction/specialty/element filter dropdowns, sortable columns
+- Inline edit panel with 2-column form: basic info (char_id, name, faction/specialty/element selects, level, ascension) + 12 base stats + 6 cinema toggle buttons + action list tag input
+- Cinemas support both boolean and string array formats from DB, stringifies to `["cinema1","cinema2"]` format
+- Validation on save: char_id format, level 1-60, ascension 0-6, crit rates/dmg 0-1, non-negative stats
+- Delete with confirmation dialog, notifications for save/delete/error
+- Created `src/editor/components/modal.js` modal dialog component (used by characters page)
+- Updated datatable.js with i18n import for button labels (falls back to English hardcoded labels)
+- Fixed locale files (en-US, zh-CN, ja-JP) with all flat-style i18n keys needed by character page
+- All 3 locale files updated with consistent key naming pattern
+- vite build passes (28 modules, 0 errors)
+- Files changed: src/editor/pages/characters.js, src/editor/components/modal.js (new), src/editor/components/datatable.js, src/locales/*.json, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Patterns discovered: Inline edit panels (append below table, remove on save/cancel) are preferred over modals for complex forms with 20+ fields. Cinema data stored as string arrays `["cinema1","cinema2"]` — parseCinemas handles both boolean and string formats from DB.
+  - Gotchas encountered: When locale files are restructured from dotted keys to flat keys, ALL usages must be updated in sync. The datatable hardcodes Edit/Del buttons — these should be i18n-ized for full localization. LF/CRLF warnings on Windows are cosmetic in git.
+  - Useful context: The ralph/ submodule prd.json already had US-010 as passing — the scripts/ralph/prd.json copy needed syncing. Outer project and submodule have separate prd.json files that must both be updated.
+---
