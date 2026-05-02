@@ -229,3 +229,22 @@ Started: Sat May  2 10:38:49     2026
   - Gotchas encountered: The previous iteration used AnomalyDisorderManager for anomaly state validation, but the PRD specifies checking enemy anomaly immunity — use EnemyState.resistance_for(element) instead.
   - Useful context: US-012 placeholder was auto-generated between US-011 and US-012. Always verify implementation matches PRD requirements, not just compiles.
 ---
+
+## 2026-05-02 18:00 - US-013
+- Implemented APLManager in zsim-core/src/combat/apl.rs
+- APLManager: holds Vec<TrackState> (per-track runtime state with next_action_index, last_completed_action_id), pending_actions queue (consuming), and ResourceValidator (cooldown tracking)
+- TrackState: wraps Track with next_action_index pointer and last_completed_action_id for prerequisite checks
+- SkillAction: validated action ready for execution (action_id, source_id, target_id, started_at_tick)
+- process_next_action(current_tick, team, skills, enemies): scans all tracks, dispatches actions whose scheduled tick has arrived — validates resources (via ResourceValidator.validate_all), deducts energy/HP/decibel, sets skill cooldown, pushes SkillAction to pending queue
+- Supports prerequisite_action_id blocking: action won't dispatch until prerequisite skill completed by same track
+- get_pending_actions() drains internal queue (consuming pattern)
+- is_exhausted flag set when all tracks exhausted
+- Unknown skill IDs or character IDs skip the action (advance track for unknown skills, skip forever for unknown chars)
+- 31 new tests: creation, TrackState helpers, single/multi-track dispatch, tick timing, sequence dispatch, track exhaustion, prerequisite (blocked/met), energy/HP/deduction, cooldown (blocked/expired), decibel deduction (on-field only), off-field no-decibel-deduction, unknown skill/char, consuming queue, full multi-track integration, error-on-failure does not advance, same-tick no-double-dispatch
+- All 289 tests pass, clippy clean (0 new warnings), fmt clean
+- Files changed: zsim-core/src/combat/apl.rs (new), zsim-core/src/combat/mod.rs (+pub mod apl), scripts/ralph/prd.json (US-013 passes)
+- **Learnings for future iterations:**
+  - Patterns discovered: The ResourceValidator already handles cooldown tracking internally (cooldowns HashMap + set_cooldown). APLManager simply delegates to it rather than duplicating cooldown state. The consuming queue pattern (get_pending_actions = mem::take) allows the caller to drain actions while the APLManager retains ownership.
+  - Gotchas encountered: Calling get_pending_actions() twice in a row returns empty the second time (it's consuming!). Tests must bind the result to a variable. Unknown skills must advance the track (next_action_index += 1) to avoid blocking the track forever. The validate_all signature changed to (character, skill, team, current_tick, enemy Option) — cleaner than the old 11-param version.
+  - Useful context: process_next_action takes (current_tick, team, skills, enemies) rather than full GameState — keeps the signature focused. Decibel deduction only when acting character is on-field. Charge branch resolution deferred to future story. APLManager lives in combat::apl, consistent with other combat systems.
+---

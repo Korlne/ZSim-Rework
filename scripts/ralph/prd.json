@@ -214,8 +214,8 @@
         "cargo test 通过"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "APLManager with TrackState, SkillAction structs. process_next_action(current_tick, team, skills, enemies) scans all tracks, validates resources via ResourceValidator, deducts costs (energy/HP/decibel), sets cooldowns, and queues SkillActions. Supports prerequisite_action_id blocking. get_pending_actions() consuming queue. Track advances on dispatch; unknown skills advance the track; track marks is_exhausted when all actions consumed. Charge branches deferred to future story."
     },
     {
       "id": "US-014",
