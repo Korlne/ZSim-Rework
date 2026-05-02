@@ -92,7 +92,7 @@ export function createForm(fields, values, options = {}) {
         const textInput = document.createElement("input");
         textInput.type = "text";
         textInput.className = "form-input tag-text-input";
-        textInput.placeholder = "Add...";
+        textInput.placeholder = t("editor.form.add");
 
         const tags = Array.isArray(state[field.key])
           ? [...state[field.key]]
@@ -179,7 +179,7 @@ export function createForm(fields, values, options = {}) {
   if (options.onSave) {
     const btnSave = document.createElement("button");
     btnSave.className = "btn btn-primary";
-    btnSave.textContent = options.saveLabel || "Save";
+    btnSave.textContent = options.saveLabel || t("editor.save");
     btnSave.addEventListener("click", () => options.onSave(state));
     btnRow.appendChild(btnSave);
   }
@@ -187,7 +187,7 @@ export function createForm(fields, values, options = {}) {
   if (options.onCancel) {
     const btnCancel = document.createElement("button");
     btnCancel.className = "btn btn-secondary";
-    btnCancel.textContent = options.cancelLabel || "Cancel";
+    btnCancel.textContent = options.cancelLabel || t("editor.cancel");
     btnCancel.addEventListener("click", () => options.onCancel());
     btnRow.appendChild(btnCancel);
   }

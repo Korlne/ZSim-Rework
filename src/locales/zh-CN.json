@@ -120,9 +120,25 @@
   "editor.dashboard.searchResultEnemies": "敌人",
   "editor.dashboard.searchResultWEngines": "音擎",
   "editor.dashboard.searchResultDiscSets": "驱动套装",
+  "editor.dashboard.exportBtn": "导出为 JSON",
+  "editor.dashboard.exportSuccess": "数据已成功导出为 JSON",
+  "editor.dashboard.exportError": "导出失败",
+  "editor.dashboard.recentTitle": "最近编辑",
+  "editor.dashboard.recentEmpty": "暂无数据。请导入或添加数据。",
 
   "editor.action.save": "保存",
   "editor.action.cancel": "取消",
+  "editor.action.edit": "编辑",
+  "editor.action.delete": "删除",
+  "editor.action.add": "添加",
+  "editor.action.noData": "暂无数据",
+  "editor.action.actions": "操作",
+  "editor.action.search": "搜索...",
+
+  "editor.confirm.cancel": "取消",
+  "editor.confirm.delete": "删除",
+
+  "editor.form.add": "添加...",
 
   "editor.characters.addBtn": "添加角色",
   "editor.characters.colId": "ID",

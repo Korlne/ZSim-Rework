@@ -483,6 +483,42 @@
   color: var(--danger);
 }
 
+/* ── Recent Items ──────────────────────────────────────── */
+
+.recent-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 24px 0 12px;
+  color: var(--text-muted);
+}
+
+.recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.recent-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.15s;
+}
+
+.recent-item:hover {
+  background: var(--surface-hover);
+}
+
+.recent-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
 /* ── Filter Bar ─────────────────────────────────────── */
 
 .filter-bar {

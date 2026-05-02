@@ -1,4 +1,4 @@
-import { getDataSummary, initDatabase, reimportAll, searchData } from "../utils/api.js";
+import { getDataSummary, initDatabase, reimportAll, searchData, exportToJson } from "../utils/api.js";
 import { t } from "../../i18n.js";
 
 export function renderPage() {
@@ -44,11 +44,11 @@ export function renderPage() {
         } else {
           searchResults.innerHTML = results.map(r => {
             const typeLabel = {
-              characters: t("editor.dashboard.searchResultChars"),
-              skills: t("editor.dashboard.searchResultSkills"),
-              enemies: t("editor.dashboard.searchResultEnemies"),
-              w_engines: t("editor.dashboard.searchResultWEngines"),
-              disc_sets: t("editor.dashboard.searchResultDiscSets"),
+              character: t("editor.dashboard.searchResultChars"),
+              skill: t("editor.dashboard.searchResultSkills"),
+              enemy: t("editor.dashboard.searchResultEnemies"),
+              w_engine: t("editor.dashboard.searchResultWEngines"),
+              disc_set: t("editor.dashboard.searchResultDiscSets"),
             }[r.data_type] || r.data_type;
             return `<div class="search-result-item" data-type="${r.data_type}" data-id="${r.id}">
               <span class="search-result-type">${typeLabel}</span>
@@ -61,11 +61,11 @@ export function renderPage() {
             el.addEventListener("click", () => {
               const type = el.dataset.type;
               const route = {
-                characters: "characters",
-                skills: "skills",
-                enemies: "enemies",
-                w_engines: "w-engines",
-                disc_sets: "disc-sets",
+                character: "characters",
+                skill: "skills",
+                enemy: "enemies",
+                w_engine: "w-engines",
+                disc_set: "disc-sets",
               }[type] || "dashboard";
               searchResults.style.display = "none";
               searchInput.value = "";
@@ -92,6 +92,9 @@ export function renderPage() {
   const actionRow = document.createElement("div");
   actionRow.className = "button-row";
   actionRow.style.marginBottom = "20px";
+  actionRow.style.display = "flex";
+  actionRow.style.gap = "8px";
+  actionRow.style.flexWrap = "wrap";
 
   const btnInit = document.createElement("button");
   btnInit.className = "btn btn-primary";
@@ -105,6 +108,7 @@ export function renderPage() {
         "success"
       );
       loadSummary(cardsContainer);
+      loadRecentItems(recentContainer);
     } catch (err) {
       showEditorNotif(t("editor.dashboard.dbError") + ": " + err, "error");
     } finally {
@@ -128,6 +132,7 @@ export function renderPage() {
         "success"
       );
       loadSummary(cardsContainer);
+      loadRecentItems(recentContainer);
     } catch (err) {
       showEditorNotif(t("editor.dashboard.importError") + ": " + err, "error");
     } finally {
@@ -135,6 +140,22 @@ export function renderPage() {
     }
   });
   actionRow.appendChild(btnReimport);
+
+  const btnExport = document.createElement("button");
+  btnExport.className = "btn btn-secondary";
+  btnExport.textContent = t("editor.dashboard.exportBtn");
+  btnExport.addEventListener("click", async () => {
+    btnExport.disabled = true;
+    try {
+      await exportToJson();
+      showEditorNotif(t("editor.dashboard.exportSuccess"), "success");
+    } catch (err) {
+      showEditorNotif(t("editor.dashboard.exportError") + ": " + err, "error");
+    } finally {
+      btnExport.disabled = false;
+    }
+  });
+  actionRow.appendChild(btnExport);
 
   container.appendChild(actionRow);
 
@@ -144,9 +165,45 @@ export function renderPage() {
   cardsContainer.id = "dashboard-cards";
   container.appendChild(cardsContainer);
 
+  // Recently edited section
+  const recentTitle = document.createElement("h3");
+  recentTitle.className = "recent-title";
+  recentTitle.textContent = t("editor.dashboard.recentTitle");
+  container.appendChild(recentTitle);
+
+  const recentContainer = document.createElement("div");
+  recentContainer.className = "recent-list";
+  recentContainer.id = "recent-items";
+  container.appendChild(recentContainer);
+
   loadSummary(cardsContainer);
+  loadRecentItems(recentContainer);
 
   return container;
+}
+
+async function loadRecentItems(container) {
+  try {
+    const chars = await (await import("../utils/api.js")).getCharacters();
+    const charList = Array.isArray(chars) ? chars.slice(0, 5) : [];
+    container.innerHTML = "";
+    if (charList.length === 0) {
+      container.innerHTML = `<div class="recent-empty">${t("editor.dashboard.recentEmpty")}</div>`;
+      return;
+    }
+    for (const c of charList) {
+      const item = document.createElement("div");
+      item.className = "recent-item";
+      item.textContent = `${c.name || c.char_id} (${c.char_id})`;
+      item.style.cursor = "pointer";
+      item.addEventListener("click", () => {
+        window.location.hash = "#/characters";
+      });
+      container.appendChild(item);
+    }
+  } catch {
+    container.innerHTML = "";
+  }
 }
 
 async function loadSummary(container) {

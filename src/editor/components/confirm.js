@@ -1,3 +1,5 @@
+import { t } from "../../i18n.js";
+
 /**
  * Confirmation dialog component.
  * Returns a promise that resolves to true/false.
@@ -26,7 +28,7 @@ export function confirm(message, options = {}) {
 
     const btnCancel = document.createElement("button");
     btnCancel.className = "btn btn-secondary";
-    btnCancel.textContent = options.cancelLabel || "Cancel";
+    btnCancel.textContent = options.cancelLabel || t("editor.confirm.cancel");
     btnCancel.addEventListener("click", () => {
       overlay.remove();
       resolve(false);
@@ -35,7 +37,7 @@ export function confirm(message, options = {}) {
     const btnConfirm = document.createElement("button");
     const variant = options.variant || "danger";
     btnConfirm.className = `btn btn-${variant}`;
-    btnConfirm.textContent = options.confirmLabel || "Delete";
+    btnConfirm.textContent = options.confirmLabel || t("editor.confirm.delete");
     btnConfirm.addEventListener("click", () => {
       overlay.remove();
       resolve(true);

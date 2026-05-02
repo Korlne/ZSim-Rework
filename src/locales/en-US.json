@@ -120,9 +120,25 @@
   "editor.dashboard.searchResultEnemies": "Enemy",
   "editor.dashboard.searchResultWEngines": "W-Engine",
   "editor.dashboard.searchResultDiscSets": "Disc Set",
+  "editor.dashboard.exportBtn": "Export to JSON",
+  "editor.dashboard.exportSuccess": "Data exported to JSON successfully",
+  "editor.dashboard.exportError": "Export failed",
+  "editor.dashboard.recentTitle": "Recently Edited",
+  "editor.dashboard.recentEmpty": "No data yet. Import or add data to get started.",
 
   "editor.action.save": "Save",
   "editor.action.cancel": "Cancel",
+  "editor.action.edit": "Edit",
+  "editor.action.delete": "Delete",
+  "editor.action.add": "Add",
+  "editor.action.noData": "No data",
+  "editor.action.actions": "Actions",
+  "editor.action.search": "Search...",
+
+  "editor.confirm.cancel": "Cancel",
+  "editor.confirm.delete": "Delete",
+
+  "editor.form.add": "Add...",
 
   "editor.characters.addBtn": "Add Character",
   "editor.characters.colId": "ID",

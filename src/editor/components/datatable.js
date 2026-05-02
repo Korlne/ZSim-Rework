@@ -27,7 +27,7 @@ export function createDataTable(columns, rows, options = {}) {
   if (options.onEdit || options.onDelete) {
     const th = document.createElement("th");
     th.className = "col-actions";
-    th.textContent = "Actions";
+    th.textContent = t("editor.action.actions");
     headerRow.appendChild(th);
   }
   thead.appendChild(headerRow);
@@ -40,7 +40,7 @@ export function createDataTable(columns, rows, options = {}) {
     const td = document.createElement("td");
     td.colSpan = columns.length + (options.onEdit || options.onDelete ? 1 : 0);
     td.className = "empty-state";
-    td.textContent = options.emptyMessage || "No data";
+    td.textContent = options.emptyMessage || t("editor.action.noData");
     tr.appendChild(td);
     tbody.appendChild(tr);
   } else {
@@ -72,7 +72,7 @@ export function createDataTable(columns, rows, options = {}) {
         if (options.onEdit) {
           const btnEdit = document.createElement("button");
           btnEdit.className = "btn btn-sm btn-secondary";
-          btnEdit.textContent = "Edit";
+          btnEdit.textContent = t("editor.action.edit");
           btnEdit.addEventListener("click", (e) => {
             e.stopPropagation();
             options.onEdit(row);
@@ -83,7 +83,7 @@ export function createDataTable(columns, rows, options = {}) {
         if (options.onDelete) {
           const btnDel = document.createElement("button");
           btnDel.className = "btn btn-sm btn-danger";
-          btnDel.textContent = "Del";
+          btnDel.textContent = t("editor.action.delete");
           btnDel.addEventListener("click", (e) => {
             e.stopPropagation();
             options.onDelete(row);

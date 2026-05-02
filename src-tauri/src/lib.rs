@@ -756,6 +756,20 @@ fn clear_data_type(state: tauri::State<'_, DataDirState>, data_type: String) -> 
     Ok(serde_json::json!({"status": "ok", "data_type": data_type}).to_string())
 }
 
+/// Export all data from SQLite to JSON files in the data directory.
+///
+/// Returns a summary of exported items per type.
+#[tauri::command]
+fn export_to_json(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::export::export_all(&conn, &state.data_dir)
+}
+
 pub fn run() {
     // 数据目录：开发环境下为项目根目录下的 data/，生产环境使用应用资源目录
     let data_dir = std::env::current_dir()

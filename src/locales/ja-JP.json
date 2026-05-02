@@ -120,6 +120,11 @@
   "editor.dashboard.searchResultEnemies": "敵",
   "editor.dashboard.searchResultWEngines": "W-エンジン",
   "editor.dashboard.searchResultDiscSets": "ディスクセット",
+  "editor.dashboard.exportBtn": "JSONにエクスポート",
+  "editor.dashboard.exportSuccess": "データをJSONにエクスポートしました",
+  "editor.dashboard.exportError": "エクスポートに失敗しました",
+  "editor.dashboard.recentTitle": "最近の編集",
+  "editor.dashboard.recentEmpty": "データがありません。インポートまたはデータを追加してください。",
 
   "editor.action.edit": "編集",
   "editor.action.delete": "削除",
@@ -127,8 +132,14 @@
   "editor.action.cancel": "キャンセル",
   "editor.action.add": "追加",
   "editor.action.noData": "データなし",
+  "editor.action.actions": "操作",
   "editor.action.confirmDelete": "{item} を削除してもよろしいですか？",
   "editor.action.search": "検索...",
+
+  "editor.confirm.cancel": "キャンセル",
+  "editor.confirm.delete": "削除",
+
+  "editor.form.add": "追加...",
 
   "editor.characters.add": "キャラクター追加",
   "editor.characters.field.charId": "キャラクターID",

@@ -146,6 +146,11 @@ export async function clearDataType(dataType) {
   return JSON.parse(raw);
 }
 
+export async function exportToJson() {
+  const raw = await invoke("export_to_json");
+  return JSON.parse(raw);
+}
+
 // ── Data Queries ───────────────────────────────────────
 
 export async function getDataSummary() {
