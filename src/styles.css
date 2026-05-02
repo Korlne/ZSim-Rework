@@ -113,13 +113,20 @@ body {
   color: var(--danger);
 }
 
-/* Main */
-#main {
+/* View panels */
+.view-panel {
   flex: 1;
   padding: 24px 0;
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* Editor view uses wider layout */
+#editor-view.view-panel {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* Panels */

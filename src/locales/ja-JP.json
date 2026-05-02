@@ -77,5 +77,39 @@
 
   "sim.failed": "シミュレーション失敗: {err}",
 
-  "footer.text": "ZSim 2.0 — Rust エンジン · Tauri デスクトップ"
+  "footer.text": "ZSim 2.0 — Rust エンジン · Tauri デスクトップ",
+
+  "tab.simulation": "シミュレーション",
+  "tab.editor": "データエディター",
+
+  "editor.nav.dashboard": "ダッシュボード",
+  "editor.nav.characters": "キャラクター",
+  "editor.nav.skills": "スキル",
+  "editor.nav.equipment": "装備",
+  "editor.nav.wEngines": "W-エンジン",
+  "editor.nav.driveDiscs": "ドライブディスク",
+  "editor.nav.discSets": "ディスクセット",
+  "editor.nav.enemies": "敵",
+  "editor.nav.import": "インポート",
+
+  "editor.loading": "読み込み中...",
+  "editor.notFound": "ページが見つかりません",
+  "editor.comingSoon": "近日公開。",
+  "editor.loadError": "ページの読み込みに失敗しました",
+
+  "editor.notif.imported": "インポート: {success} 成功, {errors} 失敗",
+
+  "editor.dashboard.initBtn": "DB初期化",
+  "editor.dashboard.dbReady": "DB準備完了 — {tables} テーブル",
+  "editor.dashboard.dbError": "DB初期化に失敗しました",
+  "editor.dashboard.importError": "再インポートに失敗しました",
+  "editor.dashboard.importAllBtn": "すべて再インポート",
+  "editor.dashboard.counts": "レコード件数",
+  "editor.dashboard.card.characters": "キャラクター",
+  "editor.dashboard.card.skills": "スキル",
+  "editor.dashboard.card.w_engines": "W-エンジン",
+  "editor.dashboard.card.drive_discs": "ドライブディスク",
+  "editor.dashboard.card.disc_sets": "ディスクセット",
+  "editor.dashboard.card.enemies": "敵",
+  "editor.dashboard.card.apl": "APL"
 }

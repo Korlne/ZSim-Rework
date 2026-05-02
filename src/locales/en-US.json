@@ -77,5 +77,39 @@
 
   "sim.failed": "Simulation failed: {err}",
 
-  "footer.text": "ZSim 2.0 — Rust Engine · Tauri Desktop"
+  "footer.text": "ZSim 2.0 — Rust Engine · Tauri Desktop",
+
+  "tab.simulation": "Simulation",
+  "tab.editor": "Data Editor",
+
+  "editor.nav.dashboard": "Dashboard",
+  "editor.nav.characters": "Characters",
+  "editor.nav.skills": "Skills",
+  "editor.nav.equipment": "Equipment",
+  "editor.nav.wEngines": "W-Engines",
+  "editor.nav.driveDiscs": "Drive Discs",
+  "editor.nav.discSets": "Disc Sets",
+  "editor.nav.enemies": "Enemies",
+  "editor.nav.import": "Import",
+
+  "editor.loading": "Loading...",
+  "editor.notFound": "Page not found",
+  "editor.comingSoon": "Coming soon.",
+  "editor.loadError": "Failed to load page",
+
+  "editor.notif.imported": "Import: {success} ok, {errors} failed",
+
+  "editor.dashboard.initBtn": "Init Database",
+  "editor.dashboard.dbReady": "Database ready — {tables} tables",
+  "editor.dashboard.dbError": "Database init failed",
+  "editor.dashboard.importError": "Reimport failed",
+  "editor.dashboard.importAllBtn": "Reimport All",
+  "editor.dashboard.counts": "Record Counts",
+  "editor.dashboard.card.characters": "Characters",
+  "editor.dashboard.card.skills": "Skills",
+  "editor.dashboard.card.w_engines": "W-Engines",
+  "editor.dashboard.card.drive_discs": "Drive Discs",
+  "editor.dashboard.card.disc_sets": "Disc Sets",
+  "editor.dashboard.card.enemies": "Enemies",
+  "editor.dashboard.card.apl": "APL"
 }

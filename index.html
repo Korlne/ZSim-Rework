@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title data-i18n="header.title">ZSim Analyzer</title>
     <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/editor/styles.css" />
     <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" defer></script>
   </head>
   <body>
@@ -26,8 +27,14 @@
         </div>
       </header>
 
-      <!-- Main content -->
-      <main id="main">
+      <!-- View tabs -->
+      <nav class="editor-tabs" id="view-tabs">
+        <button class="editor-tab active" data-view="simulation" data-i18n="tab.simulation">Simulation</button>
+        <button class="editor-tab" data-view="editor" data-i18n="tab.editor">Data Editor</button>
+      </nav>
+
+      <!-- Simulation View -->
+      <main id="simulation-view" class="view-panel">
         <!-- Simulation Config Panel -->
         <section id="config-panel" class="panel">
           <h2 data-i18n="panel.config.title">Simulation Config</h2>
@@ -132,6 +139,13 @@
         </section>
       </main>
 
+      <!-- Data Editor View -->
+      <main id="editor-view" class="view-panel hidden">
+        <div class="editor-layout">
+          <div id="editor-content" class="editor-content"></div>
+        </div>
+      </main>
+
       <!-- Footer -->
       <footer id="footer">
         <span data-i18n="footer.text">ZSim 2.0 &mdash; Rust Engine &middot; Tauri Desktop</span>
@@ -141,5 +155,38 @@
       <div id="notification" class="notification hidden"></div>
     </div>
     <script type="module" src="/src/main.js"></script>
+    <script type="module">
+      // ── View tab switching ─────────────────────────────────
+      const tabs = document.querySelectorAll(".editor-tab");
+      const simView = document.getElementById("simulation-view");
+      const editorView = document.getElementById("editor-view");
+
+      tabs.forEach((tab) => {
+        tab.addEventListener("click", async () => {
+          tabs.forEach((t) => t.classList.remove("active"));
+          tab.classList.add("active");
+
+          const view = tab.dataset.view;
+          if (view === "simulation") {
+            simView.classList.remove("hidden");
+            editorView.classList.add("hidden");
+          } else {
+            simView.classList.add("hidden");
+            editorView.classList.remove("hidden");
+            // Lazy-load the editor
+            if (!editorView.dataset.initialized) {
+              editorView.dataset.initialized = "true";
+              try {
+                const { init } = await import("/src/editor/app.js");
+                init();
+              } catch (err) {
+                console.error("Editor init failed:", err);
+                editorView.innerHTML = `<div class="page-error"><h2>Editor failed to load</h2><pre>${err.message}</pre></div>`;
+              }
+            }
+          }
+        });
+      });
+    </script>
   </body>
 </html>

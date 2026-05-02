@@ -77,5 +77,39 @@
 
   "sim.failed": "模拟失败: {err}",
 
-  "footer.text": "ZSim 2.0 — Rust 引擎 · Tauri 桌面"
+  "footer.text": "ZSim 2.0 — Rust 引擎 · Tauri 桌面",
+
+  "tab.simulation": "模拟",
+  "tab.editor": "数据编辑器",
+
+  "editor.nav.dashboard": "仪表盘",
+  "editor.nav.characters": "角色管理",
+  "editor.nav.skills": "技能管理",
+  "editor.nav.equipment": "装备管理",
+  "editor.nav.wEngines": "音擎",
+  "editor.nav.driveDiscs": "驱动盘",
+  "editor.nav.discSets": "驱动套装",
+  "editor.nav.enemies": "敌人管理",
+  "editor.nav.import": "数据导入",
+
+  "editor.loading": "加载中...",
+  "editor.notFound": "页面未找到",
+  "editor.comingSoon": "即将推出。",
+  "editor.loadError": "页面加载失败",
+
+  "editor.notif.imported": "导入: {success} 成功, {errors} 失败",
+
+  "editor.dashboard.initBtn": "初始化数据库",
+  "editor.dashboard.dbReady": "数据库就绪 — {tables} 个表",
+  "editor.dashboard.dbError": "数据库初始化失败",
+  "editor.dashboard.importError": "重新导入失败",
+  "editor.dashboard.importAllBtn": "重新导入全部",
+  "editor.dashboard.counts": "记录统计",
+  "editor.dashboard.card.characters": "角色",
+  "editor.dashboard.card.skills": "技能",
+  "editor.dashboard.card.w_engines": "音擎",
+  "editor.dashboard.card.drive_discs": "驱动盘",
+  "editor.dashboard.card.disc_sets": "驱动套装",
+  "editor.dashboard.card.enemies": "敌人",
+  "editor.dashboard.card.apl": "APL"
 }
