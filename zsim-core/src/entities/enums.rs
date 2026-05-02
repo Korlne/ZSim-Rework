@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// Faction tag identifying a character's affiliation.
+/// 标识角色所属派系的阵营标签。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FactionTag {
     #[serde(rename = "Gentle_House")]
@@ -37,7 +37,7 @@ pub enum FactionTag {
     Other,
 }
 
-/// Specialty tag identifying a character's combat role.
+/// 标识角色战斗定位的特化标签。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SpecialtyTag {
     #[serde(rename = "Attack")]
@@ -54,7 +54,7 @@ pub enum SpecialtyTag {
     Defense,
 }
 
-/// Element tag for damage typing and anomaly interactions.
+/// 用于伤害类型和异常交互的元素标签。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ElementTag {
     #[serde(rename = "Ice")]
@@ -75,7 +75,7 @@ pub enum ElementTag {
     HonedEdge,
 }
 
-/// Character field presence state.
+/// 角色在场状态。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum CharacterState {
     #[serde(rename = "Active")]
@@ -87,7 +87,7 @@ pub enum CharacterState {
     Locked,
 }
 
-/// Enemy tier classification for chain-attack limits.
+/// 敌人等级分类，用于连携攻击次数限制。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum EnemyType {
     #[serde(rename = "Normal")]
@@ -109,7 +109,7 @@ impl EnemyType {
     }
 }
 
-/// Categories of skill actions in a character's kit.
+/// 角色技能动作的类别。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SkillType {
     #[serde(rename = "Normal")]
@@ -130,7 +130,7 @@ pub enum SkillType {
     QuickAssist,
 }
 
-/// Trigger conditions for coordinated attacks and reactive skills.
+/// 连携攻击和反应技能的触发条件。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TriggerType {
     #[serde(rename = "OnDamageDealt")]
@@ -145,7 +145,7 @@ pub enum TriggerType {
     OnParry,
 }
 
-/// Simulation execution mode.
+/// 模拟执行模式。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SimMode {
     #[serde(rename = "Single")]

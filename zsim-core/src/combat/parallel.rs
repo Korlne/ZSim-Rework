@@ -1,9 +1,8 @@
-//! Parallel simulation executor using rayon.
+//! 使用 rayon 的并行模拟执行器。
 //!
-//! Runs multiple independent simulations in parallel, each on its own thread.
-//! All per-simulation state (RNG, GameState, EventBus, etc.) is created fresh
-//! for each run.  Shared read-only data (skills, characters, enemies, APL)
-//! is passed via [`Arc`] to avoid unnecessary cloning across threads.
+//! 并行运行多个独立模拟，每个在自己的线程上运行。
+//! 每次运行都会重新创建所有每模拟状态（RNG、GameState、EventBus 等）。
+//! 共享的只读数据（技能、角色、敌人、APL）通过 [`Arc`] 传递，避免跨线程的不必要克隆。
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -18,7 +17,7 @@ use crate::entities::character::Character;
 use crate::entities::enemy::EnemyState;
 use crate::entities::enums::SimMode;
 
-/// A single simulation result with index for identification.
+/// 单个模拟结果，带有用于识别的索引。
 #[derive(Debug, Clone)]
 pub struct SimResult {
     pub sim_index: usize,
@@ -28,29 +27,29 @@ pub struct SimResult {
     pub events: Vec<LoggedEvent>,
 }
 
-/// Configuration for parallel simulation execution.
+/// 并行模拟执行的配置。
 ///
-/// Large read-only data blocks (`team_characters`, `enemies`, `skills`, `apl`)
-/// are [`Arc`]-wrapped for efficient cross-thread sharing.
+/// 大的只读数据块（`team_characters`、`enemies`、`skills`、`apl`）
+/// 使用 [`Arc`] 包装以实现高效的跨线程共享。
 #[derive(Debug, Clone)]
 pub struct ParallelConfig {
-    /// Number of simulations to run.
+    /// 要运行的模拟数量。
     pub sim_count: usize,
-    /// Base seed for RNG (each sim uses `seed = base_seed + sim_index`).
+    /// RNG 的基础种子（每次模拟使用 `seed = base_seed + sim_index`）。
     pub base_seed: u64,
-    /// Maximum ticks per simulation.
+    /// 每次模拟的最大 tick 数。
     pub max_tick: u64,
-    /// Simulation mode (typically `Parallel`).
+    /// 模拟模式（通常为 `Parallel`）。
     pub mode: SimMode,
-    /// Shared team characters template (Arc-wrapped for cross-thread sharing).
+    /// 共享的队伍角色模板（使用 Arc 包装以实现跨线程共享）。
     pub team_characters: Arc<Vec<Character>>,
-    /// Shared enemy template.
+    /// 共享的敌人模板。
     pub enemies: Arc<Vec<EnemyState>>,
-    /// Shared skill definitions.
+    /// 共享的技能定义。
     pub skills: Arc<HashMap<String, SkillData>>,
-    /// Shared APL plan.
+    /// 共享的 APL 计划。
     pub apl: Arc<APLData>,
-    /// Optional bangboo character.
+    /// 可选的邦布角色。
     pub bangboo: Arc<Option<Character>>,
 }
 
@@ -70,35 +69,34 @@ impl Default for ParallelConfig {
     }
 }
 
-/// Progress update sent from parallel workers to the caller.
+/// 从并行工作线程发送给调用者的进度更新。
 #[derive(Debug, Clone)]
 pub enum ProgressUpdate {
-    /// Percentage of total simulations completed.
+    /// 已完成模拟的百分比。
     Percentage(f64),
-    /// All simulations finished.
+    /// 所有模拟已完成。
     Done,
 }
 
-/// Parallel simulation executor using rayon.
+/// 使用 rayon 的并行模拟执行器。
 ///
-/// Creates independent simulation state (RNG / GameState / EventBus /
-/// APLManager / BuffManager / AnomalyManager / EquipmentManager) for
-/// each run and distributes work across the rayon thread pool.
+/// 为每次运行创建独立的模拟状态（RNG / GameState / EventBus /
+/// APLManager / BuffManager / AnomalyManager / EquipmentManager）
+/// 并将工作分配到 rayon 线程池。
 pub struct ParallelRunner;
 
 impl ParallelRunner {
-    /// Execute simulations in parallel.
+    /// 并行执行模拟。
     ///
-    /// Each simulation receives an independent clone of the shared config
-    /// and produces a [`SimResult`].  Returns all results along with a
-    /// [`mpsc::Receiver`] that provides progress updates at ~1% intervals.
+    /// 每次模拟接收共享配置的独立克隆，并产生一个 [`SimResult`]。
+    /// 返回所有结果以及一个 [`mpsc::Receiver`]，它以约 1% 的间隔提供进度更新。
     pub fn run(config: ParallelConfig) -> (Vec<SimResult>, mpsc::Receiver<ProgressUpdate>) {
         let (tx, rx) = mpsc::channel();
 
         let sim_count = config.sim_count;
         let base_seed = config.base_seed;
 
-        // Early-out for empty batch.
+        // 空批次提前返回。
         if sim_count == 0 {
             let _ = tx.send(ProgressUpdate::Done);
             return (Vec::new(), rx);
@@ -112,7 +110,7 @@ impl ParallelRunner {
         let apl = config.apl;
         let bangboo = config.bangboo;
 
-        // Report progress every ~1% of completed runs.
+        // 每完成约 1% 的运行报告进度。
         let progress_step = (sim_count as f64 / 100.0).ceil() as usize;
         let progress_step = progress_step.max(1);
 
@@ -138,7 +136,7 @@ impl ParallelRunner {
 
                 let result = SimulationRunner::run(sim_config);
 
-                // Report progress at ~1% intervals.
+                // 以约 1% 的间隔报告进度。
                 let completed = counter_ref.fetch_add(1, Ordering::SeqCst) + 1;
                 if completed.is_multiple_of(progress_step) || completed == sim_count {
                     let pct = (completed as f64 / sim_count as f64 * 100.0).min(100.0);
@@ -170,7 +168,7 @@ mod tests {
     use crate::entities::models::BaseStats;
 
     // ------------------------------------------------------------------
-    // Helpers
+    // 辅助函数
     // ------------------------------------------------------------------
 
     fn make_character(
@@ -272,7 +270,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Basic execution
+    // 基本执行
     // ------------------------------------------------------------------
 
     #[test]
@@ -281,7 +279,7 @@ mod tests {
 
         assert_eq!(results.len(), 10, "should produce 10 results");
 
-        // All results should be identical (same seed → deterministic output).
+        // 所有结果应该相同（相同种子 → 确定性输出）。
         let first = &results[0];
         for r in &results {
             assert_eq!(r.total_ticks, first.total_ticks);
@@ -289,7 +287,7 @@ mod tests {
             assert_eq!(r.events.len(), first.events.len());
         }
 
-        // Progress updates should arrive.
+        // 进度更新应该到达。
         let updates: Vec<ProgressUpdate> = rx.iter().collect();
         assert!(!updates.is_empty(), "should receive progress updates");
         assert!(updates.iter().any(|u| matches!(u, ProgressUpdate::Done)));
@@ -312,13 +310,13 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Seed-independent determinism
+    // 种子无关的确定性
     // ------------------------------------------------------------------
 
     #[test]
     fn test_parallel_deterministic_results() {
-        // With the same skills (no randomness), all sims produce identical output
-        // despite differing seeds (base_seed + sim_index).
+        // 使用相同的技能（无随机性），所有模拟都产生相同的输出，
+        // 尽管种子不同（base_seed + sim_index）。
         let config = ParallelConfig {
             sim_count: 50,
             max_tick: 30,
@@ -339,7 +337,7 @@ mod tests {
             assert_eq!(r.events.len(), first.events.len());
         }
 
-        // Seeds should be sequential.
+        // 种子应该是连续的。
         for (i, r) in results.iter().enumerate() {
             assert_eq!(r.seed, 42 + i as u64);
             assert_eq!(r.sim_index, i);
@@ -347,7 +345,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Parallel results match serial (single-threaded) execution
+    // 并行结果与串行（单线程）执行匹配
     // ------------------------------------------------------------------
 
     #[test]
@@ -372,7 +370,7 @@ mod tests {
             }],
         };
 
-        // Single-threaded run (seed = 42).
+        // 单线程运行（种子 = 42）。
         let serial_result = SimulationRunner::run(SimConfig {
             team_characters: team.clone(),
             enemies: enemies.clone(),
@@ -384,7 +382,7 @@ mod tests {
             bangboo: None,
         });
 
-        // Parallel run (100 sims, sim 0 uses base_seed + 0 = 42).
+        // 并行运行（100 次模拟，sim 0 使用 base_seed + 0 = 42）。
         let config = ParallelConfig {
             sim_count: 100,
             base_seed: 42,
@@ -401,13 +399,13 @@ mod tests {
 
         assert_eq!(results.len(), 100);
 
-        // Sim 0 in parallel should match serial (same seed 42).
+        // 并行中的模拟 0 应与串行匹配（相同种子 42）。
         let r0 = &results[0];
         assert_eq!(r0.total_ticks, serial_result.total_ticks);
         assert_eq!(r0.termination_reason, serial_result.termination_reason);
         assert_eq!(r0.events.len(), serial_result.events.len());
 
-        // All parallel sims with deterministic skills produce identical results.
+        // 具有确定性技能的所有并行模拟产生相同的结果。
         for r in &results {
             assert_eq!(r.total_ticks, serial_result.total_ticks);
             assert_eq!(r.events.len(), serial_result.events.len());
@@ -415,7 +413,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Edge cases
+    // 边界情况
     // ------------------------------------------------------------------
 
     #[test]
@@ -457,7 +455,7 @@ mod tests {
 
         let updates: Vec<ProgressUpdate> = rx.iter().collect();
 
-        // Should receive percentage updates.
+        // 应接收百分比更新。
         let percentages: Vec<f64> = updates
             .iter()
             .filter_map(|u| {

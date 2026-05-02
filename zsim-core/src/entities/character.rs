@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::enums::{CharacterState, ElementTag, FactionTag, SpecialtyTag};
 use super::models::BaseStats;
 
-/// Per-character resource pools (energy, decibel, etc.).
+/// 每个角色的资源池（能量、分贝等）。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ResourceSet {
     #[serde(default)]
@@ -16,7 +16,7 @@ pub struct ResourceSet {
     pub chain_points: u32,
 }
 
-/// A playable character with identity, stats, resources, and state.
+/// 一个可玩角色，包含身份、属性、资源和状态。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Character {
     pub char_id: String,

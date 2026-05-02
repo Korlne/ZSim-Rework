@@ -1,5 +1,5 @@
-//! APL action queue manager — schedules and executes per-character skill
-//! rotations (tracks) with full action lifecycle support.
+//! APL 动作队列管理器 —— 安排并执行每个角色的技能
+//! 循环（轨道），提供完整的动作生命周期支持。
 
 use std::collections::HashMap;
 
@@ -9,10 +9,10 @@ use crate::combat::validator::{ResourceValidator, ValidationError};
 use crate::data::apl::{APLData, ActionEntry, Track};
 use crate::entities::enemy::EnemyState;
 
-/// A validated and dispatched action, ready for execution by the simulation runner.
+/// 一个已验证并分派的动作，准备由模拟运行器执行。
 ///
-/// Used by [`crate::combat::coordinated::CoordinatedActionSystem`] and other
-/// systems that consume APL dispatch events.
+/// 被 [`crate::combat::coordinated::CoordinatedActionSystem`] 和其他
+/// 消费 APL 分派事件的系统使用。
 #[derive(Debug, Clone, PartialEq)]
 pub struct SkillAction {
     pub action_id: String,
@@ -22,38 +22,38 @@ pub struct SkillAction {
 }
 
 // ---------------------------------------------------------------------------
-// Event types
+// 事件类型
 // ---------------------------------------------------------------------------
 
-/// Events produced by the APL manager during action execution.
+/// APL 管理器在动作执行过程中产生的事件。
 ///
-/// The simulation runner drains these via [`APLManager::get_pending_actions`].
+/// 模拟运行器通过 [`APLManager::get_pending_actions`] 清空这些事件。
 #[derive(Debug, Clone, PartialEq)]
 pub enum PendingAction {
-    /// A skill started executing (animation began).
+    /// 技能开始执行（动画开始）。
     ActionStarted { char_id: String, action_id: String },
-    /// A hit frame was reached during skill execution.
+    /// 技能执行期间达到了命中帧。
     HitFrameTriggered {
         char_id: String,
         action_id: String,
         frame: u64,
         multiplier: f64,
     },
-    /// A skill's animation completed.
+    /// 技能的动画完成。
     ActionCompleted { char_id: String, action_id: String },
-    /// A skill failed validation or could not be found.
+    /// 技能验证失败或找不到。
     ActionFailed {
         char_id: String,
         action_id: String,
         reason: String,
     },
-    /// Charging started for a chargeable skill.
+    /// 可蓄力技能开始蓄力。
     ChargingStarted {
         char_id: String,
         action_id: String,
         charge_duration: u64,
     },
-    /// Charging completed and variant action began.
+    /// 蓄力完成，变体动作开始。
     ChargingCompleted {
         char_id: String,
         action_id: String,
@@ -62,23 +62,23 @@ pub enum PendingAction {
 }
 
 // ---------------------------------------------------------------------------
-// Animation state
+// 动画状态
 // ---------------------------------------------------------------------------
 
-/// Per-track execution state.
+/// 每个轨道的执行状态。
 #[derive(Debug, Clone)]
 pub enum AnimationState {
-    /// No action currently executing.
+    /// 当前没有动作在执行。
     Idle,
-    /// A skill is playing its animation.
+    /// 技能正在播放动画。
     Animating {
         action_id: String,
         total_frames: u64,
         elapsed_frames: u64,
-        /// Remaining hit frames to trigger: (frame_number, multiplier).
+        /// 剩余的待触发命中帧：(帧号, 倍率)。
         hit_frames: Vec<(u64, f64)>,
     },
-    /// A chargeable action is charging.
+    /// 可蓄力动作正在蓄力。
     Charging {
         action_id: String,
         charge_elapsed: u64,
@@ -88,23 +88,23 @@ pub enum AnimationState {
 }
 
 // ---------------------------------------------------------------------------
-// Track state
+// 轨道状态
 // ---------------------------------------------------------------------------
 
-/// Runtime state for a single APL track.
+/// 单个 APL 轨道的运行时状态。
 #[derive(Debug, Clone)]
 pub struct TrackState {
     pub track_id: String,
     pub char_id: String,
-    /// Remaining actions: (action_id, scheduled_tick).
+    /// 剩余动作：(action_id, scheduled_tick)。
     actions: Vec<ActionEntry>,
-    /// Index into `actions` for the next action to check.
+    /// `actions` 中下一个待检查动作的索引。
     pub next_action_index: usize,
-    /// Most recently completed action_id (for prerequisite checks).
+    /// 最近完成的 action_id（用于前置条件检查）。
     pub last_completed_action_id: Option<String>,
-    /// Current execution state (idle / animating / charging).
+    /// 当前执行状态（空闲/动画中/蓄力中）。
     pub animation: AnimationState,
-    /// True when this track is blocked on a prerequisite.
+    /// 当此轨道因前置条件被阻塞时为 true。
     pub waiting_for_prerequisite: bool,
 }
 
@@ -121,24 +121,24 @@ impl TrackState {
         }
     }
 
-    /// Returns true when all actions in this track have been dispatched.
+    /// 当此轨道中的所有动作都已分派时返回 true。
     pub fn is_exhausted(&self) -> bool {
         self.next_action_index >= self.actions.len()
             && matches!(self.animation, AnimationState::Idle)
     }
 
-    /// Returns a reference to the current (action_id, at_tick), if any.
+    /// 返回当前 (action_id, at_tick) 的引用（如果有的话）。
     pub fn current_action(&self) -> Option<&ActionEntry> {
         self.actions.get(self.next_action_index)
     }
 }
 
 // ---------------------------------------------------------------------------
-// APL Manager
+// APL 管理器
 // ---------------------------------------------------------------------------
 
-/// Manages APL track execution with full action lifecycle:
-/// validate → deduct → start_skill → advance_frames → trigger_hit_frames → complete_skill
+/// 管理 APL 轨道执行，包含完整的动作生命周期：
+/// 验证 → 扣除 → 开始技能 → 推进帧 → 触发命中帧 → 完成技能
 #[derive(Debug)]
 pub struct APLManager {
     pub tracks: Vec<TrackState>,
@@ -148,7 +148,7 @@ pub struct APLManager {
 }
 
 impl APLManager {
-    /// Create a new APL manager from an APL plan.
+    /// 从 APL 计划创建一个新的 APL 管理器。
     pub fn new(apl_data: APLData) -> Self {
         let tracks: Vec<TrackState> = apl_data.tracks.iter().map(TrackState::from_track).collect();
         Self {
@@ -159,21 +159,21 @@ impl APLManager {
         }
     }
 
-    /// Returns true when every track has dispatched all its actions.
+    /// 当每个轨道都已分派其所有动作时返回 true。
     pub fn all_tracks_exhausted(&self) -> bool {
         self.tracks.iter().all(|t| t.is_exhausted())
     }
 
-    /// Process all tracks for the given tick.
+    /// 处理给定 tick 的所有轨道。
     ///
-    /// Called once per simulation tick.  For each track:
-    /// - **Idle**: checks if the next queued action is due, validates,
-    ///   deducts resources, and starts execution (animating or charging).
-    /// - **Animating**: advances frames, triggers hit frames.
-    /// - **Charging**: advances charge, transitions to variant on completion.
+    /// 每个模拟 tick 调用一次。对于每个轨道：
+    /// - **空闲**：检查下一个排队动作是否到期，验证，
+    ///   扣除资源，开始执行（动画或蓄力）。
+    /// - **动画中**：推进帧，触发命中帧。
+    /// - **蓄力中**：推进蓄力，完成后转换为变体。
     ///
-    /// Returns validation errors for actions that failed resource checks.
-    /// Richer lifecycle events can be drained via [`get_pending_actions`].
+    /// 返回资源检查失败的动作的验证错误。
+    /// 更丰富的生命周期事件可以通过 [`get_pending_actions`] 清空。
     pub fn process_next_action(
         &mut self,
         current_tick: u64,
@@ -188,7 +188,7 @@ impl APLManager {
         let mut errors = Vec::new();
 
         for track_idx in 0..self.tracks.len() {
-            // -------- Animating / Charging processing (no skill_lookup needed) --------
+            // -------- 动画中 / 蓄力中处理（无需查找技能） --------
             match &self.tracks[track_idx].animation {
                 AnimationState::Animating { .. } => {
                     let state = std::mem::replace(
@@ -209,11 +209,11 @@ impl APLManager {
                                 char_id: self.tracks[track_idx].char_id.clone(),
                                 action_id: action_id.clone(),
                             });
-                            // State stays Idle (from replace).
+                            // 状态保持为空闲（来自 replace 的结果）。
                             continue;
                         }
 
-                        // Emit hit frames at the current elapsed position.
+                        // 在当前经过的帧位置发射命中帧。
                         let mut remaining = Vec::new();
                         for (frame, mult) in hit_frames {
                             if frame == elapsed_frames {
@@ -251,7 +251,7 @@ impl APLManager {
                     {
                         let new_elapsed = charge_elapsed + 1;
                         if new_elapsed >= charge_duration {
-                            // Charge complete — look up variant and start animation.
+                            // 蓄力完成 — 查找变体并开始动画。
                             if let Some(variant_skill) = skills.get(&variant_action_id) {
                                 let variant_frames: Vec<(u64, f64)> = variant_skill
                                     .damage_multipliers
@@ -300,16 +300,16 @@ impl APLManager {
                     }
                     continue;
                 }
-                AnimationState::Idle => { /* fall through to idle processing below */ }
+                AnimationState::Idle => { /* 继续执行下面的空闲处理 */ }
             }
 
-            // -------- Idle processing (start next queued action) --------
+            // -------- 空闲处理（开始下一个排队动作） --------
             let track_exhausted = self.tracks[track_idx].is_exhausted();
             if track_exhausted {
                 continue;
             }
 
-            // Read the current action entry.
+            // 读取当前动作条目。
             let entry = {
                 let track = &self.tracks[track_idx];
                 match track.actions.get(track.next_action_index) {
@@ -318,12 +318,12 @@ impl APLManager {
                 }
             };
 
-            // Not time yet.
+            // 时间还没到。
             if entry.at > current_tick {
                 continue;
             }
 
-            // Look up skill data.
+            // 查找技能数据。
             let skill = match skills.get(&entry.action_id) {
                 Some(s) => s.clone(),
                 None => {
@@ -337,7 +337,7 @@ impl APLManager {
                 }
             };
 
-            // Check prerequisite (read-only first).
+            // 检查前置条件（先只读检查）。
             let prereq_blocked = {
                 let track = &self.tracks[track_idx];
                 if let Some(ref prereq) = skill.prerequisite_action_id {
@@ -353,7 +353,7 @@ impl APLManager {
 
             let char_id = self.tracks[track_idx].char_id.clone();
 
-            // Find character in team by char_id.
+            // 通过 char_id 在队伍中查找角色。
             let char_idx = match team.characters.iter().position(|c| c.char_id == char_id) {
                 Some(idx) => idx,
                 None => {
@@ -367,7 +367,7 @@ impl APLManager {
                 }
             };
 
-            // Validate resources.
+            // 验证资源。
             {
                 let character = &team.characters[char_idx];
                 let enemy = enemies.first();
@@ -380,12 +380,12 @@ impl APLManager {
                 }
             }
 
-            // Deduct decibel (only if on-field and skill costs decibel).
+            // 扣除 Decibel（仅当角色在场且技能消耗 Decibel 时）。
             if skill.decibel_cost > 0.0 && team.current_on_field_index == char_idx {
                 let _ = team.consume_decibel(skill.decibel_cost);
             }
 
-            // Deduct energy and HP.
+            // 扣除能量和 HP。
             {
                 let character = &mut team.characters[char_idx];
                 character.resources.energy =
@@ -393,18 +393,18 @@ impl APLManager {
                 character.current_stats.hp = (character.current_stats.hp - skill.hp_cost).max(0.0);
             }
 
-            // Set skill cooldown.
+            // 设置技能冷却。
             self.validator
                 .set_cooldown(&skill.action_id, skill.cooldown_ticks, current_tick);
 
-            // Mark action as "completed" for prerequisite tracking
-            // (happens at start, not at animation end).
+            // 将动作标记为"已完成"用于前置条件追踪
+            // （在开始时发生，而非动画结束时）。
             {
                 let track = &mut self.tracks[track_idx];
                 track.last_completed_action_id = Some(entry.action_id.clone());
             }
 
-            // Handle charge branches vs. immediate animation.
+            // 处理蓄力分支与即时动画。
             if !skill.charge_branches.is_empty() {
                 let branch = &skill.charge_branches[0];
                 self.tracks[track_idx].animation = AnimationState::Charging {
@@ -419,7 +419,7 @@ impl APLManager {
                     charge_duration: branch.charge_duration,
                 });
             } else if skill.animation_frames <= 1 {
-                // Instant skill (≤1 frame): start + complete in the same tick.
+                // 即时技能（<=1 帧）：在同一 tick 内开始 + 完成。
                 let hit_frames: Vec<(u64, f64)> = skill
                     .damage_multipliers
                     .iter()
@@ -438,16 +438,16 @@ impl APLManager {
                     action_id: entry.action_id.clone(),
                 });
                 if skill.animation_frames == 1 {
-                    // Hit frames at frame 1 were already emitted above.
-                    // Emit any additional hit frames (none in practice for 1-frame).
+                    // 第 1 帧的命中帧已在上面发射。
+                    // 发射任何额外的命中帧（对于 1 帧技能实际没有）。
                 }
                 self.pending_actions.push(PendingAction::ActionCompleted {
                     char_id,
                     action_id: entry.action_id.clone(),
                 });
-                // Track stays Idle (default after the take).
+                // 轨道保持空闲（take 后的默认状态）。
             } else {
-                // Multi-frame animation: start the animation timeline.
+                // 多帧动画：启动动画时间线。
                 let hit_frames: Vec<(u64, f64)> = skill
                     .damage_multipliers
                     .iter()
@@ -476,13 +476,13 @@ impl APLManager {
             self.tracks[track_idx].next_action_index += 1;
         }
 
-        // Refresh the exhausted flag.
+        // 刷新耗尽标志。
         self.is_exhausted = self.all_tracks_exhausted();
 
         errors
     }
 
-    /// Emit hit frame events for frame-1 hits (immediate hits on skill start).
+    /// 发射第 1 帧命中帧事件（技能开始时的即时命中）。
     fn emit_frame1_hits(
         pending: &mut Vec<PendingAction>,
         char_id: &str,
@@ -501,12 +501,12 @@ impl APLManager {
         }
     }
 
-    /// Drain all pending actions (consuming queue pattern).
+    /// 清空所有待处理动作（消费队列模式）。
     pub fn get_pending_actions(&mut self) -> Vec<PendingAction> {
         std::mem::take(&mut self.pending_actions)
     }
 
-    /// Mutable reference to the internal resource validator.
+    /// 内部资源验证器的可变引用。
     pub fn validator_mut(&mut self) -> &mut ResourceValidator {
         &mut self.validator
     }
@@ -524,7 +524,7 @@ mod tests {
     use crate::entities::models::BaseStats;
 
     // ------------------------------------------------------------------
-    // Helpers
+    // 辅助函数
     // ------------------------------------------------------------------
 
     fn make_character(
@@ -588,7 +588,7 @@ mod tests {
             energy_cost,
             decibel_cost,
             cooldown_ticks,
-            animation_frames: 1, // default: instant completion
+            animation_frames: 1, // 默认：即时完成
         }
     }
 
@@ -616,7 +616,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // APLManager creation
+    // APLManager 创建
     // ------------------------------------------------------------------
 
     #[test]
@@ -655,7 +655,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // TrackState helpers
+    // TrackState 辅助函数
     // ------------------------------------------------------------------
 
     #[test]
@@ -711,7 +711,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Action dispatch
+    // 动作分派
     // ------------------------------------------------------------------
 
     #[test]
@@ -736,7 +736,7 @@ mod tests {
 
         let actions = mgr.get_pending_actions();
         assert!(!actions.is_empty());
-        // Should contain ActionStarted for normal_atk
+        // 应包含 normal_atk 的 ActionStarted
         assert!(actions.iter().any(|pa| matches!(pa,
             PendingAction::ActionStarted { action_id, .. } if action_id == "normal_atk"
         )));
@@ -759,12 +759,12 @@ mod tests {
         let enemies = vec![make_enemy()];
         let skills = default_skills();
 
-        // Tick 0 — not dispatched yet
+        // Tick 0 — 尚未分派
         let errors = mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         assert!(mgr.get_pending_actions().is_empty());
 
-        // Tick 30 — should dispatch
+        // Tick 30 — 应分派
         let errors = mgr.process_next_action(30, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         assert!(!mgr.get_pending_actions().is_empty());
@@ -793,11 +793,11 @@ mod tests {
         let enemies = vec![make_enemy()];
         let skills = default_skills();
 
-        // Tick 0: dispatch normal_atk
+        // Tick 0：分派 normal_atk
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(!mgr.get_pending_actions().is_empty());
 
-        // Tick 30: dispatch ex_skill
+        // Tick 30：分派 ex_skill
         let errors = mgr.process_next_action(30, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         let actions = mgr.get_pending_actions();
@@ -850,13 +850,13 @@ mod tests {
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let _ = mgr.get_pending_actions();
 
-        // Second call: exhausted, no actions
+        // 第二次调用：已耗尽，无动作
         mgr.process_next_action(1, &mut team, &skills, &enemies);
         assert!(mgr.get_pending_actions().is_empty());
     }
 
     // ------------------------------------------------------------------
-    // Animation and hit frame tests
+    // 动画与命中帧测试
     // ------------------------------------------------------------------
 
     #[test]
@@ -883,20 +883,20 @@ mod tests {
         let mut team = make_team();
         let enemies = vec![make_enemy()];
 
-        // Tick 0: start animation
+        // Tick 0：开始动画
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let pa = mgr.get_pending_actions();
         assert!(pa
             .iter()
             .any(|pa| matches!(pa, PendingAction::ActionStarted { .. })));
 
-        // Tick 1-4: animating (calls 2-5: elapsed 2→3→4→5)
+        // Tick 1-4：动画中（调用 2-5：已过帧 2→3→4→5）
         for _ in 0..4 {
             mgr.process_next_action(0, &mut team, &skills, &enemies);
             assert!(mgr.get_pending_actions().is_empty());
         }
 
-        // Tick 5 → elapsed=6 > 5 → ActionCompleted
+        // Tick 5 → 已过帧=6 > 5 → ActionCompleted
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let pa = mgr.get_pending_actions();
         assert!(pa
@@ -938,18 +938,18 @@ mod tests {
         let mut team = make_team();
         let enemies = vec![make_enemy()];
 
-        // Tick 0: start (elapsed=1)
+        // Tick 0：开始（已过帧=1）
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let pa = mgr.get_pending_actions();
         assert!(pa
             .iter()
             .any(|pa| matches!(pa, PendingAction::ActionStarted { .. })));
 
-        // elapsed=2 (no hit)
+        // 已过帧=2（无命中）
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(mgr.get_pending_actions().is_empty());
 
-        // elapsed=3 → hit frame 3!
+        // 已过帧=3 → 命中帧 3！
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let pa = mgr.get_pending_actions();
         assert_eq!(pa.len(), 1);
@@ -962,13 +962,13 @@ mod tests {
             }
         ));
 
-        // elapsed=4,5,6 (no hits)
+        // 已过帧=4,5,6（无命中）
         for _ in 0..3 {
             mgr.process_next_action(0, &mut team, &skills, &enemies);
             assert!(mgr.get_pending_actions().is_empty());
         }
 
-        // elapsed=7 → hit frame 7!
+        // 已过帧=7 → 命中帧 7！
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let pa = mgr.get_pending_actions();
         assert_eq!(pa.len(), 1);
@@ -983,7 +983,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Charge branch tests
+    // 蓄力分支测试
     // ------------------------------------------------------------------
 
     #[test]
@@ -1056,17 +1056,17 @@ mod tests {
         let mut team = make_team();
         let enemies = vec![make_enemy()];
 
-        // Start charging.
+        // 开始蓄力。
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let _ = mgr.get_pending_actions();
 
-        // Advance through charge (4 ticks of charging).
+        // 推进蓄力（4 个蓄力 tick）。
         for _ in 0..4 {
             mgr.process_next_action(0, &mut team, &skills, &enemies);
             assert!(mgr.get_pending_actions().is_empty());
         }
 
-        // 5th tick → charge complete, variant starts.
+        // 第 5 tick → 蓄力完成，变体技能开始
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let pa = mgr.get_pending_actions();
         assert!(pa.iter().any(|pa| matches!(pa,
@@ -1080,7 +1080,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Prerequisite checking
+    // 前置条件检查
     // ------------------------------------------------------------------
 
     #[test]
@@ -1107,7 +1107,7 @@ mod tests {
         let mut team = make_team();
         let enemies = vec![make_enemy()];
 
-        // Prerequisite "normal_atk" not completed yet — blocked
+        // 前置条件 "normal_atk" 尚未完成 — 被阻止
         let errors = mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         assert!(mgr.get_pending_actions().is_empty());
@@ -1143,11 +1143,11 @@ mod tests {
         let mut team = make_team();
         let enemies = vec![make_enemy()];
 
-        // Tick 0: dispatch normal_atk
+        // Tick 0：分派 normal_atk
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(!mgr.get_pending_actions().is_empty());
 
-        // Tick 10: follow_up should now be eligible
+        // Tick 10：follow_up 现在应可执行
         let errors = mgr.process_next_action(10, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         let actions = mgr.get_pending_actions();
@@ -1157,7 +1157,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Resource validation + deduction
+    // 资源验证与扣除
     // ------------------------------------------------------------------
 
     #[test]
@@ -1174,7 +1174,7 @@ mod tests {
         };
         let mut mgr = APLManager::new(apl);
         let mut team = make_team();
-        team.characters[0].resources.energy = 10.0; // ex_skill costs 30
+        team.characters[0].resources.energy = 10.0; // ex_skill 消耗 30 能量
         let enemies = vec![make_enemy()];
         let skills = default_skills();
 
@@ -1184,7 +1184,7 @@ mod tests {
             errors[0].missing_resource,
             crate::combat::validator::ResourceType::Energy
         );
-        // Action not dispatched
+        // 动作未分派
         assert!(mgr.get_pending_actions().is_empty());
     }
 
@@ -1256,7 +1256,7 @@ mod tests {
         };
         let mut mgr = APLManager::new(apl);
         let mut team = make_team();
-        team.characters[0].current_stats.hp = 300.0; // hp_cost_skill costs 500
+        team.characters[0].current_stats.hp = 300.0; // hp_cost_skill 消耗 500 HP
         let enemies = vec![make_enemy()];
         let skills = default_skills();
 
@@ -1270,7 +1270,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Cooldown tracking
+    // 冷却追踪
     // ------------------------------------------------------------------
 
     #[test]
@@ -1302,15 +1302,15 @@ mod tests {
         };
         let mut mgr = APLManager::new(apl);
         let mut team = make_team();
-        team.characters[0].resources.energy = 100.0; // enough for two casts
+        team.characters[0].resources.energy = 100.0; // 足够两次施放
         let enemies = vec![make_enemy()];
 
-        // First use at tick 0 — succeeds
+        // tick 0 处首次使用 — 成功
         let errors = mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         let _ = mgr.get_pending_actions();
 
-        // Second use at tick 10 — blocked by cooldown (30 ticks from tick 0)
+        // tick 10 处第二次使用 — 被冷却阻止（从 tick 0 起 30 tick）
         let errors = mgr.process_next_action(10, &mut team, &skills, &enemies);
         assert_eq!(errors.len(), 1);
         assert_eq!(
@@ -1351,18 +1351,18 @@ mod tests {
         team.characters[0].resources.energy = 100.0;
         let enemies = vec![make_enemy()];
 
-        // First use at tick 0
+        // tick 0 处首次使用
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let _ = mgr.get_pending_actions();
 
-        // Second use at tick 25 — cooldown expired (20 ticks)
+        // tick 25 处第二次使用 — 冷却已过期（20 tick）
         let errors = mgr.process_next_action(25, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         assert!(!mgr.get_pending_actions().is_empty());
     }
 
     // ------------------------------------------------------------------
-    // Multi-track
+    // 多轨道
     // ------------------------------------------------------------------
 
     #[test]
@@ -1396,9 +1396,9 @@ mod tests {
         assert!(errors.is_empty());
 
         let actions = mgr.get_pending_actions();
-        // Each track produces ActionStarted + ActionCompleted (4 total for 2 tracks).
+        // 每个轨道产生 ActionStarted + ActionCompleted（2 个轨道共 4 个）。
         assert_eq!(actions.len(), 4);
-        // Both tracks should have started normal_atk
+        // 两个轨道都应已开始 normal_atk
         let sources: Vec<&str> = actions
             .iter()
             .filter_map(|pa| {
@@ -1440,15 +1440,15 @@ mod tests {
         let enemies = vec![make_enemy()];
         let skills = default_skills();
 
-        // Tick 0: only track 1 dispatches (ActionStarted + ActionCompleted = 2 events)
+        // Tick 0：只有轨道 1 分派（ActionStarted + ActionCompleted = 2 个事件）
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert_eq!(mgr.get_pending_actions().len(), 2);
 
-        // Tick 30: track 2 not ready yet
+        // Tick 30：轨道 2 尚未就绪
         mgr.process_next_action(30, &mut team, &skills, &enemies);
         assert!(mgr.get_pending_actions().is_empty());
 
-        // Tick 50: track 2 dispatches (ActionStarted + ActionCompleted = 2 events)
+        // Tick 50：轨道 2 分派（ActionStarted + ActionCompleted = 2 个事件）
         let errors = mgr.process_next_action(50, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         let actions = mgr.get_pending_actions();
@@ -1459,7 +1459,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Unknown / missing skills
+    // 未知/缺失的技能
     // ------------------------------------------------------------------
 
     #[test]
@@ -1481,18 +1481,18 @@ mod tests {
 
         let errors = mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
-        // ActionFailed event emitted for unknown skill
+        // 为未知技能发出 ActionFailed 事件
         let pending = mgr.get_pending_actions();
         assert_eq!(pending.len(), 1);
         assert!(
             matches!(pending[0], PendingAction::ActionFailed { ref action_id, .. } if action_id == "nonexistent_skill")
         );
-        // Track should be exhausted (action skipped)
+        // 轨道应已耗尽（动作被跳过）
         assert!(mgr.all_tracks_exhausted());
     }
 
     // ------------------------------------------------------------------
-    // Unknown character ID
+    // 未知角色 ID
     // ------------------------------------------------------------------
 
     #[test]
@@ -1514,7 +1514,7 @@ mod tests {
 
         let errors = mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
-        // ActionFailed event emitted for unknown character
+        // 为未知角色发出 ActionFailed 事件
         let pending = mgr.get_pending_actions();
         assert_eq!(pending.len(), 1);
         assert!(
@@ -1523,7 +1523,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // get_pending_actions is consuming
+    // get_pending_actions 是消费性的
     // ------------------------------------------------------------------
 
     #[test]
@@ -1559,7 +1559,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Decibel deduction for on-field character
+    // 上场角色的 Decibel 扣除
     // ------------------------------------------------------------------
 
     #[test]
@@ -1585,7 +1585,7 @@ mod tests {
         };
         let mut mgr = APLManager::new(apl);
         let mut team = make_team();
-        team.characters[0].resources.decibel = 2000.0; // char_0 is on-field
+        team.characters[0].resources.decibel = 2000.0; // char_0 在场
         let enemies = vec![make_enemy()];
 
         mgr.process_next_action(0, &mut team, &skills, &enemies);
@@ -1595,7 +1595,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Integration: full multi-track with resource tracking
+    // 集成：完整的带资源追踪的多轨道测试
     // ------------------------------------------------------------------
 
     #[test]
@@ -1648,28 +1648,28 @@ mod tests {
         team.characters[0].resources.energy = 100.0;
         let enemies = vec![make_enemy()];
 
-        // Tick 0: both tracks dispatch normal_atk (2 events × 2 tracks = 4)
+        // Tick 0：两个轨道都分派 normal_atk（2 个事件 × 2 个轨道 = 4）
         let errors = mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         assert_eq!(mgr.get_pending_actions().len(), 4);
 
-        // Tick 20: char_0 dispatches ex_skill (costs 30 energy, 2 events)
+        // Tick 20：char_0 分派 ex_skill（消耗 30 能量，2 个事件）
         let errors = mgr.process_next_action(20, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         assert_eq!(mgr.get_pending_actions().len(), 2);
         assert!((team.characters[0].resources.energy - 70.0).abs() < 1e-9);
 
-        // Tick 30: char_1 dispatches second normal_atk (2 events)
+        // Tick 30：char_1 分派第二次 normal_atk（2 个事件）
         let errors = mgr.process_next_action(30, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         assert_eq!(mgr.get_pending_actions().len(), 2);
 
-        // Tick 50: char_0 dispatches final normal_atk (2 events)
+        // Tick 50：char_0 分派最后的 normal_atk（2 个事件）
         let errors = mgr.process_next_action(50, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         assert_eq!(mgr.get_pending_actions().len(), 2);
 
-        // All tracks exhausted
+        // 所有轨道已耗尽
         assert!(mgr.all_tracks_exhausted());
         assert!(mgr.is_exhausted);
     }
@@ -1695,7 +1695,7 @@ mod tests {
         let _ = mgr.get_pending_actions();
         assert!(mgr.is_exhausted);
 
-        // Try to process again — should be a no-op
+        // 尝试再次处理 — 应为空操作
         let errors = mgr.process_next_action(100, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
         assert!(mgr.get_pending_actions().is_empty());
@@ -1721,19 +1721,19 @@ mod tests {
         };
         let mut mgr = APLManager::new(apl);
         let mut team = make_team();
-        team.characters[0].resources.energy = 5.0; // not enough for ex_skill (costs 30)
+        team.characters[0].resources.energy = 5.0; // 能量不足，ex_skill 需要 30 能量
         let enemies = vec![make_enemy()];
         let skills = default_skills();
 
-        // Tick 0: ex_skill fails validation
+        // Tick 0：ex_skill 验证失败
         let errors = mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert_eq!(errors.len(), 1);
         assert!(mgr.get_pending_actions().is_empty());
 
-        // Track did NOT advance — still on ex_skill
+        // 轨道未推进 — 仍在 ex_skill 上
         assert_eq!(mgr.tracks[0].next_action_index, 0);
 
-        // Give more energy and retry at tick 10
+        // 补充能量并在 tick 10 重试
         team.characters[0].resources.energy = 100.0;
         let errors = mgr.process_next_action(10, &mut team, &skills, &enemies);
         assert!(errors.is_empty());
@@ -1760,17 +1760,17 @@ mod tests {
         let enemies = vec![make_enemy()];
         let skills = default_skills();
 
-        // First call at tick 0
+        // 在 tick 0 处首次调用
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(!mgr.get_pending_actions().is_empty());
 
-        // Second call at same tick: track already advanced, nothing new
+        // 在同一 tick 处第二次调用：轨道已推进，无新事件
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         assert!(mgr.get_pending_actions().is_empty());
     }
 
     // ------------------------------------------------------------------
-    // Validator access
+    // 验证器访问
     // ------------------------------------------------------------------
 
     #[test]
@@ -1783,7 +1783,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Edge cases
+    // 边界情况
     // ------------------------------------------------------------------
 
     #[test]
@@ -1812,7 +1812,7 @@ mod tests {
 
     #[test]
     fn test_full_action_lifecycle_integration() {
-        // A skill with known hit frames: test start → hit → complete.
+        // 一个具有已知命中帧的技能：测试开始 → 命中 → 完成。
         let skill = SkillData {
             action_id: "combo_hit".to_string(),
             action_type: SkillType::Normal,
@@ -1839,15 +1839,15 @@ mod tests {
         let mut team = make_team();
         let enemies = vec![make_enemy()];
 
-        // Start
+        // 开始
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let pa = mgr.get_pending_actions();
         assert!(pa
             .iter()
             .any(|pa| matches!(pa, PendingAction::ActionStarted { .. })));
 
-        // elapsed=2 → hit
-        mgr.process_next_action(0, &mut team, &skills, &enemies); // elapsed=1→2
+        // 已过帧=2 → 命中
+        mgr.process_next_action(0, &mut team, &skills, &enemies); // 已过帧=1→2
         let pa = mgr.get_pending_actions();
         assert!(pa.iter().any(|pa| matches!(
             pa,
@@ -1858,13 +1858,13 @@ mod tests {
             }
         )));
 
-        // elapsed=3, 4 (2 calls, no hit)
+        // 已过帧=3, 4（2 次调用，无命中）
         for _ in 0..2 {
             mgr.process_next_action(0, &mut team, &skills, &enemies);
         }
         assert!(mgr.get_pending_actions().is_empty());
 
-        // elapsed=5 > 4 → complete
+        // 已过帧=5 > 4 → 完成
         mgr.process_next_action(0, &mut team, &skills, &enemies);
         let pa = mgr.get_pending_actions();
         assert!(pa

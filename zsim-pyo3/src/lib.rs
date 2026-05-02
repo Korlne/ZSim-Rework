@@ -1,8 +1,8 @@
-// zsim-pyo3: Python extension module for ZSim 2.0.
-// Exposes Parquet aggregation functions as Python-callable via PyO3.
+// zsim-pyo3：ZSim 2.0 的 Python 扩展模块。
+// 通过 PyO3 将 Parquet 聚合函数暴露为 Python 可调用的接口。
 //
-// Integration testing with a real Python interpreter requires:
-//   maturin develop  (or `pip install .` after a wheel build)
+// 使用真实 Python 解释器进行集成测试需要：
+//   maturin develop（或构建 wheel 后执行 `pip install .`）
 
 use std::path::Path;
 
@@ -10,12 +10,12 @@ use pyo3::exceptions::PyIOError;
 use pyo3::prelude::*;
 use zsim_parquet::aggregator::{aggregate as pq_aggregate, AggQuery};
 
-/// Convert an anyhow error to a Python IOError.
+/// 将 anyhow 错误转换为 Python IOError。
 fn to_py_err(e: impl Into<anyhow::Error>) -> PyErr {
     PyIOError::new_err(e.into().to_string())
 }
 
-/// Python module providing Rust-parquet aggregation.
+/// 提供 Rust-Parquet 聚合功能的 Python 模块。
 #[pymodule]
 fn zsim_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(aggregate, m)?)?;
@@ -25,15 +25,15 @@ fn zsim_rs(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-/// Run an aggregation query against a Parquet file.
+/// 对 Parquet 文件执行聚合查询。
 ///
-/// Args:
-///     parquet_path — Path to the Parquet file.
-///     query_json — JSON-serialized AggQuery, e.g. ``"TotalDamage"`` or
-///                  ``{"DPS": {"window_ticks": 60}}``.
+/// 参数：
+///     parquet_path — Parquet 文件的路径。
+///     query_json — JSON 序列化的 AggQuery，例如 ``"TotalDamage"`` 或
+///                  ``{"DPS": {"window_ticks": 60}}``。
 ///
-/// Returns:
-///     JSON-serialized AggResult with ``type`` and ``data`` fields.
+/// 返回：
+///     包含 ``type`` 和 ``data`` 字段的 JSON 序列化 AggResult。
 #[pyfunction]
 fn aggregate(parquet_path: &str, query_json: &str) -> PyResult<String> {
     let query: AggQuery = serde_json::from_str(query_json)
@@ -43,13 +43,13 @@ fn aggregate(parquet_path: &str, query_json: &str) -> PyResult<String> {
         .map_err(|e| PyIOError::new_err(format!("Serialize error: {}", e)))
 }
 
-/// Summary statistics over all damage values in a Parquet file.
+/// 对 Parquet 文件中所有伤害值进行汇总统计。
 ///
-/// Args:
-///     parquet_path — Path to the Parquet file.
+/// 参数：
+///     parquet_path — Parquet 文件的路径。
 ///
-/// Returns:
-///     JSON-serialized StatsSummaryResult.
+/// 返回：
+///     JSON 序列化的 StatsSummaryResult。
 #[pyfunction]
 fn summary(parquet_path: &str) -> PyResult<String> {
     let result =
@@ -58,14 +58,14 @@ fn summary(parquet_path: &str) -> PyResult<String> {
         .map_err(|e| PyIOError::new_err(format!("Serialize error: {}", e)))
 }
 
-/// DPS curve from a Parquet file using a sliding window.
+/// 使用滑动窗口计算 Parquet 文件的 DPS 曲线。
 ///
-/// Args:
-///     parquet_path — Path to the Parquet file.
-///     window_ticks — Width of the sliding window in ticks (1 tick = 1/60 s).
+/// 参数：
+///     parquet_path — Parquet 文件的路径。
+///     window_ticks — 滑动窗口的宽度，以 tick 为单位（1 tick = 1/60 秒）。
 ///
-/// Returns:
-///     JSON-serialized DPS points array.
+/// 返回：
+///     JSON 序列化的 DPS 点数组。
 #[pyfunction]
 fn dps_curve(parquet_path: &str, window_ticks: u64) -> PyResult<String> {
     let result =
@@ -74,13 +74,13 @@ fn dps_curve(parquet_path: &str, window_ticks: u64) -> PyResult<String> {
         .map_err(|e| PyIOError::new_err(format!("Serialize error: {}", e)))
 }
 
-/// Damage breakdown by source entity from a Parquet file.
+/// 按来源实体统计 Parquet 文件的伤害分布。
 ///
-/// Args:
-///     parquet_path — Path to the Parquet file.
+/// 参数：
+///     parquet_path — Parquet 文件的路径。
 ///
-/// Returns:
-///     JSON-serialized DamageBreakdown map.
+/// 返回：
+///     JSON 序列化的 DamageBreakdown 映射。
 #[pyfunction]
 fn damage_breakdown(parquet_path: &str) -> PyResult<String> {
     let result =

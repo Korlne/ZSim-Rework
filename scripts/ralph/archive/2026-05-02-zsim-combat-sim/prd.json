@@ -1,0 +1,448 @@
+{
+  "project": "ZSim 2.0 — Rust 重写与全栈架构升级",
+  "branchName": "ralph/zsim-rust-rewrite",
+  "description": "将 ZSim 2.0 从纯 Python 完全重写为 Rust 核心引擎 + Python 分析 Sidecar + Tauri 桌面前端三层架构，支撑 10 万次独立模拟 × 18,000 tick 高并发场景，Parquet 列式存储，Plotly.js 交互图表，中/英/日三语 i18n。",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Rust 项目初始化与模块骨架",
+      "description": "作为开发者，需要搭建 Rust workspace 并定义 crate 边界和模块依赖关系，以便后续模块可以独立编译和测试。",
+      "acceptanceCriteria": [
+        "创建 Rust workspace，包含 zsim-core / zsim-parquet / zsim-pyo3 / zsim-cli 四个 crate",
+        "Cargo.toml 声明核心依赖：rayon, serde, serde_json, arrow/parquet, rand, rand_chacha, pyo3, anyhow, thiserror",
+        "cargo build 和 cargo test 可成功执行",
+        ".github/workflows/ci.yml 包含 cargo test, cargo clippy, cargo fmt --check"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Rust workspace created with 4 crates. Depends on MinGW-w64 GNU toolchain for local builds. CI uses Ubuntu runner."
+    },
+    {
+      "id": "US-002",
+      "title": "实体数据模型层 (entities)",
+      "description": "作为模拟引擎的基础，需要将现有 Python entities/ 模块映射为 Rust struct/enum，以便保持与现有 JSON 数据格式完全兼容。",
+      "acceptanceCriteria": [
+        "BaseStats struct：12 项战斗属性（ATK/DEF/HP/CRIT_RATE/CRIT_DMG/PEN/PEN_RATIO/ANOMALY_MASTERY/ANOMALY_PROFICIENCY/IMPACT/ENERGY_REGEN/DMG_BONUS），全部 f64",
+        "Character struct：identity/base_stats/current_stats/resources/state 完整字段",
+        "EnemyState struct：HP/def_val/stun_gauge/anomaly_bars/resistances/weaknesses，使用 #[serde(alias = \"def\")] 处理 Python 关键字",
+        "枚举类型：FactionTag, SpecialtyTag, ElementTag, SkillType, TriggerType, SimMode",
+        "所有 struct 派生 Serialize + Deserialize + Clone + Debug",
+        "现有 data/characters/ 和 data/enemies/ JSON 文件可被正确反序列化",
+        "cargo test 通过"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "JSON 数据加载器",
+      "description": "作为数据入口，Rust 引擎必须直接读取现有 data/ 目录 JSON 文件（characters/enemies/skills/equipment/APL），以便保持完全向后兼容。",
+      "acceptanceCriteria": [
+        "DataLoader struct：load_characters / load_enemies / load_skills / load_equipment / load_apl 五个加载方法",
+        "SkillData struct：action_id, action_type, damage_multipliers（Vec<HitFrame>）, daze_multiplier, hit_frames, invincible_frames, interruptible_frame, is_snapshot, charge_branches, prerequisite_action_id, hp_cost 等完整字段",
+        "APLData struct：tracks（Vec<Track>），每个 Track 含 track_id + actions（Vec<ActionEntry>）",
+        "加载失败返回 anyhow::Result 并包含文件路径上下文",
+        "现有 data/ 目录全部 JSON 文件可被成功加载",
+        "cargo test 通过"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "全局 RNG 管理器",
+      "description": "作为模拟复现的保证，实现基于 rand_chacha 的固定 Seed 随机数管理器，以便同一 Seed 多次运行结果完全一致。",
+      "acceptanceCriteria": [
+        "RNGManager struct：封装 ChaCha8Rng，存储 seed: u64 和 call_count: u64",
+        "提供 gen_range / gen_bool / gen_crit 方法，每次调用递增 call_count",
+        "支持 snapshot() / restore() 快照机制用于快照类技能",
+        "每个模拟实例独立创建 RNGManager（seed = base_seed + sim_index）",
+        "同一种子 10 次独立运行产出完全一致的战斗日志",
+        "cargo test 通过"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "六大结算模块",
+      "description": "作为战斗数值核心，实现全部 6 大结算模块（纯函数，无状态），以便与现有 Python 版本逻辑等价且数值误差 ≤ 1e-9。",
+      "acceptanceCriteria": [
+        "RegularMul：常规伤害倍率结算，公式 ATK × multiplier × (1 + DMG_BONUS) × crit_factor × def_factor × res_factor × (1 - dmg_reduction)",
+        "AnomalyMul：异常伤害结算，ATK × anomaly_multiplier × anomaly_proficiency_factor × (1 + anomaly_dmg_bonus)",
+        "StunMul：失衡值结算，IMPACT × daze_multiplier × (1 + daze_bonus) × (1 - daze_resistance)",
+        "CalAnomaly：异常积蓄结算，达到阈值触发异常状态",
+        "CalDisorder：紊乱结算，(old_gauge + new_gauge) × disorder_multiplier",
+        "CalPolarityDisorder：极性紊乱结算",
+        "所有函数签名：fn calc(&self, input: &CalcInput, rng: &mut RNGManager) -> CalcOutput",
+        "数值误差与 Python 版本 ≤ 1e-9",
+        "cargo test 通过"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "BUFF 管理器",
+      "description": "作为战斗状态核心，实现 BUFF 的添加、叠层、刷新、到期移除，以便支持条件触发和快照机制。",
+      "acceptanceCriteria": [
+        "BuffManager struct：持有 HashMap<String, Vec<ActiveBuff>> 按角色 ID 索引",
+        "BuffData struct：buff_id, category（8 种）, stack_type（Replace/Additive/Independent）, max_stacks, duration_ticks, modifiers",
+        "apply_buff() 按 stack_type 处理叠层逻辑",
+        "remove_expired(current_tick) 移除到期 BUFF",
+        "get_effective_modifiers(character_id) -> ModifierSnapshot 返回合计修饰值",
+        "支持 on_tick 连接，每 Tick 递减剩余持续帧",
+        "cargo test 通过"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "异常与紊乱状态管理器",
+      "description": "作为元素异常系统，管理敌人异常积蓄槽、异常触发、异常覆盖和紊乱结算。",
+      "acceptanceCriteria": [
+        "AnomalyDisorderManager struct",
+        "每个敌人维护 Vec<AnomalyState>（每个元素一个槽），含 element/gauge/max_gauge/remaining_duration/trigger_count",
+        "accumulate(enemy_id, element, amount) — 积蓄 + 触发判定",
+        "trigger_anomaly(enemy_id, element) — 触发异常并广播事件",
+        "check_disorder(enemy_id, new_element) — 检测紊乱条件并触发紊乱结算",
+        "on_tick(current_tick) — 递减异常状态剩余持续帧，到期清除",
+        "cargo test 通过"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "装备系统",
+      "description": "作为角色战力组成，实现音擎（W-Engine）和驱动盘（Drive Disc）套装效果管理。",
+      "acceptanceCriteria": [
+        "EquipmentManager struct",
+        "WEngine struct：id/name/level/ascension/base_stats/passive_effects",
+        "DriveDisc struct：id/slot/level/main_stat/sub_stats（Vec<StatEntry>）",
+        "DiscSet struct：set_id/two_piece_bonus/four_piece_bonus（BuffData）",
+        "apply_equipment_buffs(character_id) 将音擎 + 驱动盘 + 套装效果注册到 BuffManager",
+        "现有 data/equipment/ JSON 可被正确加载",
+        "cargo test 通过"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "核心事件总线与信号系统",
+      "description": "作为模拟引擎的神经中枢，实现基于 Tokio broadcast channel 的发布-订阅事件系统，以便替代现有 Blinker 信号并自动管理订阅生命周期。",
+      "acceptanceCriteria": [
+        "EventBus struct：持有 HashMap<EventType, broadcast::Sender<GameEvent>>",
+        "GameEvent enum：TickStart / ActionStart / DamageDealt / DamageApplied / BuffChanged / AnomalyTriggered / DisorderTriggered / ChainAttack / CoordinatedAction / CombatEnd / ErrorRaised 共 12 种事件",
+        "publish(event_type, payload) 广播事件到所有订阅者",
+        "subscribe(event_type) -> broadcast::Receiver<GameEvent> 返回独立 Receiver",
+        "每个 Tick 内同步完成所有事件处理（不跨 Tick 延迟）",
+        "模拟结束后所有 Receiver 自动 Drop（无需手动 disconnect）",
+        "cargo test 通过（验证事件广播、多订阅者、Drop 清理）"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "游戏状态机",
+      "description": "作为全局状态持有者，管理 Tick 计数、队伍引用、运行模式和模拟终止条件。",
+      "acceptanceCriteria": [
+        "GameState struct：current_tick(u64), team(TeamManager), mode(SimMode), is_terminated(bool), termination_reason(Option<String>)",
+        "advance_tick() 递增 current_tick",
+        "check_termination() 判定四种终止条件：所有敌人死亡 / 所有角色死亡 / 达到 max_tick(18000) / APL 轨道动作耗尽",
+        "terminate(reason) 设置 is_terminated = true 并记录原因",
+        "cargo test 通过"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "队伍管理器",
+      "description": "作为编队管理，协调 1-3 名角色的前后台切换、换人冷却、喧响值（大招能量）和连携技点数，以便支持完整的队伍协同机制。",
+      "acceptanceCriteria": [
+        "TeamManager struct：characters(Vec<Character>), bangboo(Option<Character>), current_on_field_index(usize)",
+        "switch_to(index) 切换前台角色，触发换人冷却",
+        "add_decibel(amount) / consume_decibel(amount) 喧响值管理（上限 3000/角色，邦布无能量）",
+        "add_chain_point() / consume_chain_point() 连携技点数管理",
+        "get_on_field() / get_off_field(index) 返回前台/后台角色可变引用",
+        "邦布使用与角色相同的 SkillAction 模型但无能量机制",
+        "cargo test 通过（22+ tests）"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "资源校验器",
+      "description": "作为动作执行的前置守卫，进行 8 维资源校验（能量/CD/HP/喧响/连携点/换人冷却/异常状态/役职），以便校验失败时返回结构化错误而非简单布尔值。",
+      "acceptanceCriteria": [
+        "ResourceValidator struct：实现 8 个校验方法",
+        "validate_energy / validate_cooldown / validate_hp / validate_decibel / validate_chain_point / validate_switch_cooldown / validate_anomaly_state / validate_role",
+        "校验失败返回 Result::Err(ValidationError { action_id, missing_resource, current_value, required_value })",
+        "validate_all() 聚合全部 8 维校验",
+        "cargo test 通过（25+ tests）"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "APL 排轴管理器",
+      "description": "作为模拟的主要驱动力，逐帧解析 APL 排轴并执行动作，以便驱动整个战斗流程。",
+      "acceptanceCriteria": [
+        "APLManager struct：持有 tracks（多角色排轴）、每个 track 的 action 队列指针、ResourceValidator 引用",
+        "process_next_action(current_tick, game_state) 检查所有 track 队首动作是否满足执行条件",
+        "动作执行流程：validate → deduct_resources → start_skill → advance_frames → trigger_hit_frames → complete_skill",
+        "支持动作前提条件（prerequisite_action_id 必须已完成）",
+        "支持蓄力分支（charge_branches：蓄力时长 → 变体技能）",
+        "get_pending_actions() 返回时清空内部队列（消费式队列模式）",
+        "cargo test 通过"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "协同动作系统",
+      "description": "作为后台输出机制，实现后台角色协同攻击和派生动作的触发与管理，以便充分还原游戏中的协同样板。",
+      "acceptanceCriteria": [
+        "CoordinatedActionSystem struct：管理已注册的协同监听器",
+        "CoordinatedListener trait：on_event(event: &GameEvent, game_state: &GameState) -> Vec<SkillAction>",
+        "支持 5 种事件类型：on_damage_dealt / on_anomaly_triggered / on_chain_attack / on_dodge / on_parry",
+        "每个离线角色限每 N 秒触发一次（独立 CD，单位帧 @ 60 tick/s）",
+        "派生动作在父动作完成后在同一 Tick 内立即执行",
+        "cargo test 通过（30+ tests）"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "主循环事件循环 (SimulationRunner)",
+      "description": "作为模拟引擎的核心调度器，驱动逐 Tick 推进的全流程事件循环，以便编排 BuffManager/APLManager/CoordinatedActionSystem 的有序执行。",
+      "acceptanceCriteria": [
+        "SimulationRunner struct：run(config: SimConfig) -> SimulationResult",
+        "每 Tick 执行顺序：on_tick_start → BuffManager.remove_expired() / AnomalyManager.on_tick() / cooldown → APLManager.process_next_action() → CoordinatedActionSystem.process() → check_termination()",
+        "同一 Tick 内所有事件处理同步完成",
+        "终止时退出循环并返回 SimulationResult",
+        "cargo test 通过（验证完整 Tick 循环、终止条件、事件顺序）"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Rayon 并行模拟执行器",
+      "description": "作为性能核心，基于 rayon 实现 100,000 次独立模拟的并行执行，以便每个线程拥有完全独立的状态机并线性利用多核 CPU。",
+      "acceptanceCriteria": [
+        "ParallelRunner struct：接收 SimConfig { sim_count, base_seed, max_tick, data_dir }",
+        "rayon::par_iter(0..sim_count).map(|i| { ... }) 并行执行",
+        "每次模拟独立创建 RNGManager / GameState / EventBus / APLManager / BuffManager / AnomalyManager / EquipmentManager",
+        "共享只读数据（SkillData/CharacterData/EnemyData）使用 Arc 跨线程共享",
+        "每次模拟返回 SimResult { sim_index, seed, total_ticks, termination_reason, events: Vec<LoggedEvent> }",
+        "进度回调：每完成 1% 模拟通过 std::sync::mpsc::channel 发送进度更新",
+        "cargo test 通过（验证 100 次并行结果与单线程一致）"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Parquet 列式落盘与压缩",
+      "description": "作为数据存储层，将模拟结果写入 Parquet 文件（Zstd 压缩 + 按 sim_index Row Group），以便替代 JSON Lines 输出并支持 18 亿行级别写入不 OOM。",
+      "acceptanceCriteria": [
+        "ParquetWriter struct：write_results(results: Vec<SimResult>, output_path: &Path) -> Result<()>",
+        "Parquet Schema 包含 15 列：sim_index/tick/event_type/source_id/target_id/action_id/damage/crit/element/anomaly_gauge/stun_dmg/buff_id/buff_value/coordinated_flag/timestamp",
+        "启用 Compression::Zstd(3)",
+        "按 sim_index 划分 Row Group（每个场次一个 Row Group）",
+        "支持追加模式（分批写入不覆盖）",
+        "极限测试：18 亿行写入成功且不 OOM",
+        "cargo test 通过"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "数据聚合模块 (zsim-parquet)",
+      "description": "作为数据分析的 Rust 层，直接读取 Parquet 文件进行聚合计算，以便在 Rust 层完成降维后仅返回统计数据给 Python。",
+      "acceptanceCriteria": [
+        "ParquetAggregator struct：aggregate(parquet_path: &Path, query: AggQuery) -> AggResult",
+        "AggQuery 支持 7 种聚合：TotalDamage / DPS(滑动窗口) / DamageBreakdown / AnomalyStats / StunStats / CritRate / StatsSummary(mean, variance, std_dev, p50, p90, p95, p99, min, max, count)",
+        "聚合在 Rust 层完成，AggResult 为 JSON-serializable",
+        "使用 Arrow/Parquet 列式读取 + filter pushdown 优化（只读需要的列/行组）",
+        "1000 万行数据聚合时间 ≤ 2 秒（SSD 冷读条件）",
+        "cargo test 通过"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "PyO3 扩展模块",
+      "description": "作为 Python 与 Rust 的桥梁，将 zsim-parquet 的聚合能力暴露为 Python 可调用的 zsim_rs 扩展模块，以便 Python Sidecar 直接调用 Rust 聚合函数。",
+      "acceptanceCriteria": [
+        "zsim_pyo3 crate 使用 pyo3 导出 Python 模块 zsim_rs",
+        "导出 4 个函数：aggregate(parquet_path, query_json) -> str / summary(parquet_path) -> str / dps_curve(parquet_path, window_ticks) -> str / damage_breakdown(parquet_path) -> str",
+        "所有函数返回 JSON 字符串（不返回 Python 对象，避免内存拷贝）",
+        "编译产物为 .pyd（Windows）/ .so（Linux）/ .dylib（macOS）",
+        "maturin develop 可在开发模式下构建",
+        "Wheel 包可通过 pip install zsim_rs 安装"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Python 分析 Sidecar",
+      "description": "作为数据分析编排层，Python Sidecar 负责接收分析请求，通过 PyO3 扩展读取 Parquet 并聚合，以便生成 Plotly 图表配置 JSON 通过 stdout 输出给 Tauri。",
+      "acceptanceCriteria": [
+        "analysis_sidecar.py：常驻进程，通过 stdin 接收 JSON 命令，stdout 输出 JSON 结果",
+        "支持 5 种命令：summary / dps_curve / damage_breakdown / anomaly_timeline / shutdown",
+        "Response 格式：{\"type\": \"chart\", ...} / {\"type\": \"summary\", ...} / {\"type\": \"error\", \"message\": \"...\"} / {\"type\": \"ready\"}",
+        "图表配置符合 Plotly.js Plotly.newPlot() 参数格式",
+        "启动时输出 {\"type\": \"ready\"} 表示就绪",
+        "出错时输出 {\"type\": \"error\", ...} 不崩溃",
+        "python analysis_sidecar.py 可独立测试"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Tauri 项目脚手架与 IPC",
+      "description": "作为桌面壳，初始化 Tauri v2 项目并注册 Rust 命令，以便管理前端窗口、Python Sidecar 进程和文件系统交互。",
+      "acceptanceCriteria": [
+        "Tauri v2 项目初始化（Rust 后端 + Vanilla JS/CSS 前端）",
+        "tauri.conf.json 配置窗口尺寸 1280×800、标题 ZSim Analyzer",
+        "注册 3 个 Tauri 命令：run_simulation / spawn_sidecar / send_to_sidecar",
+        "Sidecar 进程通过 tauri::api::process::Command::new_sidecar() 管理",
+        "cargo tauri dev 可启动开发模式"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "前端 UI — 模拟配置面板",
+      "description": "作为用户交互入口，提供模拟参数配置界面和启动/停止控制，以便用户设置模拟参数并监控模拟进度。",
+      "acceptanceCriteria": [
+        "配置面板包含：模拟次数（默认 100000）/ 最大 Tick（默认 18000）/ 基种子 / 数据目录选择器 / APL 文件选择器 / 输出路径选择器",
+        "开始模拟按钮：调用 run_simulation 命令，显示进度条 + 完成百分比",
+        "停止按钮：终止模拟进程",
+        "进度条实时更新（通过 Tauri event simulation-progress）",
+        "模拟完成时弹出通知并自动加载分析视图",
+        "cargo tauri dev 验证 UI 交互完整"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "前端 UI — Plotly.js 交互式图表",
+      "description": "作为数据可视化核心，渲染 DPS 曲线、伤害占比饼图、异常时间线和统计摘要四类图表，以便用户通过缩放、平移、选取与数据交互。",
+      "acceptanceCriteria": [
+        "引入 Plotly.js（CDN 或 npm bundle）",
+        "DPS 曲线：折线图，X=Tick, Y=DPS，支持缩放/平移，可叠加多条曲线（不同角色）",
+        "伤害占比：饼图/环形图，支持按角色/元素/动作类型分组切换",
+        "异常时间线：堆叠面积图，X=Tick, Y=异常积蓄值，按元素着色",
+        "统计摘要：卡片面板显示均值/方差/中位数/P50/P90/P95/P99/最小值/最大值",
+        "图表数据通过 Sidecar JSON 响应填充",
+        "所有图表支持缩放、平移、选取、悬停详情、图例切换",
+        "cargo tauri dev 验证所有图表可交互"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "前端 UI — 数据导出与共享",
+      "description": "作为分析结果出口，支持导出图表为独立 HTML 文件和导出统计数据为 CSV，以便用户分享分析结果。",
+      "acceptanceCriteria": [
+        "导出 HTML 按钮：将当前图表导出为独立 HTML 文件（内嵌 Plotly.js CDN 引用 + JSON 数据）",
+        "导出 CSV 按钮：将当前统计摘要导出为 CSV 文件",
+        "导出使用 Tauri save_file 对话框选择保存路径",
+        "cargo tauri dev 验证导出功能"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024a",
+      "title": "前端 UI — 国际化 (i18n)",
+      "description": "作为面向多语言用户的应用，Tauri 前端必须支持中/英/日三语界面切换，以便服务不同语言用户并支持后续语种扩展。",
+      "acceptanceCriteria": [
+        "创建 src/locales/zh-CN.json, en-US.json, ja-JP.json 翻译文件（扁平 key-value 结构）",
+        "实现 i18n.t(key) 翻译函数，根据当前语言设置返回对应文本",
+        "语言切换下拉菜单置于窗口右上角（国旗图标 + 语言名）",
+        "语言偏好持久化到 localStorage，下次启动自动恢复",
+        "翻译覆盖所有 UI 文本：菜单栏、配置面板标签、按钮文本、图表标题、统计表头、错误提示",
+        "未翻译 key 回退显示 en-US，en-US 也不存在时显示 key 名本身",
+        "新增语种仅需添加对应 JSON 文件，无需修改 JS 代码",
+        "cargo tauri dev 验证三语切换完整"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "端到端集成测试",
+      "description": "作为质量保证，实现从模拟配置到图表渲染的完整流程自动化测试，以便确保所有组件串联正确且 Seed 复现一致。",
+      "acceptanceCriteria": [
+        "Rust E2E 测试：加载 data/apl/sample_apl.json 执行 10 次模拟",
+        "验证 results.parquet 生成且可被 ParquetAggregator 正确读取",
+        "验证聚合查询返回合理的统计值",
+        "Python 集成测试：验证 zsim_rs 模块可被导入且 aggregate() 返回正确 JSON",
+        "Python 集成测试：验证 Sidecar stdin/stdout 协议正常通信",
+        "Seed 复现测试：同一 Seed 10 次独立模拟产生完全相同的 Parquet 文件（hash 校验）",
+        "所有测试在 CI 中通过"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "发布打包",
+      "description": "作为面向终端用户的交付物，生成自包含的桌面安装包，包含所有运行时环境（Rust 二进制 + Python embedded + Tauri bundle）。",
+      "acceptanceCriteria": [
+        "cargo tauri build 生成 Windows(.msi) + macOS(.dmg) + Linux(.AppImage, .deb) 安装包",
+        "安装包包含：Rust 模拟引擎二进制 + Python embedded runtime + zsim_rs .pyd/.so + analysis_sidecar.py 及依赖 + data/ 示例数据",
+        "安装后无需额外配置即可运行（自包含）",
+        "安装包大小 ≤ 200MB",
+        "流式处理验证：100000 次模拟 × 18000 tick 内存峰值 ≤ 2GB"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

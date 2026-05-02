@@ -1,0 +1,63 @@
+{
+  "timestamp": 1777018783749,
+  "version": "1.0.0",
+  "scenarioList": [
+    {
+      "id": "default_sc",
+      "name": "方案 1",
+      "data": {
+        "tracks": [
+          {
+            "id": "char_1776857519266",
+            "actions": [
+              {
+                "id": "char_1776857519266_basic_seg1",
+                "type": "basic_attack",
+                "name": "A1",
+                "kind": "attack_segment",
+                "duration": 35,
+                "instanceId": "inst_vwdrq8s",
+                "librarySource": "character",
+                "logicalStartTime": 240,
+                "startTime": 240,
+                "attackGroupInstanceId": "atkgrp_lov4ncs",
+                "attackSequenceIndex": 1,
+                "attackSequenceTotal": 2
+              },
+              {
+                "id": "char_1776857519266_basic_seg2",
+                "type": "basic_attack",
+                "name": "A2",
+                "kind": "attack_segment",
+                "duration": 36,
+                "instanceId": "inst_5gp5s76",
+                "librarySource": "character",
+                "logicalStartTime": 275,
+                "startTime": 275,
+                "attackGroupInstanceId": "atkgrp_m6z4at8",
+                "attackSequenceIndex": 2,
+                "attackSequenceTotal": 2
+              }
+            ]
+          },
+          {
+            "id": null,
+            "actions": []
+          },
+          {
+            "id": null,
+            "actions": []
+          },
+          {
+            "id": null,
+            "actions": []
+          }
+        ],
+        "characterOverrides": {},
+        "prepDuration": 300,
+        "prepExpanded": true
+      }
+    }
+  ],
+  "activeScenarioId": "default_sc"
+}

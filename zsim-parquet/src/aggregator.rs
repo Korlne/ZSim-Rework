@@ -1,18 +1,17 @@
-//! Parquet aggregation queries for ZSim 2.0 simulation results.
+//! ZSim 2.0 模拟结果的 Parquet 聚合查询。
 //!
-//! Provides columnar read and aggregation over the 15-column Parquet schema
-//! defined by [`crate::writer`].  Each query type uses **projection pushdown**
-//! to read only the columns it needs from the file, minimising I/O.
+//! 提供对 [`crate::writer`] 定义的 15 列 Parquet 模式的列式读取和聚合。
+//! 每种查询类型使用 **投影下推**，仅从文件中读取它需要的列，从而最小化 I/O。
 //!
-//! | Query              | Columns read                                          |
-//! |--------------------|-------------------------------------------------------|
-//! | `TotalDamage`      | event_type, damage                                    |
-//! | `DPS`              | tick, event_type, damage                              |
-//! | `DamageBreakdown`  | event_type, source_id, damage                         |
-//! | `AnomalyStats`     | event_type, element, damage, anomaly_gauge            |
-//! | `StunStats`        | stun_dmg                                              |
-//! | `CritRate`         | event_type, crit                                      |
-//! | `StatsSummary`     | event_type, damage                                    |
+//! | 查询                  | 读取的列                                           |
+//! |----------------------|----------------------------------------------------|
+//! | `TotalDamage`        | event_type, damage                                 |
+//! | `DPS`                | tick, event_type, damage                           |
+//! | `DamageBreakdown`    | event_type, source_id, damage                      |
+//! | `AnomalyStats`       | event_type, element, damage, anomaly_gauge         |
+//! | `StunStats`          | stun_dmg                                           |
+//! | `CritRate`           | event_type, crit                                   |
+//! | `StatsSummary`       | event_type, damage                                 |
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -25,37 +24,37 @@ use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ProjectionMask;
 use serde::{Deserialize, Serialize};
 
-// ── Query / Result types ─────────────────────────────────────────────────
+// ── 查询 / 结果类型 ──────────────────────────────────────────────────
 
-/// Aggregation query type.
+/// 聚合查询类型。
 ///
-/// Each variant selects a different aggregation algorithm.  All queries
-/// operate on the 15-column Parquet schema produced by [`ParquetWriter`](crate::writer::ParquetWriter).
+/// 每个变体选择不同的聚合算法。所有查询
+/// 都作用于 [`ParquetWriter`](crate::writer::ParquetWriter) 产生的 15 列 Parquet 模式。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AggQuery {
-    /// Sum of all damage dealt.
+    /// 所有造成伤害的总和。
     TotalDamage,
-    /// Damage-per-second time series with sliding window.
+    /// 带滑动窗口的每秒伤害时间序列。
     DPS {
-        /// Width of the sliding window in ticks (1 tick = 1/60 s).
+        /// 滑动窗口的宽度，以 tick 为单位（1 tick = 1/60 秒）。
         window_ticks: u64,
     },
-    /// Damage grouped by source entity.
+    /// 按来源实体分组的伤害。
     DamageBreakdown,
-    /// Anomaly and disorder statistics.
+    /// 异常与紊乱统计。
     AnomalyStats,
-    /// Stun / daze damage statistics.
+    /// 眩晕 / 昏迷伤害统计。
     StunStats,
-    /// Critical hit rate statistics.
+    /// 暴击率统计。
     CritRate,
-    /// Descriptive statistics over all damage values.
+    /// 所有伤害值的描述性统计。
     StatsSummary,
 }
 
-/// Typed aggregation result.
+/// 类型化的聚合结果。
 ///
-/// Serialised as `{"type": "<VariantName>", "data": <value>}` for easy
-/// consumption by Python / Tauri sidecars.
+/// 序列化为 `{"type": "<VariantName>", "data": <value>}` 格式，以便
+/// Python / Tauri 侧车进程轻松消费。
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", content = "data")]
 pub enum AggResult {
@@ -68,100 +67,99 @@ pub enum AggResult {
     StatsSummary(StatsSummaryResult),
 }
 
-/// A single point in a DPS time series.
+/// DPS 时间序列中的单个数据点。
 #[derive(Debug, Clone, Serialize)]
 pub struct DpsPoint {
-    /// First tick of the window (inclusive).
+    /// 窗口的起始 tick（包含）。
     pub tick_start: u64,
-    /// Last tick of the window (exclusive).
+    /// 窗口的结束 tick（不包含）。
     pub tick_end: u64,
-    /// Raw damage sum in this window.
+    /// 此窗口中的原始伤害总和。
     pub total_damage: f64,
-    /// Damage per second (total_damage / window_duration_seconds).
+    /// 每秒伤害（total_damage / window_duration_seconds）。
     pub dps: f64,
 }
 
-/// Aggregate anomaly statistics across all elements.
+/// 跨所有元素的聚合异常统计。
 #[derive(Debug, Clone, Serialize)]
 pub struct AnomalyStatsResult {
-    /// Total number of anomaly triggers.
+    /// 异常触发总次数。
     pub total_triggers: u64,
-    /// Sum of anomaly damage.
+    /// 异常伤害总和。
     pub total_anomaly_damage: f64,
-    /// Total anomaly gauge accumulated.
+    /// 累计异常能量总值。
     pub total_gauge: f64,
-    /// Breakdown per element.
+    /// 按元素的细分。
     pub per_element: HashMap<String, ElementAnomalyStats>,
 }
 
-/// Per-element anomaly statistics.
+/// 按元素的异常统计。
 #[derive(Debug, Clone, Serialize)]
 pub struct ElementAnomalyStats {
-    /// Number of triggers for this element.
+    /// 此元素的触发次数。
     pub triggers: u64,
-    /// Total anomaly damage for this element.
+    /// 此元素的异常伤害总和。
     pub damage: f64,
-    /// Total gauge accumulated for this element.
+    /// 此元素累计的能量总值。
     pub gauge: f64,
 }
 
-/// Stun / daze damage statistics.
+/// 眩晕 / 昏迷伤害统计。
 #[derive(Debug, Clone, Serialize)]
 pub struct StunStatsResult {
-    /// Total stun damage dealt.
+    /// 造成的总眩晕伤害。
     pub total_stun_damage: f64,
-    /// Number of events containing stun damage.
+    /// 包含眩晕伤害的事件数量。
     pub total_stun_events: u64,
 }
 
-/// Critical hit rate statistics.
+/// 暴击率统计。
 #[derive(Debug, Clone, Serialize)]
 pub struct CritRateResult {
-    /// Total number of damage hits (including non-crits).
+    /// 伤害命中总数（包括非暴击）。
     pub total_hits: u64,
-    /// Number of critical hits.
+    /// 暴击命中数。
     pub crit_hits: u64,
-    /// Critical hit rate (crit_hits / total_hits).
+    /// 暴击率（crit_hits / total_hits）。
     pub crit_rate: f64,
 }
 
-/// Descriptive statistics over a set of damage values.
+/// 一组伤害值的描述性统计。
 #[derive(Debug, Clone, Serialize)]
 pub struct StatsSummaryResult {
-    /// Number of damage events.
+    /// 伤害事件数量。
     pub count: u64,
-    /// Arithmetic mean.
+    /// 算术平均值。
     pub mean: f64,
-    /// Population variance.
+    /// 总体方差。
     pub variance: f64,
-    /// Population standard deviation.
+    /// 总体标准差。
     pub std_dev: f64,
-    /// Minimum value.
+    /// 最小值。
     pub min: f64,
-    /// Maximum value.
+    /// 最大值。
     pub max: f64,
-    /// 50th percentile (median).
+    /// 第 50 百分位数（中位数）。
     pub p50: f64,
-    /// 90th percentile.
+    /// 第 90 百分位数。
     pub p90: f64,
-    /// 95th percentile.
+    /// 第 95 百分位数。
     pub p95: f64,
-    /// 99th percentile.
+    /// 第 99 百分位数。
     pub p99: f64,
 }
 
-// ── Aggregator ───────────────────────────────────────────────────────────
+// ── 聚合器 ───────────────────────────────────────────────────────────
 
-/// Columnar aggregator over ZSim Parquet files.
+/// ZSim Parquet 文件的列式聚合器。
 ///
-/// Stateless — all state is ephemeral per [`aggregate`](ParquetAggregator::aggregate) call.
+/// 无状态——所有状态在每次 [`aggregate`](ParquetAggregator::aggregate) 调用中都是临时的。
 pub struct ParquetAggregator;
 
 impl ParquetAggregator {
-    /// Run an aggregation query against a Parquet file.
+    /// 对 Parquet 文件运行聚合查询。
     ///
-    /// The file must use the 15-column schema produced by
-    /// [`ParquetWriter`](crate::writer::ParquetWriter).
+    /// 文件必须使用 [`ParquetWriter`](crate::writer::ParquetWriter) 产生的 15 列模式。
     pub fn aggregate(path: &Path, query: &AggQuery) -> Result<AggResult> {
         match query {
             AggQuery::TotalDamage => Ok(AggResult::TotalDamage(aggregate_total_damage(path)?)),
@@ -179,14 +177,14 @@ impl ParquetAggregator {
     }
 }
 
-/// Convenience free function wrapping [`ParquetAggregator::aggregate`].
+/// 包装 [`ParquetAggregator::aggregate`] 的便捷自由函数。
 pub fn aggregate(path: &Path, query: &AggQuery) -> Result<AggResult> {
     ParquetAggregator::aggregate(path, query)
 }
 
-// ── Column indices (original 15-column schema) ──────────────────────────
+// ── 列索引（原始 15 列模式）──────────────────────────────────────────
 
-/// Column indices in the 15-column schema.
+/// 15 列模式中的列索引。
 #[allow(dead_code)]
 mod col {
     pub const SIM_INDEX: usize = 0;
@@ -206,14 +204,12 @@ mod col {
     pub const TIMESTAMP: usize = 14;
 }
 
-// ── Projected reader ────────────────────────────────────────────────────
+// ── 投影读取器 ────────────────────────────────────────────────────────
 
-/// Open a Parquet file with column projection and return all row groups.
+/// 使用列投影打开 Parquet 文件并返回所有行组。
 ///
-/// Only the columns listed in `columns` (0-based indices into the original
-/// 15-column schema) are deserialised from the file.  The returned batches
-/// contain only the projected columns, accessed by 0-based index in the
-/// order specified by `columns`.
+/// 只有 `columns` 中列出的列（原始 15 列模式的基于 0 的索引）会从文件中反序列化。
+/// 返回的批次仅包含投影后的列，按 `columns` 指定的顺序通过基于 0 的索引访问。
 fn read_projected(path: &Path, columns: &[usize]) -> Result<Vec<RecordBatch>> {
     let file = File::open(path)
         .with_context(|| format!("Failed to open Parquet file: {}", path.display()))?;
@@ -232,9 +228,9 @@ fn read_projected(path: &Path, columns: &[usize]) -> Result<Vec<RecordBatch>> {
     batches.context("Failed to read Parquet row groups")
 }
 
-// ── Column access helpers ────────────────────────────────────────────────
+// ── 列访问辅助函数 ────────────────────────────────────────────────────
 
-/// Return a reference to column `idx` of `batch`, downcast to `T`.
+/// 返回 `batch` 中第 `idx` 列的引用，向下转换为 `T` 类型。
 macro_rules! get_col {
     ($batch:expr, $idx:expr, $ty:ty) => {
         $batch
@@ -245,7 +241,7 @@ macro_rules! get_col {
     };
 }
 
-/// Iterate over rows of a [`StringArray`], yielding `Option<String>`.
+/// 遍历 [`StringArray`] 的行，生成 `Option<String>`。
 fn iter_string(col_idx: usize, batch: &RecordBatch) -> Result<Vec<Option<String>>> {
     let arr = get_col!(batch, col_idx, StringArray);
     Ok((0..arr.len())
@@ -259,7 +255,7 @@ fn iter_string(col_idx: usize, batch: &RecordBatch) -> Result<Vec<Option<String>
         .collect())
 }
 
-/// Iterate over rows of a [`Float64Array`], yielding `Option<f64>`.
+/// 遍历 [`Float64Array`] 的行，生成 `Option<f64>`。
 fn iter_f64(col_idx: usize, batch: &RecordBatch) -> Result<Vec<Option<f64>>> {
     let arr = get_col!(batch, col_idx, Float64Array);
     Ok((0..arr.len())
@@ -273,13 +269,13 @@ fn iter_f64(col_idx: usize, batch: &RecordBatch) -> Result<Vec<Option<f64>>> {
         .collect())
 }
 
-/// Iterate over rows of a [`UInt64Array`], yielding `u64`.
+/// 遍历 [`UInt64Array`] 的行，生成 `u64`。
 fn iter_u64(col_idx: usize, batch: &RecordBatch) -> Result<Vec<u64>> {
     let arr = get_col!(batch, col_idx, UInt64Array);
     Ok((0..arr.len()).map(|i| arr.value(i)).collect())
 }
 
-/// Iterate over rows of a [`BooleanArray`], yielding `Option<bool>`.
+/// 遍历 [`BooleanArray`] 的行，生成 `Option<bool>`。
 fn iter_bool(col_idx: usize, batch: &RecordBatch) -> Result<Vec<Option<bool>>> {
     let arr = get_col!(batch, col_idx, BooleanArray);
     Ok((0..arr.len())
@@ -293,17 +289,17 @@ fn iter_bool(col_idx: usize, batch: &RecordBatch) -> Result<Vec<Option<bool>>> {
         .collect())
 }
 
-// ── Aggregation implementations ──────────────────────────────────────────
+// ── 聚合实现 ──────────────────────────────────────────────────────────
 
-/// Sum all non-null damage values in DamageDealt events.
+/// 对 DamageDealt 事件中所有非空伤害值求和。
 ///
-/// Projection: [EVENT_TYPE(2), DAMAGE(6)] → projected [0 = et, 1 = dmg].
+/// 投影：[EVENT_TYPE(2), DAMAGE(6)] → 投影后 [0 = et, 1 = dmg]。
 fn aggregate_total_damage(path: &Path) -> Result<f64> {
     let batches = read_projected(path, &[col::EVENT_TYPE, col::DAMAGE])?;
     let mut total = 0.0_f64;
     for batch in &batches {
-        let event_types = iter_string(0, batch)?; // projected col 0 = EVENT_TYPE
-        let damages = iter_f64(1, batch)?; // projected col 1 = DAMAGE
+        let event_types = iter_string(0, batch)?; // 投影列 0 = EVENT_TYPE
+        let damages = iter_f64(1, batch)?; // 投影列 1 = DAMAGE
         for (i, et) in event_types.iter().enumerate() {
             if et.as_deref() == Some("DamageDealt") {
                 if let Some(dmg) = damages[i] {
@@ -315,9 +311,9 @@ fn aggregate_total_damage(path: &Path) -> Result<f64> {
     Ok(total)
 }
 
-/// Compute DPS time series over sliding windows.
+/// 计算滑动窗口上的 DPS 时间序列。
 ///
-/// Projection: [TICK(1), EVENT_TYPE(2), DAMAGE(6)] → projected [0 = tick, 1 = et, 2 = dmg].
+/// 投影：[TICK(1), EVENT_TYPE(2), DAMAGE(6)] → 投影后 [0 = tick, 1 = et, 2 = dmg]。
 fn aggregate_dps(path: &Path, window_ticks: u64) -> Result<Vec<DpsPoint>> {
     if window_ticks == 0 {
         return Ok(Vec::new());
@@ -327,9 +323,9 @@ fn aggregate_dps(path: &Path, window_ticks: u64) -> Result<Vec<DpsPoint>> {
 
     let mut events: Vec<(u64, f64)> = Vec::new();
     for batch in &batches {
-        let ticks = iter_u64(0, batch)?; // projected col 0 = TICK
-        let event_types = iter_string(1, batch)?; // projected col 1 = EVENT_TYPE
-        let damages = iter_f64(2, batch)?; // projected col 2 = DAMAGE
+        let ticks = iter_u64(0, batch)?; // 投影列 0 = TICK
+        let event_types = iter_string(1, batch)?; // 投影列 1 = EVENT_TYPE
+        let damages = iter_f64(2, batch)?; // 投影列 2 = DAMAGE
 
         for (i, et) in event_types.iter().enumerate() {
             if et.as_deref() == Some("DamageDealt") {
@@ -381,17 +377,17 @@ fn aggregate_dps(path: &Path, window_ticks: u64) -> Result<Vec<DpsPoint>> {
         .collect())
 }
 
-/// Group damage by source entity.
+/// 按来源实体分组伤害。
 ///
-/// Projection: [EVENT_TYPE(2), SOURCE_ID(3), DAMAGE(6)] → projected [0 = et, 1 = src, 2 = dmg].
+/// 投影：[EVENT_TYPE(2), SOURCE_ID(3), DAMAGE(6)] → 投影后 [0 = et, 1 = src, 2 = dmg]。
 fn aggregate_damage_breakdown(path: &Path) -> Result<HashMap<String, f64>> {
     let batches = read_projected(path, &[col::EVENT_TYPE, col::SOURCE_ID, col::DAMAGE])?;
     let mut breakdown: HashMap<String, f64> = HashMap::new();
 
     for batch in &batches {
-        let event_types = iter_string(0, batch)?; // projected col 0 = EVENT_TYPE
-        let sources = iter_string(1, batch)?; // projected col 1 = SOURCE_ID
-        let damages = iter_f64(2, batch)?; // projected col 2 = DAMAGE
+        let event_types = iter_string(0, batch)?; // 投影列 0 = EVENT_TYPE
+        let sources = iter_string(1, batch)?; // 投影列 1 = SOURCE_ID
+        let damages = iter_f64(2, batch)?; // 投影列 2 = DAMAGE
 
         for (i, et) in event_types.iter().enumerate() {
             if et.as_deref() == Some("DamageDealt") {
@@ -406,11 +402,11 @@ fn aggregate_damage_breakdown(path: &Path) -> Result<HashMap<String, f64>> {
     Ok(breakdown)
 }
 
-/// Aggregate anomaly statistics.
+/// 聚合异常统计。
 ///
-/// Projection: [EVENT_TYPE(2), DAMAGE(6), ELEMENT(8), ANOMALY_GAUGE(9)]
-///             (sorted by original schema order)
-///             → projected [0 = et, 1 = dmg, 2 = el, 3 = ag].
+/// 投影：[EVENT_TYPE(2), DAMAGE(6), ELEMENT(8), ANOMALY_GAUGE(9)]
+///             （按原始模式顺序排序）
+///             → 投影后 [0 = et, 1 = dmg, 2 = el, 3 = ag]。
 fn aggregate_anomaly_stats(path: &Path) -> Result<AnomalyStatsResult> {
     let batches = read_projected(
         path,
@@ -428,10 +424,10 @@ fn aggregate_anomaly_stats(path: &Path) -> Result<AnomalyStatsResult> {
     let mut per_element: HashMap<String, ElementAnomalyStats> = HashMap::new();
 
     for batch in &batches {
-        let event_types = iter_string(0, batch)?; // projected col 0 = EVENT_TYPE
-        let damages = iter_f64(1, batch)?; // projected col 1 = DAMAGE
-        let elements = iter_string(2, batch)?; // projected col 2 = ELEMENT
-        let gauges = iter_f64(3, batch)?; // projected col 3 = ANOMALY_GAUGE
+        let event_types = iter_string(0, batch)?; // 投影列 0 = EVENT_TYPE
+        let damages = iter_f64(1, batch)?; // 投影列 1 = DAMAGE
+        let elements = iter_string(2, batch)?; // 投影列 2 = ELEMENT
+        let gauges = iter_f64(3, batch)?; // 投影列 3 = ANOMALY_GAUGE
 
         for (i, et) in event_types.iter().enumerate() {
             let elem = elements[i].as_deref().unwrap_or("unknown").to_string();
@@ -474,9 +470,9 @@ fn aggregate_anomaly_stats(path: &Path) -> Result<AnomalyStatsResult> {
     })
 }
 
-/// Aggregate stun damage statistics.
+/// 聚合眩晕伤害统计。
 ///
-/// Projection: [STUN_DMG(10)] → projected [0 = stun].
+/// 投影：[STUN_DMG(10)] → 投影后 [0 = stun]。
 fn aggregate_stun_stats(path: &Path) -> Result<StunStatsResult> {
     let batches = read_projected(path, &[col::STUN_DMG])?;
 
@@ -484,7 +480,7 @@ fn aggregate_stun_stats(path: &Path) -> Result<StunStatsResult> {
     let mut total_stun_events = 0_u64;
 
     for batch in &batches {
-        let stun_dmgs = iter_f64(0, batch)?; // projected col 0 = STUN_DMG
+        let stun_dmgs = iter_f64(0, batch)?; // 投影列 0 = STUN_DMG
 
         for v in stun_dmgs.iter().flatten() {
             total_stun_damage += v;
@@ -498,9 +494,9 @@ fn aggregate_stun_stats(path: &Path) -> Result<StunStatsResult> {
     })
 }
 
-/// Aggregate critical hit rate.
+/// 聚合暴击率。
 ///
-/// Projection: [EVENT_TYPE(2), CRIT(7)] → projected [0 = et, 1 = crit].
+/// 投影：[EVENT_TYPE(2), CRIT(7)] → 投影后 [0 = et, 1 = crit]。
 fn aggregate_crit_rate(path: &Path) -> Result<CritRateResult> {
     let batches = read_projected(path, &[col::EVENT_TYPE, col::CRIT])?;
 
@@ -508,8 +504,8 @@ fn aggregate_crit_rate(path: &Path) -> Result<CritRateResult> {
     let mut crit_hits = 0_u64;
 
     for batch in &batches {
-        let event_types = iter_string(0, batch)?; // projected col 0 = EVENT_TYPE
-        let crits = iter_bool(1, batch)?; // projected col 1 = CRIT
+        let event_types = iter_string(0, batch)?; // 投影列 0 = EVENT_TYPE
+        let crits = iter_bool(1, batch)?; // 投影列 1 = CRIT
 
         for (i, et) in event_types.iter().enumerate() {
             if et.as_deref() == Some("DamageDealt") {
@@ -532,16 +528,16 @@ fn aggregate_crit_rate(path: &Path) -> Result<CritRateResult> {
     })
 }
 
-/// Compute descriptive statistics over all damage values.
+/// 计算所有伤害值的描述性统计。
 ///
-/// Projection: [EVENT_TYPE(2), DAMAGE(6)] → projected [0 = et, 1 = dmg].
+/// 投影：[EVENT_TYPE(2), DAMAGE(6)] → 投影后 [0 = et, 1 = dmg]。
 fn aggregate_stats_summary(path: &Path) -> Result<StatsSummaryResult> {
     let batches = read_projected(path, &[col::EVENT_TYPE, col::DAMAGE])?;
 
     let mut values: Vec<f64> = Vec::new();
     for batch in &batches {
-        let event_types = iter_string(0, batch)?; // projected col 0 = EVENT_TYPE
-        let damages = iter_f64(1, batch)?; // projected col 1 = DAMAGE
+        let event_types = iter_string(0, batch)?; // 投影列 0 = EVENT_TYPE
+        let damages = iter_f64(1, batch)?; // 投影列 1 = DAMAGE
 
         for (i, et) in event_types.iter().enumerate() {
             if et.as_deref() == Some("DamageDealt") {
@@ -569,7 +565,7 @@ fn aggregate_stats_summary(path: &Path) -> Result<StatsSummaryResult> {
         });
     }
 
-    // Welford's online algorithm for mean + variance (single pass)
+    // Welford 在线算法，用于均值和方差（单次遍历）
     let mut n = 0.0_f64;
     let mut mean = 0.0_f64;
     let mut m2 = 0.0_f64;
@@ -593,7 +589,7 @@ fn aggregate_stats_summary(path: &Path) -> Result<StatsSummaryResult> {
     let variance = if count > 1 { m2 / count as f64 } else { 0.0 };
     let std_dev = variance.sqrt();
 
-    // Percentiles: sort values, then index (R7 method)
+    // 百分位数：排序值，然后索引（R7 方法）
     values.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     Ok(StatsSummaryResult {
@@ -610,10 +606,10 @@ fn aggregate_stats_summary(path: &Path) -> Result<StatsSummaryResult> {
     })
 }
 
-/// Compute the p-th percentile from a sorted slice.
+/// 从已排序的切片中计算第 p 个百分位数。
 ///
-/// Uses linear interpolation between adjacent values (type R7, same as
-/// numpy / pandas default).
+/// 使用相邻值之间的线性插值（类型 R7，与
+/// numpy / pandas 默认值相同）。
 fn percentile(sorted: &[f64], p: f64) -> f64 {
     if sorted.is_empty() {
         return 0.0;
@@ -622,7 +618,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
         return sorted[0];
     }
 
-    // R7 formula: index = p/100 * (n - 1)
+    // R7 公式：index = p/100 * (n - 1)
     let n = sorted.len();
     let idx = p / 100.0 * (n - 1) as f64;
     let lo = idx.floor() as usize;
@@ -638,7 +634,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
     }
 }
 
-// ── Tests ────────────────────────────────────────────────────────────────
+// ── 测试 ────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -650,7 +646,7 @@ mod tests {
     use zsim_core::events::signals::EventType;
 
     // ------------------------------------------------------------------
-    // Helpers
+    // 辅助函数
     // ------------------------------------------------------------------
 
     fn temp_path(name: &str) -> std::path::PathBuf {
@@ -709,7 +705,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // TotalDamage
+    // TotalDamage（总伤害）
     // ------------------------------------------------------------------
 
     #[test]
@@ -847,7 +843,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // DPS
+    // DPS（每秒伤害）
     // ------------------------------------------------------------------
 
     #[test]
@@ -934,7 +930,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // DamageBreakdown
+    // DamageBreakdown（伤害明细）
     // ------------------------------------------------------------------
 
     #[test]
@@ -1030,7 +1026,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // AnomalyStats
+    // AnomalyStats（异常统计）
     // ------------------------------------------------------------------
 
     #[test]
@@ -1097,7 +1093,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // StunStats
+    // StunStats（眩晕统计）
     // ------------------------------------------------------------------
 
     #[test]
@@ -1193,7 +1189,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // CritRate
+    // CritRate（暴击率）
     // ------------------------------------------------------------------
 
     #[test]
@@ -1345,7 +1341,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // StatsSummary
+    // StatsSummary（统计摘要）
     // ------------------------------------------------------------------
 
     #[test]
@@ -1435,7 +1431,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Convenience function
+    // 便捷函数
     // ------------------------------------------------------------------
 
     #[test]
@@ -1463,7 +1459,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // JSON serialization
+    // JSON 序列化
     // ------------------------------------------------------------------
 
     #[test]
@@ -1506,7 +1502,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // File not found
+    // 文件未找到
     // ------------------------------------------------------------------
 
     #[test]
@@ -1519,7 +1515,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Consistency: TotalDamage vs StatsSummary sum
+    // 一致性检查：TotalDamage 与 StatsSummary 求和
     // ------------------------------------------------------------------
 
     #[test]
@@ -1556,12 +1552,12 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Projection correctness: verify column projection works
+    // 投影正确性：验证列投影工作正常
     // ------------------------------------------------------------------
 
     #[test]
     fn test_projection_reduces_column_count() {
-        // StunStats reads only 1 column (stun_dmg) instead of all 15
+        // StunStats 仅读取 1 列（stun_dmg）而非全部 15 列
         let path = temp_path("projection_col_count.parquet");
         let events = vec![make_event(
             0,
@@ -1577,7 +1573,7 @@ mod tests {
         )];
         write_test_data(&path, vec![make_result(0, 42, 5, "test", events)]);
 
-        // Open with projection and verify internal batch has only 1 column
+        // 使用投影打开并验证内部批次仅有 1 列
         let batches = read_projected(&path, &[col::STUN_DMG]).unwrap();
         assert!(!batches.is_empty());
         assert_eq!(

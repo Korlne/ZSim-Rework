@@ -2,14 +2,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::entities::models::BaseStats;
 
-/// A stat value entry (e.g., main stat or sub-stat on a drive disc).
+/// 属性值条目（例如驱动盘上的主属性或副属性）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatEntry {
     pub stat_name: String,
     pub value: f64,
 }
 
-/// W-Engine (weapon) data loaded from data/equipment/.
+/// 从 data/equipment/ 加载的 W-Engine（武器）数据。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WEngine {
     pub id: String,
@@ -21,16 +21,16 @@ pub struct WEngine {
     pub ascension: u32,
     #[serde(default)]
     pub base_stats: BaseStats,
-    /// Passive effect IDs applied when the w-engine is equipped.
+    /// 装备该音擎时应用的被动效果 ID。
     #[serde(default)]
     pub passive_effects: Vec<String>,
 }
 
-/// A single drive disc with main and sub stats.
+/// 单个驱动盘，包含主属性和副属性。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DriveDisc {
     pub id: String,
-    /// Disc slot position (1-6).
+    /// 驱动盘槽位（1-6）。
     pub slot: u8,
     #[serde(default)]
     pub level: u32,
@@ -41,7 +41,7 @@ pub struct DriveDisc {
     pub set_id: String,
 }
 
-/// A disc set bonus definition.
+/// 驱动盘套装加成定义。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscSet {
     pub set_id: String,
@@ -51,18 +51,18 @@ pub struct DiscSet {
     pub four_piece_bonus: Option<DiscBonus>,
 }
 
-/// A disc set bonus effect description (resolved into BuffData at runtime).
+/// 驱动盘套装加成效果描述（运行时解析为 BuffData）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscBonus {
-    /// Description label for the bonus effect.
+    /// 加成效果的描述标签。
     #[serde(default)]
     pub description: String,
-    /// Buff identifier applied when the set threshold is met.
+    /// 达到套装阈值时应用的 Buff 标识符。
     #[serde(default)]
     pub buff_id: String,
 }
 
-/// Full equipment data collection loaded from data/equipment/.
+/// 从 data/equipment/ 加载的完整装备数据集合。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EquipmentData {
     #[serde(default)]

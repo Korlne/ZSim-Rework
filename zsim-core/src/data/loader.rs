@@ -9,13 +9,13 @@ use crate::data::equipment::EquipmentData;
 use crate::entities::character::Character;
 use crate::entities::enemy::EnemyState;
 
-/// Central data loader for all game data JSON files.
-/// Provides typed load methods with path-context error reporting.
+/// 所有游戏数据 JSON 文件的中央数据加载器。
+/// 提供类型化加载方法，并附带路径上下文错误报告。
 pub struct DataLoader;
 
 impl DataLoader {
-    /// Load all character JSON files from a directory.
-    /// Each `.json` file is deserialized as a single `Character`.
+    /// 从目录加载所有角色 JSON 文件。
+    /// 每个 `.json` 文件被反序列化为一个 `Character` 实例。
     pub fn load_characters(dir: &Path) -> Result<Vec<Character>> {
         let mut characters = Vec::new();
         for entry in json_entries(dir)
@@ -31,8 +31,8 @@ impl DataLoader {
         Ok(characters)
     }
 
-    /// Load all enemy JSON files from a directory.
-    /// Each `.json` file is deserialized as a single `EnemyState`.
+    /// 从目录加载所有敌人 JSON 文件。
+    /// 每个 `.json` 文件被反序列化为一个 `EnemyState` 实例。
     pub fn load_enemies(dir: &Path) -> Result<Vec<EnemyState>> {
         let mut enemies = Vec::new();
         for entry in json_entries(dir)
@@ -48,8 +48,8 @@ impl DataLoader {
         Ok(enemies)
     }
 
-    /// Load all skill JSON files from a directory.
-    /// Each `.json` file can be either a single `SkillData` or an array of `SkillData`.
+    /// 从目录加载所有技能 JSON 文件。
+    /// 每个 `.json` 文件可以是单个 `SkillData` 或 `SkillData` 数组。
     pub fn load_skills(dir: &Path) -> Result<Vec<SkillData>> {
         let mut skills = Vec::new();
         for entry in json_entries(dir)
@@ -58,7 +58,7 @@ impl DataLoader {
             let path = entry.path();
             let contents = fs::read_to_string(&path)
                 .with_context(|| format!("failed to read skill file: {}", path.display()))?;
-            // Try array first, then single object
+            // 先尝试解析为数组，再尝试单个对象
             if let Ok(arr) = serde_json::from_str::<Vec<SkillData>>(&contents) {
                 skills.extend(arr);
             } else {
@@ -70,7 +70,7 @@ impl DataLoader {
         Ok(skills)
     }
 
-    /// Load equipment data from a single JSON file.
+    /// 从单个 JSON 文件加载装备数据。
     pub fn load_equipment(path: &Path) -> Result<EquipmentData> {
         let contents = fs::read_to_string(path)
             .with_context(|| format!("failed to read equipment file: {}", path.display()))?;
@@ -78,7 +78,7 @@ impl DataLoader {
             .with_context(|| format!("failed to parse equipment JSON: {}", path.display()))
     }
 
-    /// Load APL (Action Priority List) data from a single JSON file.
+    /// 从单个 JSON 文件加载 APL（动作优先级列表）数据。
     pub fn load_apl(path: &Path) -> Result<APLData> {
         let contents = fs::read_to_string(path)
             .with_context(|| format!("failed to read APL file: {}", path.display()))?;
@@ -87,7 +87,7 @@ impl DataLoader {
     }
 }
 
-/// Collect all `.json` file entries from a directory, sorted by filename.
+/// 从目录中收集所有 `.json` 文件条目，按文件名排序。
 fn json_entries(dir: &Path) -> Result<Vec<fs::DirEntry>> {
     let mut entries: Vec<_> = fs::read_dir(dir)
         .with_context(|| format!("failed to read directory: {}", dir.display()))?
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn test_json_entries_filters_non_json() {
-        // The characters directory only has .json files, so this verifies the filter works.
+        // characters 目录只有 .json 文件，因此该测试验证过滤器正常工作。
         let entries = json_entries(&data_dir().join("characters")).expect("read dir");
         for entry in &entries {
             assert!(

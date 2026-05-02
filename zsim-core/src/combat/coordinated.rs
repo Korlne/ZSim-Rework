@@ -1,11 +1,11 @@
-//! Coordinated action system — manages off-field character reactive attacks.
+//! 协同动作系统 —— 管理下场角色的反应式攻击。
 //!
-//! Listens for combat events (damage dealt, anomaly triggered, chain attacks,
-//! dodges, parries) and produces derived [`SkillAction`]s for off-field characters
-//! to execute their coordinated attacks.
+//! 监听战斗事件（造成伤害、触发异常、连携攻击、
+//! 闪避、招架）并为下场角色生成派生的 [`SkillAction`]
+//! 以执行其协同攻击。
 //!
-//! Each listener has an independent cooldown to prevent excessive triggering.
-//! Derived actions execute in the same tick as their parent action.
+//! 每个监听器都有独立的冷却时间以防止过度触发。
+//! 派生动作在其父动作的同一 tick 中执行。
 
 use std::fmt::Debug;
 
@@ -13,20 +13,20 @@ use crate::combat::apl::SkillAction;
 use crate::combat::game_state::GameState;
 use crate::events::signals::{EventType, GameEvent};
 
-/// Trait for coordinated action listeners.
+/// 协同动作监听器的 trait。
 ///
-/// Implementations define:
-/// - Which event types trigger this listener ([`event_types()`])
-/// - What action(s) to produce when triggered ([`on_event()`])
+/// 实现定义：
+/// - 哪些事件类型触发此监听器（[`event_types()`]）
+/// - 触发时产生什么动作（[`on_event()`]）
 pub trait CoordinatedListener: Debug {
-    /// Called when a relevant event occurs. Returns derived skill actions.
+    /// 当相关事件发生时调用。返回派生的技能动作。
     fn on_event(&self, event: &GameEvent, game_state: &GameState) -> Vec<SkillAction>;
 
-    /// Returns the event types this listener responds to.
+    /// 返回此监听器响应的事件类型。
     fn event_types(&self) -> Vec<EventType>;
 }
 
-/// A default coordinated listener that triggers a fixed action on a specific event type.
+/// 默认协同监听器，在特定事件类型上触发固定动作。
 #[derive(Debug)]
 pub struct SimpleCoordinatedListener {
     pub source_id: String,
@@ -53,7 +53,7 @@ impl CoordinatedListener for SimpleCoordinatedListener {
     }
 }
 
-/// Internal slot holding a listener with cooldown metadata.
+/// 内部槽位，持有带有冷却元数据的监听器。
 #[derive(Debug)]
 struct ListenerSlot {
     listener: Box<dyn CoordinatedListener>,
@@ -62,19 +62,18 @@ struct ListenerSlot {
     last_trigger_tick: Option<u64>,
 }
 
-/// Manages coordinated action listeners and produces derived skill actions.
+/// 管理协同动作监听器并产生派生的技能动作。
 ///
-/// ## Event flow
-/// 1. Simulation runner calls [`on_event()`](CoordinatedActionSystem::on_event) or
-///    [`process_events()`](CoordinatedActionSystem::process_events) with the events
-///    generated during the current tick.
-/// 2. Each listener checks whether the event type matches and its cooldown has expired.
-/// 3. Matching listeners produce [`SkillAction`]s queued in an internal buffer.
-/// 4. Runner drains the buffer via
-///    [`get_pending_actions()`](CoordinatedActionSystem::get_pending_actions)
-///    (consuming queue).
+/// ## 事件流程
+/// 1. 模拟运行器调用 [`on_event()`](CoordinatedActionSystem::on_event) 或
+///    [`process_events()`](CoordinatedActionSystem::process_events)，
+///    传入当前 tick 期间生成的事件。
+/// 2. 每个监听器检查事件类型是否匹配以及其冷却是否已过期。
+/// 3. 匹配的监听器产生 [`SkillAction`] 并加入内部缓冲区队列。
+/// 4. 运行器通过 [`get_pending_actions()`](CoordinatedActionSystem::get_pending_actions)
+///    清空缓冲区（消费队列）。
 ///
-/// Derived actions execute in the **same tick** as their parent action.
+/// 派生动作在与其父动作**同一 tick** 中执行。
 #[derive(Debug)]
 pub struct CoordinatedActionSystem {
     slots: Vec<ListenerSlot>,
@@ -82,7 +81,7 @@ pub struct CoordinatedActionSystem {
 }
 
 impl CoordinatedActionSystem {
-    /// Create an empty coordinated action system with no listeners.
+    /// 创建一个没有监听器的空协同动作系统。
     pub fn new() -> Self {
         Self {
             slots: Vec::new(),
@@ -90,11 +89,11 @@ impl CoordinatedActionSystem {
         }
     }
 
-    /// Register a coordinated listener.
+    /// 注册一个协同监听器。
     ///
-    /// - `listener`: the trait object that produces actions
-    /// - `event_types`: which event types this listener reacts to
-    /// - `cooldown_ticks`: minimum ticks between successive triggers (0 = no cooldown)
+    /// - `listener`：产生动作的 trait 对象
+    /// - `event_types`：此监听器响应的事件类型
+    /// - `cooldown_ticks`：连续触发之间的最小 tick 数（0 = 无冷却）
     pub fn register(
         &mut self,
         listener: Box<dyn CoordinatedListener>,
@@ -109,24 +108,23 @@ impl CoordinatedActionSystem {
         });
     }
 
-    /// Process a single event through all registered listeners.
+    /// 通过所有注册的监听器处理单个事件。
     ///
-    /// Matching listeners whose cooldown has expired will produce skill actions
-    /// added to the internal queue.  If a listener returns an empty vec its
-    /// cooldown is **not** updated, allowing conditional triggers to retry on
-    /// a subsequent event.
+    /// 冷却已过期的匹配监听器会产生技能动作并添加到内部队列。
+    /// 如果监听器返回空 vec，则其冷却**不会**更新，
+    /// 允许条件触发器在后续事件上重试。
     pub fn on_event(&mut self, event: &GameEvent, game_state: &GameState) {
         for slot in &mut self.slots {
             if !slot.event_types.contains(&event.event_type) {
                 continue;
             }
-            // Check cooldown — first trigger is always allowed (None)
+            // 检查冷却 —— 第一次触发始终允许（None）
             if let Some(last) = slot.last_trigger_tick {
                 if game_state.current_tick < last + slot.cooldown_ticks {
                     continue;
                 }
             }
-            // Cooldown satisfied — invoke listener
+            // 冷却已满足 —— 调用监听器
             let actions = slot.listener.on_event(event, game_state);
             if !actions.is_empty() {
                 slot.last_trigger_tick = Some(game_state.current_tick);
@@ -135,28 +133,28 @@ impl CoordinatedActionSystem {
         }
     }
 
-    /// Process multiple events at once.
+    /// 一次处理多个事件。
     ///
-    /// Convenience method that calls [`on_event`](Self::on_event) for each event.
+    /// 便利方法，为每个事件调用 [`on_event`](Self::on_event)。
     pub fn process_events(&mut self, events: &[GameEvent], game_state: &GameState) {
         for event in events {
             self.on_event(event, game_state);
         }
     }
 
-    /// Drain all pending skill actions (consuming queue pattern).
+    /// 清空所有待处理的技能动作（消费队列模式）。
     ///
-    /// Returns an empty vec if no actions are pending.
+    /// 如果没有待处理的动作，则返回空 vec。
     pub fn get_pending_actions(&mut self) -> Vec<SkillAction> {
         std::mem::take(&mut self.pending_actions)
     }
 
-    /// Return the number of registered listeners.
+    /// 返回已注册的监听器数量。
     pub fn listener_count(&self) -> usize {
         self.slots.len()
     }
 
-    /// Return the number of pending actions (before draining).
+    /// 返回待处理动作的数量（清空之前）。
     pub fn pending_count(&self) -> usize {
         self.pending_actions.len()
     }
@@ -177,7 +175,7 @@ mod tests {
     use crate::entities::models::BaseStats;
 
     // ------------------------------------------------------------------
-    // Helpers
+    // 辅助函数
     // ------------------------------------------------------------------
 
     fn make_character(char_id: &str) -> Character {
@@ -233,7 +231,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Creation & queries
+    // 创建与查询
     // ------------------------------------------------------------------
 
     #[test]
@@ -290,7 +288,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Register & fire
+    // 注册与触发
     // ------------------------------------------------------------------
 
     #[test]
@@ -414,15 +412,15 @@ mod tests {
         ];
         system.process_events(&events, &state);
 
-        // Only the damage events should trigger (2 events, but same-tick cooldown
-        // with cooldown=0 means both fire)
+        // 只有伤害事件应触发（2 个事件，但相同 tick 冷却
+        // 且 cooldown=0 意味着两者都会触发）
         let actions = system.get_pending_actions();
         assert_eq!(actions.len(), 2);
     }
 
     #[test]
     fn test_listener_returns_empty_skips_cooldown_update() {
-        // A listener that conditionally returns empty actions
+        // 一个有条件返回空动作的监听器
         #[derive(Debug)]
         struct ConditionalListener {
             only_on_tick: u64,
@@ -456,19 +454,19 @@ mod tests {
 
         let mut state = make_game_state();
 
-        // Tick 5 → returns empty → cooldown NOT updated
+        // Tick 5 → 返回空 → 冷却不更新
         state.current_tick = 5;
         let event = damage_event(5, "enemy_1");
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 0);
 
-        // Tick 6 → still not triggered, cooldown was NOT updated at tick 5
+        // Tick 6 → 仍未触发，Tick 5 时冷却未更新
         state.current_tick = 6;
         let event = damage_event(6, "enemy_1");
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 0);
 
-        // Tick 10 → should trigger
+        // Tick 10 → 应触发
         state.current_tick = 10;
         let event = damage_event(10, "enemy_1");
         system.on_event(&event, &state);
@@ -517,7 +515,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Cooldown
+    // 冷却
     // ------------------------------------------------------------------
 
     #[test]
@@ -532,13 +530,13 @@ mod tests {
         let mut state = make_game_state();
         state.current_tick = 0;
 
-        // First trigger at tick 0
+        // Tick 0 处的第一次触发
         let event = damage_event(0, "enemy_1");
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 1);
         let _ = system.get_pending_actions();
 
-        // Same tick: blocked by cooldown (0 < 0 + 30)
+        // 同一 tick：被冷却阻止（0 < 0 + 30）
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 0);
     }
@@ -559,7 +557,7 @@ mod tests {
         system.on_event(&event, &state);
         let _ = system.get_pending_actions();
 
-        // Tick 30: cooldown expired (30 < 0 + 30 → false → not blocked)
+        // Tick 30：冷却过期（30 < 0 + 30 → false → 未被阻止）
         state.current_tick = 30;
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 1);
@@ -581,7 +579,7 @@ mod tests {
         system.on_event(&event, &state);
         let _ = system.get_pending_actions();
 
-        // Tick 29: still blocked (29 < 0 + 30)
+        // Tick 29：仍被阻止（29 < 0 + 30）
         state.current_tick = 29;
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 0);
@@ -599,7 +597,7 @@ mod tests {
         let mut state = make_game_state();
         state.current_tick = 0;
 
-        // Fire many times in a row
+        // 连续触发多次
         for _ in 0..5 {
             let event = damage_event(state.current_tick, "enemy_1");
             system.on_event(&event, &state);
@@ -611,13 +609,13 @@ mod tests {
     #[test]
     fn test_cooldown_per_listener_independence() {
         let mut system = CoordinatedActionSystem::new();
-        // Listener A: 10-tick cooldown
+        // 监听器 A：10 tick 冷却
         system.register(
             coord_listener("char_a", "atk_a", EventType::DamageDealt),
             vec![EventType::DamageDealt],
             10,
         );
-        // Listener B: 50-tick cooldown
+        // 监听器 B：50 tick 冷却
         system.register(
             coord_listener("char_b", "atk_b", EventType::DamageDealt),
             vec![EventType::DamageDealt],
@@ -632,14 +630,14 @@ mod tests {
         let actions = system.get_pending_actions();
         assert_eq!(actions.len(), 2); // Both fire at tick 0
 
-        // Tick 15: A's cooldown expired (15 ≥ 10), B's still active (15 < 50)
+        // Tick 15：A 的冷却已过期（15 >= 10），B 仍活跃（15 < 50）
         state.current_tick = 15;
         system.on_event(&event, &state);
         let actions = system.get_pending_actions();
         assert_eq!(actions.len(), 1);
         assert_eq!(actions[0].source_id, "char_a");
 
-        // Tick 50: B's cooldown expired
+        // Tick 50：B 的冷却已过期
         state.current_tick = 50;
         let _ = system.get_pending_actions(); // drain nothing
         system.on_event(&event, &state);
@@ -659,23 +657,23 @@ mod tests {
         let mut state = make_game_state();
         state.current_tick = 0;
 
-        // Trigger at tick 0
+        // Tick 0 处触发
         let event = damage_event(0, "enemy_1");
         system.on_event(&event, &state);
         let _ = system.get_pending_actions();
 
-        // Non-matching event at tick 5 → should NOT advance cooldown timeline
+        // Tick 5 处的不匹配事件 → 不应推进冷却时间线
         state.current_tick = 5;
         let bad_event = GameEvent::new(EventType::BuffChanged, 5);
         system.on_event(&bad_event, &state);
         assert_eq!(system.pending_count(), 0);
 
-        // Tick 29: still blocked (cooldown from tick 0)
+        // Tick 29：仍被阻止（从 tick 0 开始的冷却）
         state.current_tick = 29;
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 0);
 
-        // Tick 30: cooldown expired (30 ≥ 30)
+        // Tick 30：冷却已过期（30 >= 30）
         state.current_tick = 30;
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 1);
@@ -692,25 +690,25 @@ mod tests {
 
         let mut state = make_game_state();
 
-        // Trigger at tick 5
+        // Tick 5 处触发
         state.current_tick = 5;
         let event = damage_event(5, "enemy_1");
         system.on_event(&event, &state);
         let _ = system.get_pending_actions();
 
-        // Tick 24: blocked (24 < 5 + 20)
+        // Tick 24：被阻止（24 < 5 + 20）
         state.current_tick = 24;
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 0);
 
-        // Tick 25: now allowed (25 >= 5 + 20)
+        // Tick 25：现在允许（25 >= 5 + 20）
         state.current_tick = 25;
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 1);
     }
 
     // ------------------------------------------------------------------
-    // Consuming queue
+    // 消费队列
     // ------------------------------------------------------------------
 
     #[test]
@@ -731,7 +729,7 @@ mod tests {
         assert_eq!(first.len(), 1);
         assert_eq!(system.pending_count(), 0);
 
-        // Second drain is empty
+        // 第二次清空返回空
         let second = system.get_pending_actions();
         assert!(second.is_empty());
     }
@@ -766,7 +764,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Event type filtering
+    // 事件类型过滤
     // ------------------------------------------------------------------
 
     #[test]
@@ -858,7 +856,7 @@ mod tests {
 
         let state = make_game_state();
 
-        // Fire all three event types
+        // 触发所有三种事件类型
         system.on_event(&damage_event(0, "enemy_1"), &state);
         system.on_event(&anomaly_event(0), &state);
         system.on_event(&chain_event(0), &state);
@@ -871,7 +869,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Custom listener
+    // 自定义监听器
     // ------------------------------------------------------------------
 
     #[test]
@@ -949,7 +947,7 @@ mod tests {
 
         let state = make_game_state();
 
-        // Non-crit event → no action
+        // 非暴击事件 → 无动作
         let non_crit = GameEvent::new(EventType::DamageDealt, 0)
             .with_source("char")
             .with_target("enemy_1")
@@ -957,7 +955,7 @@ mod tests {
         system.on_event(&non_crit, &state);
         assert_eq!(system.pending_count(), 0);
 
-        // Crit event → action
+        // 暴击事件 → 有动作
         let crit = GameEvent::new(EventType::DamageDealt, 0)
             .with_source("char")
             .with_target("enemy_boss")
@@ -970,7 +968,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Edge cases & integration
+    // 边界情况与集成
     // ------------------------------------------------------------------
 
     #[test]
@@ -1003,7 +1001,7 @@ mod tests {
         system.register(Box::new(listener), vec![EventType::DamageDealt], 0);
 
         let state = make_game_state();
-        // Event with no target_id
+        // 没有 target_id 的事件
         let event = GameEvent::new(EventType::DamageDealt, 0).with_source("char");
         system.on_event(&event, &state);
 
@@ -1046,7 +1044,7 @@ mod tests {
         );
 
         let state = make_game_state();
-        // Wrong event type
+        // 错误的事件类型
         system.on_event(&damage_event(0, "enemy_1"), &state);
         system.on_event(&anomaly_event(0), &state);
         system.on_event(&GameEvent::new(EventType::BuffChanged, 0), &state);
@@ -1070,7 +1068,7 @@ mod tests {
 
         let mut state = make_game_state();
 
-        // Tick 0: fire both event types
+        // Tick 0：触发两种事件类型
         state.current_tick = 0;
         system.on_event(&damage_event(0, "e1"), &state);
         system.on_event(&anomaly_event(0), &state);
@@ -1078,20 +1076,20 @@ mod tests {
         let actions = system.get_pending_actions();
         assert_eq!(actions.len(), 2);
 
-        // Tick 5: damage cooldown still active (5 < 10), anomaly cooldown active (5 < 20)
+        // Tick 5：伤害冷却仍活跃（5 < 10），异常冷却活跃（5 < 20）
         state.current_tick = 5;
         system.on_event(&damage_event(5, "e1"), &state);
         system.on_event(&anomaly_event(5), &state);
         assert_eq!(system.pending_count(), 0);
 
-        // Tick 15: damage cooldown expired (15 ≥ 10), anomaly still active (15 < 20)
+        // Tick 15：伤害冷却已过期（15 >= 10），异常仍活跃（15 < 20）
         state.current_tick = 15;
         system.on_event(&damage_event(15, "e1"), &state);
         assert_eq!(system.pending_count(), 1);
         let actions = system.get_pending_actions();
         assert_eq!(actions[0].action_id, "dmg_atk");
 
-        // Tick 20: anomaly cooldown expired
+        // Tick 20：异常冷却已过期
         state.current_tick = 20;
         system.on_event(&anomaly_event(20), &state);
         let actions = system.get_pending_actions();
@@ -1125,7 +1123,7 @@ mod tests {
 
     #[test]
     fn test_full_lifecycle() {
-        // Full lifecycle: register → fire → drain → fire → drain → verify
+        // 完整生命周期：注册 → 触发 → 清空 → 触发 → 清空 → 验证
         let mut system = CoordinatedActionSystem::new();
         system.register(
             coord_listener("char_support", "coord_atk", EventType::DamageDealt),
@@ -1136,7 +1134,7 @@ mod tests {
         let mut state = make_game_state();
         state.current_tick = 0;
 
-        // Phase 1: first trigger at tick 0
+        // 阶段 1：tick 0 处的第一次触发
         let event = damage_event(0, "enemy_1");
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 1);
@@ -1145,13 +1143,13 @@ mod tests {
         assert_eq!(phase1[0].action_id, "coord_atk");
         assert_eq!(phase1[0].source_id, "char_support");
 
-        // Phase 2: cooldown active at tick 15
+        // 阶段 2：tick 15 处冷却活跃
         state.current_tick = 15;
         let event = damage_event(15, "enemy_1");
         system.on_event(&event, &state);
         assert_eq!(system.pending_count(), 0);
 
-        // Phase 3: cooldown expired at tick 30
+        // 阶段 3：tick 30 处冷却已过期
         state.current_tick = 30;
         let event = damage_event(30, "enemy_2");
         system.on_event(&event, &state);
@@ -1160,7 +1158,7 @@ mod tests {
         assert_eq!(phase3[0].target_id, "enemy_2");
         assert_eq!(phase3[0].started_at_tick, 30);
 
-        // Phase 4: listener still registered, verify count
+        // 阶段 4：监听器仍注册，验证计数
         assert_eq!(system.listener_count(), 1);
         assert_eq!(system.pending_count(), 0);
     }

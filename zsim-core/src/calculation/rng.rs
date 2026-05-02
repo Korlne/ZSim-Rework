@@ -2,23 +2,21 @@ use rand::Rng;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
-/// A snapshot of the RNG state at a given point.
-/// Can be restored later to replay the same random sequence.
+/// RNG 状态在某个时间点的快照。
+/// 可以在之后恢复，以重放相同的随机序列。
 #[derive(Debug, Clone)]
 pub struct RngSnapshot {
     rng: ChaCha8Rng,
     call_count: u64,
 }
 
-/// Deterministic random number manager based on ChaCha8Rng.
+/// 基于 ChaCha8Rng 的确定性随机数管理器。
 ///
-/// Each simulation instance should create its own `RNGManager` with
-/// `seed = base_seed + sim_index` to ensure reproducibility while
-/// keeping each simulation independent.
+/// 每个模拟实例应使用 `seed = base_seed + sim_index` 创建自己的 `RNGManager`，
+/// 以确保可重复性，同时保持各模拟之间的独立性。
 ///
-/// The `call_count` is incremented on every RNG call and tracked
-/// inside snapshots so that restoring a snapshot reproduces the
-/// exact sequence including call count tracking.
+/// `call_count` 在每次 RNG 调用时递增，并在快照中记录，
+/// 以便恢复快照时能够重现包括调用计数在内的精确序列。
 #[derive(Debug, Clone)]
 pub struct RNGManager {
     rng: ChaCha8Rng,
@@ -27,7 +25,7 @@ pub struct RNGManager {
 }
 
 impl RNGManager {
-    /// Create a new RNGManager seeded with the given value.
+    /// 使用给定的种子值创建新的 RNGManager。
     pub fn new(seed: u64) -> Self {
         Self {
             rng: ChaCha8Rng::seed_from_u64(seed),
@@ -36,30 +34,30 @@ impl RNGManager {
         }
     }
 
-    /// Generate a random `f64` in `[min, max)`.
+    /// 生成一个 `[min, max)` 范围内的随机 `f64`。
     ///
-    /// Increments the call counter.
+    /// 递增调用计数器。
     pub fn gen_range(&mut self, min: f64, max: f64) -> f64 {
         self.call_count += 1;
         self.rng.gen_range(min..max)
     }
 
-    /// Generate a random `bool` with the given probability of being `true`.
+    /// 生成一个随机 `bool`，以给定概率为 `true`。
     ///
-    /// Increments the call counter.
+    /// 递增调用计数器。
     pub fn gen_bool(&mut self, probability: f64) -> bool {
         self.call_count += 1;
         self.rng.gen_bool(probability)
     }
 
-    /// Shorthand for a crit check: returns `true` if a random roll is below `crit_rate`.
+    /// 暴击检查的简写：如果随机掷骰低于 `crit_rate` 则返回 `true`。
     ///
-    /// Increments the call counter.
+    /// 递增调用计数器。
     pub fn gen_crit(&mut self, crit_rate: f64) -> bool {
         self.gen_bool(crit_rate)
     }
 
-    /// Take a snapshot of the current RNG state.
+    /// 获取当前 RNG 状态的快照。
     pub fn snapshot(&self) -> RngSnapshot {
         RngSnapshot {
             rng: self.rng.clone(),
@@ -67,18 +65,18 @@ impl RNGManager {
         }
     }
 
-    /// Restore RNG state and call count from a snapshot.
+    /// 从快照恢复 RNG 状态和调用计数。
     pub fn restore(&mut self, snapshot: RngSnapshot) {
         self.rng = snapshot.rng;
         self.call_count = snapshot.call_count;
     }
 
-    /// Return the seed used to create this manager.
+    /// 返回用于创建此管理器的种子值。
     pub fn seed(&self) -> u64 {
         self.seed
     }
 
-    /// Return the number of RNG calls made so far.
+    /// 返回迄今为止的 RNG 调用次数。
     pub fn call_count(&self) -> u64 {
         self.call_count
     }
@@ -88,7 +86,7 @@ impl RNGManager {
 mod tests {
     use super::*;
 
-    /// Two managers with the same seed produce the same sequence.
+    /// 两个使用相同种子的管理器产生相同的序列。
     #[test]
     fn test_same_seed_identical_sequence() {
         let mut a = RNGManager::new(42);
@@ -98,16 +96,16 @@ mod tests {
         }
     }
 
-    /// Different seeds produce different sequences.
+    /// 不同的种子产生不同的序列。
     #[test]
     fn test_different_seed_different_sequence() {
         let mut a = RNGManager::new(42);
         let mut b = RNGManager::new(99);
-        // With extremely high probability the first value will differ
+        // 第一个值极大概率会不同
         assert_ne!(a.gen_range(0.0, 1.0), b.gen_range(0.0, 1.0));
     }
 
-    /// gen_range values stay within [min, max).
+    /// gen_range 的值保持在 [min, max) 范围内。
     #[test]
     fn test_gen_range_bounds() {
         let mut rng = RNGManager::new(7);
@@ -117,8 +115,8 @@ mod tests {
         }
     }
 
-    /// gen_bool returns true at least once and false at least once
-    /// over many trials with a moderate probability.
+    /// gen_bool 在多次试验中至少返回一次 true 和一次 false，
+    /// 使用中等概率。
     #[test]
     fn test_gen_bool_variety() {
         let mut rng = RNGManager::new(13);
@@ -135,7 +133,7 @@ mod tests {
         assert!(has_false, "expected at least one false");
     }
 
-    /// gen_crit delegates to gen_bool with the given probability.
+    /// gen_crit 委托给 gen_bool，使用给定的概率。
     #[test]
     fn test_gen_crit_behavior() {
         let mut rng = RNGManager::new(21);
@@ -146,12 +144,12 @@ mod tests {
                 crit_count += 1;
             }
         }
-        // With 30% crit rate over 10000 trials, expect ~3000 ± reasonable margin
+        // 在 30% 暴击率下进行 10000 次试验，期望约 3000 ± 合理误差范围
         assert!(crit_count > 2000, "crit_count too low: {crit_count}");
         assert!(crit_count < 4000, "crit_count too high: {crit_count}");
     }
 
-    /// Each RNG call increments the call counter.
+    /// 每次 RNG 调用都会递增调用计数器。
     #[test]
     fn test_call_count_increments() {
         let mut rng = RNGManager::new(1);
@@ -164,26 +162,26 @@ mod tests {
         assert_eq!(rng.call_count(), 3);
     }
 
-    /// Snapshot captures state; restore brings it back exactly.
+    /// 快照捕获状态；恢复可精确还原。
     #[test]
     fn test_snapshot_restore() {
         let mut rng = RNGManager::new(99);
-        // Advance past a few calls
+        // 推进几次调用
         rng.gen_range(0.0, 1.0);
         rng.gen_bool(0.5);
         let snap = rng.snapshot();
 
-        // Advance some more
+        // 进一步推进
         let v1 = rng.gen_range(0.0, 1.0);
         let v2 = rng.gen_bool(0.5);
 
-        // Restore and the next values should match
+        // 恢复后，接下来的值应匹配
         rng.restore(snap);
         assert_eq!(rng.gen_range(0.0, 1.0), v1);
         assert_eq!(rng.gen_bool(0.5), v2);
     }
 
-    /// After restore, call count is also restored.
+    /// 恢复后，调用计数也会被恢复。
     #[test]
     fn test_snapshot_restore_preserves_call_count() {
         let mut rng = RNGManager::new(5);
@@ -199,7 +197,7 @@ mod tests {
         assert_eq!(rng.call_count(), 2);
     }
 
-    /// Multiple snapshots: can restore to an earlier point and replay forward.
+    /// 多个快照：可以恢复到较早的时间点并向前重放。
     #[test]
     fn test_multiple_snapshots() {
         let mut rng = RNGManager::new(123);
@@ -212,17 +210,17 @@ mod tests {
 
         let v2 = rng.gen_range(0.0, 1.0);
 
-        // Restore to snap1 (after v0) → replay should produce v1, then v2
+        // 恢复到 snap1（v0 之后）→ 重放应产生 v1，然后是 v2
         rng.restore(snap1);
         assert_eq!(rng.gen_range(0.0, 1.0), v1);
         assert_eq!(rng.gen_range(0.0, 1.0), v2);
 
-        // Restore to snap2 (after v1) → replay should produce v2
+        // 恢复到 snap2（v1 之后）→ 重放应产生 v2
         rng.restore(snap2);
         assert_eq!(rng.gen_range(0.0, 1.0), v2);
     }
 
-    /// 10 independent runs with the same seed produce the same sequence.
+    /// 10 次使用相同种子的独立运行产生相同的序列。
     #[test]
     fn test_deterministic_10_runs() {
         const RUNS: usize = 10;
@@ -233,7 +231,7 @@ mod tests {
             let mut rng = RNGManager::new(777);
             let mut vals = Vec::with_capacity(CALLS);
             for _ in 0..CALLS {
-                // Mix of different call types
+                // 混合不同类型的调用
                 match vals.len() % 3 {
                     0 => vals.push(rng.gen_range(0.0, 100.0) as u64),
                     1 => vals.push(rng.gen_bool(0.5) as u64),
@@ -248,17 +246,17 @@ mod tests {
         }
     }
 
-    /// Snapshot restore never panics even on a fresh RNG.
+    /// 即使在全新的 RNG 上，快照恢复也不会 panic。
     #[test]
     fn test_snapshot_restore_noop() {
         let mut rng = RNGManager::new(42);
         let snap = rng.snapshot();
-        // restore immediately without any calls in between
+        // 立即恢复，中间没有任何调用
         rng.restore(snap);
         assert_eq!(rng.call_count(), 0);
     }
 
-    /// gen_range with negative bounds still works.
+    /// gen_range 使用负边界也能正常工作。
     #[test]
     fn test_gen_range_negative() {
         let mut rng = RNGManager::new(1);
@@ -268,7 +266,7 @@ mod tests {
         }
     }
 
-    /// seed() returns the seed provided at construction.
+    /// seed() 返回构造时提供的种子值。
     #[test]
     fn test_seed_getter() {
         let rng = RNGManager::new(0xDEAD_BEEF);

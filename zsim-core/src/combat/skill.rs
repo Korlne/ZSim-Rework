@@ -2,21 +2,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::entities::enums::SkillType;
 
-/// A single hit frame with its tick offset and damage multiplier.
+/// 单个命中帧，包含其 tick 偏移量和伤害倍率。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HitFrame {
     pub frame: u64,
     pub multiplier: f64,
 }
 
-/// A charge branch: when charging for `charge_duration` ticks, execute `variant_action_id`.
+/// 蓄力分支：当蓄力达到 `charge_duration` tick 时，执行 `variant_action_id`。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChargeBranch {
     pub charge_duration: u64,
     pub variant_action_id: String,
 }
 
-/// Full definition of a skill action loaded from data/skills/.
+/// 完整的技能动作定义，从 data/skills/ 加载。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SkillData {
     pub action_id: String,
@@ -44,7 +44,7 @@ pub struct SkillData {
     pub decibel_cost: f64,
     #[serde(default)]
     pub cooldown_ticks: u64,
-    /// Total animation frames before the action completes.
+    /// 动作完成前的总动画帧数。
     #[serde(default = "default_animation_frames")]
     pub animation_frames: u64,
 }
@@ -54,14 +54,14 @@ fn default_animation_frames() -> u64 {
 }
 
 impl SkillData {
-    /// Create a minimal skill with defaults suitable for tests.
+    /// 创建一个适合测试的最小技能，所有字段使用默认值。
     ///
-    /// Fields that commonly need non-default values:
-    /// - `action_id`, `action_type`
-    /// - `damage_multipliers`, `daze_multiplier`, `hit_frames`
-    /// - `charge_branches`, `prerequisite_action_id`
-    /// - `hp_cost`, `energy_cost`, `decibel_cost`, `cooldown_ticks`
-    /// - `animation_frames` (defaults to 1)
+    /// 通常需要自定义的字段：
+    /// - `action_id`、`action_type`
+    /// - `damage_multipliers`、`daze_multiplier`、`hit_frames`
+    /// - `charge_branches`、`prerequisite_action_id`
+    /// - `hp_cost`、`energy_cost`、`decibel_cost`、`cooldown_ticks`
+    /// - `animation_frames`（默认为 1）
     pub fn default_for_test() -> Self {
         Self {
             action_id: String::new(),

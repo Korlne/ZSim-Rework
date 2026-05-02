@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use super::enums::{ElementTag, EnemyType};
 
-/// Enemy combat state including HP, stun gauge, anomaly buildup, and resistances.
+/// 敌人战斗状态，包含 HP、异常条、异常积蓄和抗性。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EnemyState {
     pub enemy_id: String,
@@ -16,22 +16,22 @@ pub struct EnemyState {
     pub def_val: f64,
     #[serde(default)]
     pub base_res: f64,
-    /// Current stun gauge accumulation.
+    /// 当前的异常条累积量。
     #[serde(alias = "daze_current", default)]
     pub stun_gauge: f64,
-    /// Maximum stun gauge before stun triggers.
+    /// 触发异常前的最大异常条。
     #[serde(alias = "daze_max", default = "default_daze_max")]
     pub stun_max: f64,
-    /// Whether the enemy is currently stunned.
+    /// 敌人当前是否处于异常状态。
     #[serde(default)]
     pub is_stunned: bool,
-    /// Per-element anomaly buildup gauges.
+    /// 每个元素的异常积蓄进度条。
     #[serde(default)]
     pub anomaly_buildup: HashMap<ElementTag, f64>,
-    /// Per-element damage resistance multipliers (0.0 = immune, 1.0 = full damage).
+    /// 每个元素的伤害抗性倍率（0.0 = 免疫，1.0 = 全额伤害）。
     #[serde(default)]
     pub resistances: HashMap<ElementTag, f64>,
-    /// Elements this enemy is weak to.
+    /// 该敌人弱点的元素。
     #[serde(default)]
     pub weaknesses: HashSet<ElementTag>,
 }
@@ -94,7 +94,7 @@ mod tests {
         assert!(!enemy.is_stunned);
         enemy.add_daze(100.0);
         assert!(enemy.is_stunned);
-        // Further daze should not accumulate while stunned
+        // 处于异常状态时，异常条不应继续累积
         enemy.add_daze(50.0);
         assert_eq!(enemy.stun_gauge, 100.0);
     }
@@ -126,7 +126,7 @@ mod tests {
         enemy.accumulate_anomaly(ElementTag::Fire, 30.0);
         enemy.accumulate_anomaly(ElementTag::Fire, 20.0);
         assert_eq!(*enemy.anomaly_buildup.get(&ElementTag::Fire).unwrap(), 50.0);
-        // Separate element has independent gauge
+        // 不同元素拥有独立的积蓄条
         enemy.accumulate_anomaly(ElementTag::Ice, 25.0);
         assert_eq!(*enemy.anomaly_buildup.get(&ElementTag::Ice).unwrap(), 25.0);
     }
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_with_def_alias() {
-        // Python EnemyState uses alias="def" for defense value
+        // Python EnemyState 使用 alias="def" 作为防御值字段
         let json = r#"{
             "enemy_id": "test_enemy",
             "enemy_type": "Elite",

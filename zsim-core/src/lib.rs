@@ -1,5 +1,5 @@
-// zsim-core: Combat simulation engine for ZSim 2.0.
-// Provides entities, calculation, combat systems, event bus, and state machine.
+// zsim-core: ZSim 2.0 的战斗模拟引擎。
+// 提供实体、计算、战斗系统、事件总线和状态机。
 
 pub mod calculation;
 pub mod combat;

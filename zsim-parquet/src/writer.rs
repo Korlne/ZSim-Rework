@@ -1,27 +1,27 @@
-//! Parquet writer for simulation results.
+//! 模拟结果的 Parquet 写入器。
 //!
-//! Writes [`SimResult`] data to Parquet files with a fixed 15-column schema,
-//! Zstd(3) compression, and one row‑group per [`SimResult`].
+//! 使用固定的 15 列模式、Zstd(3) 压缩以及每个 [`SimResult`] 对应一个行组的方式，
+//! 将 [`SimResult`] 数据写入 Parquet 文件。
 //!
-//! # Schema
+//! # 模式
 //!
-//! | #  | Column           | Type      | Nullable |
+//! | #  | 列名               | 类型      | 可空    |
 //! |----|------------------|-----------|----------|
-//! | 0  | `sim_index`      | Int64     | no       |
-//! | 1  | `tick`           | UInt64    | no       |
-//! | 2  | `event_type`     | Utf8      | no       |
-//! | 3  | `source_id`      | Utf8      | yes      |
-//! | 4  | `target_id`      | Utf8      | yes      |
-//! | 5  | `action_id`      | Utf8      | yes      |
-//! | 6  | `damage`         | Float64   | yes      |
-//! | 7  | `crit`           | Boolean   | yes      |
-//! | 8  | `element`        | Utf8      | yes      |
-//! | 9  | `anomaly_gauge`  | Float64   | yes      |
-//! | 10 | `stun_dmg`       | Float64   | yes      |
-//! | 11 | `buff_id`        | Utf8      | yes      |
-//! | 12 | `buff_value`     | Float64   | yes      |
-//! | 13 | `coordinated_flag`| Boolean  | yes      |
-//! | 14 | `timestamp`      | Int64     | yes      |
+//! | 0  | `sim_index`      | Int64     | 否       |
+//! | 1  | `tick`           | UInt64    | 否       |
+//! | 2  | `event_type`     | Utf8      | 否       |
+//! | 3  | `source_id`      | Utf8      | 是       |
+//! | 4  | `target_id`      | Utf8      | 是       |
+//! | 5  | `action_id`      | Utf8      | 是       |
+//! | 6  | `damage`         | Float64   | 是       |
+//! | 7  | `crit`           | Boolean   | 是       |
+//! | 8  | `element`        | Utf8      | 是       |
+//! | 9  | `anomaly_gauge`  | Float64   | 是       |
+//! | 10 | `stun_dmg`       | Float64   | 是       |
+//! | 11 | `buff_id`        | Utf8      | 是       |
+//! | 12 | `buff_value`     | Float64   | 是       |
+//! | 13 | `coordinated_flag`| Boolean  | 是       |
+//! | 14 | `timestamp`      | Int64     | 是       |
 
 use std::fs::File;
 use std::path::Path;
@@ -38,16 +38,16 @@ use parquet::file::properties::WriterProperties;
 use zsim_core::combat::parallel::SimResult;
 use zsim_core::events::signals::EventType;
 
-/// Compute a simulated timestamp from a tick count.
+/// 从 tick 计数计算模拟时间戳。
 ///
-/// Assumes 60 ticks / second → `tick * 1000 / 60` milliseconds.
-/// Returns `None` for unreasonably large ticks to avoid overflow.
+/// 假设 60 ticks / 秒 → `tick * 1000 / 60` 毫秒。
+/// 对于不合理的大 tick 值返回 `None` 以避免溢出。
 fn tick_to_timestamp(tick: u64) -> Option<i64> {
     let ms = tick.checked_mul(1000)? / 60;
     i64::try_from(ms).ok()
 }
 
-/// Build the 15‑column Parquet schema for simulation results.
+/// 构建模拟结果的 15 列 Parquet 模式。
 fn build_schema() -> Schema {
     Schema::new(vec![
         Field::new("sim_index", DataType::Int64, false),
@@ -68,12 +68,12 @@ fn build_schema() -> Schema {
     ])
 }
 
-/// Convert an [`EventType`] to its string representation for Parquet storage.
+/// 将 [`EventType`] 转换为其字符串表示形式以用于 Parquet 存储。
 fn event_type_to_string(et: &EventType) -> String {
     format!("{et:?}")
 }
 
-/// Convert a single [`SimResult`] into an Arrow [`RecordBatch`] (one row‑group).
+/// 将单个 [`SimResult`] 转换为 Arrow [`RecordBatch`]（一个行组）。
 fn result_to_batch(result: &SimResult, schema: &Schema) -> Result<RecordBatch> {
     let n = result.events.len();
 
@@ -94,55 +94,55 @@ fn result_to_batch(result: &SimResult, schema: &Schema) -> Result<RecordBatch> {
     let mut timestamp_builder = Int64Builder::with_capacity(n);
 
     for event in &result.events {
-        // sim_index (not null, Int64)
+        // sim_index（不可空，Int64）
         sim_index_builder.append_value(result.sim_index as i64);
 
-        // tick (not null, UInt64)
+        // tick（不可空，UInt64）
         tick_builder.append_value(event.tick);
 
-        // event_type (not null, Utf8)
+        // event_type（不可空，Utf8）
         event_type_builder.append_value(event_type_to_string(&event.event_type));
 
-        // source_id (nullable Utf8)
+        // source_id（可空 Utf8）
         append_optional_string(&mut source_id_builder, event.source_id.as_deref());
 
-        // target_id (nullable Utf8)
+        // target_id（可空 Utf8）
         append_optional_string(&mut target_id_builder, event.target_id.as_deref());
 
-        // action_id (nullable Utf8)
+        // action_id（可空 Utf8）
         append_optional_string(&mut action_id_builder, event.action_id.as_deref());
 
-        // damage (nullable Float64)
+        // damage（可空 Float64）
         append_optional_f64(&mut damage_builder, event.damage);
 
-        // crit (nullable Boolean)
+        // crit（可空 Boolean）
         match event.is_crit {
             Some(v) => crit_builder.append_value(v),
             None => crit_builder.append_null(),
         }
 
-        // element (nullable Utf8)
+        // element（可空 Utf8）
         append_optional_string(&mut element_builder, event.element.as_deref());
 
-        // anomaly_gauge (nullable Float64)
+        // anomaly_gauge（可空 Float64）
         append_optional_f64(&mut anomaly_gauge_builder, event.anomaly_gauge);
 
-        // stun_dmg (nullable Float64)
+        // stun_dmg（可空 Float64）
         append_optional_f64(&mut stun_dmg_builder, event.stun_dmg);
 
-        // buff_id (nullable Utf8)
+        // buff_id（可空 Utf8）
         append_optional_string(&mut buff_id_builder, event.buff_id.as_deref());
 
-        // buff_value (nullable Float64)
+        // buff_value（可空 Float64）
         append_optional_f64(&mut buff_value_builder, event.buff_value);
 
-        // coordinated_flag (nullable Boolean)
+        // coordinated_flag（可空 Boolean）
         match event.coordinated_flag {
             Some(v) => coordinated_flag_builder.append_value(v),
             None => coordinated_flag_builder.append_null(),
         }
 
-        // timestamp (nullable Int64) — derived from tick
+        // timestamp（可空 Int64）— 从 tick 派生
         match tick_to_timestamp(event.tick) {
             Some(ts) => timestamp_builder.append_value(ts),
             None => timestamp_builder.append_null(),
@@ -188,12 +188,12 @@ fn append_optional_f64(builder: &mut Float64Builder, value: Option<f64>) {
     }
 }
 
-// ── High‑level convenience API ────────────────────────────────────────
+// ── 高级便捷 API ──────────────────────────────────────────────────
 
-/// Write all simulation results to a Parquet file at `output_path`.
+/// 将所有模拟结果写入 `output_path` 处的 Parquet 文件。
 ///
-/// The file is created or overwritten.  Each [`SimResult`] becomes its own
-/// row‑group, enabling per‑sim partial reads during aggregation.
+/// 文件会被创建或覆盖。每个 [`SimResult`] 成为其自己的
+/// 行组，从而在聚合期间支持按模拟的部分读取。
 pub fn write_results(results: Vec<SimResult>, output_path: &Path) -> Result<()> {
     let mut writer = ParquetWriter::new(output_path)?;
     writer.write_batch(&results)?;
@@ -201,9 +201,9 @@ pub fn write_results(results: Vec<SimResult>, output_path: &Path) -> Result<()> 
     Ok(())
 }
 
-// ── Streaming / append‑mode API ───────────────────────────────────────
+// ── 流式 / 追加模式 API ────────────────────────────────────────────
 
-/// Streaming Parquet writer that supports multiple `write_batch` calls.
+/// 支持多次 `write_batch` 调用的流式 Parquet 写入器。
 ///
 /// ```ignore
 /// let mut writer = ParquetWriter::new("out.parquet")?;
@@ -212,17 +212,16 @@ pub fn write_results(results: Vec<SimResult>, output_path: &Path) -> Result<()> 
 /// writer.close()?;
 /// ```
 ///
-/// Each `write_batch` call writes one or more row‑groups.  The file is not
-/// finalized until [`close`](ParquetWriter::close) is called.
+/// 每次 `write_batch` 调用写入一个或多个行组。文件在调用 [`close`](ParquetWriter::close) 之前不会被最终确定。
 pub struct ParquetWriter {
     writer: Option<ArrowWriter<File>>,
     schema: SchemaRef,
 }
 
 impl ParquetWriter {
-    /// Create a new Parquet writer for the given output path.
+    /// 为给定的输出路径创建新的 Parquet 写入器。
     ///
-    /// The file is created immediately (truncating if it exists).
+    /// 文件会立即创建（如果存在则截断）。
     pub fn new(output_path: &Path) -> Result<Self> {
         let file = File::create(output_path)
             .with_context(|| format!("Failed to create Parquet file: {}", output_path.display()))?;
@@ -243,9 +242,9 @@ impl ParquetWriter {
         })
     }
 
-    /// Write a batch of results to the file.
+    /// 将一批结果写入文件。
     ///
-    /// Each [`SimResult`] becomes one row‑group.  May be called multiple times.
+    /// 每个 [`SimResult`] 成为一个行组。可多次调用。
     pub fn write_batch(&mut self, results: &[SimResult]) -> Result<()> {
         let writer = self.writer.as_mut().expect("ParquetWriter already closed");
 
@@ -254,8 +253,8 @@ impl ParquetWriter {
             writer
                 .write(&batch)
                 .context("Failed to write RecordBatch to Parquet")?;
-            // Force a row‑group boundary after each SimResult so that
-            // every simulation's events live in its own row‑group.
+            // 在每个 SimResult 之后强制添加行组分界，以便
+            // 每个模拟的事件都位于其自己的行组中。
             writer
                 .flush()
                 .context("Failed to flush Parquet row group")?;
@@ -264,9 +263,9 @@ impl ParquetWriter {
         Ok(())
     }
 
-    /// Finalise the Parquet file and close the writer.
+    /// 最终确定 Parquet 文件并关闭写入器。
     ///
-    /// After calling this, no further writes are possible.
+    /// 调用此方法后，无法再进行写入操作。
     pub fn close(&mut self) -> Result<()> {
         if let Some(writer) = self.writer.take() {
             writer.close().context("Failed to close Parquet writer")?;
@@ -276,6 +275,7 @@ impl ParquetWriter {
 }
 
 impl Drop for ParquetWriter {
+    // 析构时自动关闭写入器
     fn drop(&mut self) {
         if self.writer.is_some() {
             let _ = self.close();
@@ -283,7 +283,7 @@ impl Drop for ParquetWriter {
     }
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────
+// ── 测试 ─────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -295,7 +295,7 @@ mod tests {
     use zsim_core::combat::runner::LoggedEvent;
 
     // ------------------------------------------------------------------
-    // Helpers
+    // 辅助函数
     // ------------------------------------------------------------------
 
     fn make_event(
@@ -366,7 +366,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Schema tests
+    // 模式测试
     // ------------------------------------------------------------------
 
     #[test]
@@ -414,7 +414,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Basic write + read
+    // 基本写入 + 读取
     // ------------------------------------------------------------------
 
     #[test]
@@ -477,7 +477,7 @@ mod tests {
         let row_groups = count_row_groups(&path).expect("count row groups");
         assert_eq!(row_groups, 3, "should have 3 row groups (one per result)");
 
-        // Verify total data via reader
+        // 通过读取器验证总数据量
         let (_schema, batches) = read_parquet(&path).expect("read should succeed");
         let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
         assert_eq!(total_rows, 3, "should have 3 total rows");
@@ -496,7 +496,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Data integrity
+    // 数据完整性
     // ------------------------------------------------------------------
 
     #[test]
@@ -540,7 +540,7 @@ mod tests {
         let batch = &batches[0];
         assert_eq!(batch.num_rows(), 3);
 
-        // Check sim_index column
+        // 检查 sim_index 列
         let sim_col = batch
             .column(0)
             .as_any()
@@ -550,7 +550,7 @@ mod tests {
         assert_eq!(sim_col.value(1), 7);
         assert_eq!(sim_col.value(2), 7);
 
-        // Check tick column
+        // 检查 tick 列
         let tick_col = batch
             .column(1)
             .as_any()
@@ -560,7 +560,7 @@ mod tests {
         assert_eq!(tick_col.value(1), 5);
         assert_eq!(tick_col.value(2), 10);
 
-        // Check event_type column
+        // 检查 event_type 列
         let et_col = batch
             .column(2)
             .as_any()
@@ -570,7 +570,7 @@ mod tests {
         assert_eq!(et_col.value(1), "DamageDealt");
         assert_eq!(et_col.value(2), "AnomalyTriggered");
 
-        // Check source_id
+        // 检查 source_id
         let src_col = batch
             .column(3)
             .as_any()
@@ -580,7 +580,7 @@ mod tests {
         assert_eq!(src_col.value(1), "char_1");
         assert_eq!(src_col.value(2), "char_0");
 
-        // Check damage
+        // 检查 damage
         let dmg_col = batch
             .column(6)
             .as_any()
@@ -590,7 +590,7 @@ mod tests {
         assert!((dmg_col.value(1) - 999.9).abs() < 1e-9);
         assert!((dmg_col.value(2) - 2500.0).abs() < 1e-9);
 
-        // Check crit (is_crit)
+        // 检查 crit（is_crit）
         let crit_col = batch
             .column(7)
             .as_any()
@@ -602,7 +602,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Null handling
+    // 空值处理
     // ------------------------------------------------------------------
 
     #[test]
@@ -632,14 +632,14 @@ mod tests {
         let batch = &batches[0];
         assert_eq!(batch.num_rows(), 1);
 
-        // Check all nullable columns are null at row 0
-        // Columns 3-13 are nullable and should be null.
-        // Column 14 (timestamp) is derived from tick=0 → 0ms, so it is NOT null.
+        // 检查所有可空列在第 0 行是否为 null
+        // 第 3-13 列是可空的，应为 null。
+        // 第 14 列（timestamp）从 tick=0 推导 → 0ms，因此不为 null。
         for col_idx in 3..=13 {
             let col = batch.column(col_idx);
             assert!(col.is_null(0), "column {col_idx} should be null");
         }
-        // Verify timestamp (col 14) is non-null since tick=0 gives timestamp=0
+        // 验证 timestamp（第 14 列）不为 null，因为 tick=0 得到 timestamp=0
         let ts_col = batch
             .column(14)
             .as_any()
@@ -676,7 +676,7 @@ mod tests {
         let batch = &batches[0];
         assert_eq!(batch.num_rows(), 1);
 
-        // Check extended fields
+        // 检查扩展字段
         let el_col = batch
             .column(8)
             .as_any()
@@ -719,7 +719,7 @@ mod tests {
             .unwrap();
         assert!(!cf_col.value(0));
 
-        // Check timestamp derived from tick=5: 5*1000/60 = 83
+        // 检查从 tick=5 推导的时间戳：5*1000/60 = 83
         let ts_col = batch
             .column(14)
             .as_any()
@@ -729,21 +729,21 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Timestamp derivation
+    // 时间戳推导
     // ------------------------------------------------------------------
 
     #[test]
     fn test_tick_to_timestamp_values() {
         assert_eq!(tick_to_timestamp(0), Some(0));
-        assert_eq!(tick_to_timestamp(60), Some(1000)); // 60 ticks = 1 sec
-        assert_eq!(tick_to_timestamp(30), Some(500)); // 30 ticks = 0.5 sec
-        assert_eq!(tick_to_timestamp(18000), Some(300000)); // 18000 ticks = 5 min
-                                                            // Verify rounding: 1 tick = 16.666... ms, stored as integer = 16
+        assert_eq!(tick_to_timestamp(60), Some(1000)); // 60 ticks = 1 秒
+        assert_eq!(tick_to_timestamp(30), Some(500)); // 30 ticks = 0.5 秒
+        assert_eq!(tick_to_timestamp(18000), Some(300000)); // 18000 ticks = 5 分钟
+                                                            // 验证舍入：1 tick = 16.666... 毫秒，存储为整数 = 16
         assert_eq!(tick_to_timestamp(1), Some(16)); // 1 * 1000 / 60 = 16
     }
 
     // ------------------------------------------------------------------
-    // Event type string conversion
+    // 事件类型字符串转换
     // ------------------------------------------------------------------
 
     #[test]
@@ -766,7 +766,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Streaming / append mode
+    // 流式 / 追加模式
     // ------------------------------------------------------------------
 
     #[test]
@@ -775,7 +775,7 @@ mod tests {
 
         let mut writer = ParquetWriter::new(&path).expect("create writer");
 
-        // First batch
+        // 第一批次
         let batch1 = vec![make_result(
             0,
             42,
@@ -793,7 +793,7 @@ mod tests {
         )];
         writer.write_batch(&batch1).expect("first batch");
 
-        // Second batch (append)
+        // 第二批次（追加）
         let batch2 = vec![make_result(
             1,
             43,
@@ -824,8 +824,8 @@ mod tests {
 
         writer.close().expect("close");
 
-        // Read back and verify both batches present
-        // batch1 → 1 SimResult → 1 row group; batch2 → 1 SimResult → 1 row group
+        // 读取回并验证两个批次都存在
+        // batch1 → 1 个 SimResult → 1 个行组；batch2 → 1 个 SimResult → 1 个行组
         let row_groups = count_row_groups(&path).expect("count row groups");
         assert_eq!(row_groups, 2, "should have 2 row groups (1 + 1)");
 
@@ -835,14 +835,14 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Multiple events per result
+    // 每个结果多个事件
     // ------------------------------------------------------------------
 
     #[test]
     fn test_large_result_set() {
         let path = temp_path("large.parquet");
 
-        // Create a result with 1000 events
+        // 创建一个包含 1000 个事件的结果
         let events: Vec<LoggedEvent> = (0..1000)
             .map(|i| {
                 make_event(
@@ -874,14 +874,13 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Compression property
+    // 压缩属性
     // ------------------------------------------------------------------
 
     #[test]
     fn test_writer_uses_zstd() {
-        // Verify that the WriterProperties include Zstd compression.
-        // We construct a writer and check its properties indirectly by
-        // writing data and reading it back successfully.
+        // 验证 WriterProperties 包含 Zstd 压缩。
+        // 我们通过写入数据并成功读回来间接构建写入器并检查其属性。
         let path = temp_path("compression.parquet");
         let events = vec![make_event(
             0,
@@ -895,17 +894,17 @@ mod tests {
         let results = vec![make_result(0, 0, 1, "comp_test", events)];
         write_results(results, &path).expect("write");
 
-        // Just verify the file is valid parquet
+        // 仅验证文件是有效的 parquet
         let (_schema, batches) = read_parquet(&path).expect("read");
         assert_eq!(batches.len(), 1);
 
-        // Verify the file is smaller than uncompressed would be (small sanity check)
+        // 验证文件比未压缩时小（小型合理性检查）
         let metadata = fs::metadata(&path).expect("metadata");
         assert!(metadata.len() > 0, "file should have content");
     }
 
     // ------------------------------------------------------------------
-    // Error handling
+    // 错误处理
     // ------------------------------------------------------------------
 
     #[test]
@@ -915,7 +914,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Empty results list
+    // 空结果列表
     // ------------------------------------------------------------------
 
     #[test]
@@ -928,7 +927,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Drop behavior (auto-close)
+    // 析构行为（自动关闭）
     // ------------------------------------------------------------------
 
     #[test]
@@ -947,10 +946,10 @@ mod tests {
             let results = vec![make_result(0, 0, 1, "drop", events)];
             let mut writer = ParquetWriter::new(&path).expect("create");
             writer.write_batch(&results).expect("write");
-            // writer drops here — should auto-close
+            // writer 在此处被析构——应自动关闭
         }
 
-        // File should be valid parquet after drop
+        // 析构后文件应为有效的 parquet
         let (_schema, batches) = read_parquet(&path).expect("read after drop");
         assert_eq!(batches.len(), 1);
         assert_eq!(batches[0].num_rows(), 1);

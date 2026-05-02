@@ -7,7 +7,7 @@ use crate::entities::character::Character;
 use crate::entities::enemy::EnemyState;
 use crate::entities::enums::{SkillType, SpecialtyTag};
 
-/// Categories of resources that can fail validation.
+/// 可能验证失败的资源类别。
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResourceType {
     Energy,
@@ -20,7 +20,7 @@ pub enum ResourceType {
     RoleRequirement,
 }
 
-/// Structured error returned when a resource validation check fails.
+/// 资源验证检查失败时返回的结构化错误。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValidationError {
     pub action_id: String,
@@ -41,18 +41,17 @@ impl fmt::Display for ValidationError {
 
 impl std::error::Error for ValidationError {}
 
-/// Pre-execution resource validator that screens skill execution eligibility.
+/// 执行前资源验证器，筛选技能执行资格。
 ///
-/// Tracks skill cooldowns and validates 8 resource dimensions before
-/// allowing an action to proceed.
+/// 追踪技能冷却时间，并在允许动作执行前验证 8 个资源维度。
 #[derive(Debug, Clone)]
 pub struct ResourceValidator {
-    /// Maps action_id -> tick when that skill's cooldown expires.
+    /// 映射 action_id -> 该技能冷却过期时的 tick。
     cooldowns: HashMap<String, u64>,
 }
 
 impl ResourceValidator {
-    /// Create a new validator with no tracked cooldowns.
+    /// 创建一个没有追踪冷却时间的新验证器。
     pub fn new() -> Self {
         Self {
             cooldowns: HashMap::new(),
@@ -60,10 +59,10 @@ impl ResourceValidator {
     }
 
     // ------------------------------------------------------------------
-    // Cooldown management
+    // 冷却管理
     // ------------------------------------------------------------------
 
-    /// Record a cooldown for an action. No-ops if `cooldown_ticks == 0`.
+    /// 为动作记录冷却时间。如果 `cooldown_ticks == 0` 则不执行任何操作。
     pub fn set_cooldown(&mut self, action_id: &str, cooldown_ticks: u64, current_tick: u64) {
         if cooldown_ticks > 0 {
             self.cooldowns
@@ -71,12 +70,12 @@ impl ResourceValidator {
         }
     }
 
-    /// Manually clear a cooldown (e.g., on cooldown reset or buff).
+    /// 手动清除冷却时间（例如冷却重置或增益效果）。
     pub fn clear_cooldown(&mut self, action_id: &str) {
         self.cooldowns.remove(action_id);
     }
 
-    /// Get remaining cooldown ticks for an action (0 if ready or never set).
+    /// 获取动作的剩余冷却 tick 数（如果就绪或从未设置则为 0）。
     pub fn remaining_cooldown(&self, action_id: &str, current_tick: u64) -> u64 {
         self.cooldowns
             .get(action_id)
@@ -85,10 +84,10 @@ impl ResourceValidator {
     }
 
     // ------------------------------------------------------------------
-    // Dimension 1: Energy
+    // 维度 1：能量
     // ------------------------------------------------------------------
 
-    /// Validate the character has enough energy for the skill cost.
+    /// 验证角色有足够的能量支付技能消耗。
     pub fn validate_energy(
         &self,
         character: &Character,
@@ -110,10 +109,10 @@ impl ResourceValidator {
     }
 
     // ------------------------------------------------------------------
-    // Dimension 2: Cooldown
+    // 维度 2：冷却
     // ------------------------------------------------------------------
 
-    /// Validate the skill is off cooldown at the current tick.
+    /// 验证技能在当前 tick 不在冷却中。
     pub fn validate_cooldown(
         &self,
         action_id: &str,
@@ -133,13 +132,12 @@ impl ResourceValidator {
     }
 
     // ------------------------------------------------------------------
-    // Dimension 3: HP
+    // 维度 3：HP
     // ------------------------------------------------------------------
 
-    /// Validate the character has enough HP to pay the skill's HP cost.
+    /// 验证角色有足够的 HP 支付技能的 HP 消耗。
     ///
-    /// Uses strict greater-than for HP — 0 HP means dead, and costs must
-    /// leave the character alive.
+    /// 使用严格的大于检查 HP —— 0 HP 意味着死亡，消耗后角色必须存活。
     pub fn validate_hp(
         &self,
         character: &Character,
@@ -161,10 +159,10 @@ impl ResourceValidator {
     }
 
     // ------------------------------------------------------------------
-    // Dimension 4: Decibel
+    // 维度 4：Decibel
     // ------------------------------------------------------------------
 
-    /// Validate the on-field character has enough decibel for the skill cost.
+    /// 验证上场角色有足够的 Decibel 支付技能消耗。
     pub fn validate_decibel(
         &self,
         team: &TeamManager,
@@ -187,10 +185,10 @@ impl ResourceValidator {
     }
 
     // ------------------------------------------------------------------
-    // Dimension 5: Chain point
+    // 维度 5：连携点数
     // ------------------------------------------------------------------
 
-    /// Validate the on-field character has at least 1 chain point.
+    /// 验证上场角色至少有 1 个连携点数。
     pub fn validate_chain_point(
         &self,
         action_id: &str,
@@ -210,10 +208,10 @@ impl ResourceValidator {
     }
 
     // ------------------------------------------------------------------
-    // Dimension 6: Switch cooldown
+    // 维度 6：切换冷却
     // ------------------------------------------------------------------
 
-    /// Validate the team switch is not on cooldown.
+    /// 验证队伍切换不在冷却中。
     pub fn validate_switch_cooldown(
         &self,
         action_id: &str,
@@ -232,13 +230,12 @@ impl ResourceValidator {
     }
 
     // ------------------------------------------------------------------
-    // Dimension 7: Anomaly state (enemy immunity check)
+    // 维度 7：异常状态（敌人免疫检查）
     // ------------------------------------------------------------------
 
-    /// Validate the enemy is not immune to the character's element.
+    /// 验证敌人对角色的元素没有免疫。
     ///
-    /// A resistance of 0.0 means full immunity — the character cannot
-    /// trigger anomalies on this enemy.
+    /// 抗性为 0.0 表示完全免疫 —— 角色无法对该敌人触发异常。
     pub fn validate_anomaly_state(
         &self,
         character: &Character,
@@ -258,29 +255,28 @@ impl ResourceValidator {
     }
 
     // ------------------------------------------------------------------
-    // Dimension 8: Role (specialty requirement)
+    // 维度 8：角色（专长要求）
     // ------------------------------------------------------------------
 
-    /// Define which specialties are allowed for restricted skill types.
+    /// 定义限制技能类型所允许的专长。
     ///
-    /// `None` means the skill type has no role restriction.
+    /// `None` 表示该技能类型没有角色限制。
     fn required_specialties(action_type: &SkillType) -> Option<&'static [SpecialtyTag]> {
         match action_type {
-            // Coordinated attacks are only available to off-field roles
+            // 协同攻击仅对下场角色可用
             SkillType::Coordinated => Some(&[
                 SpecialtyTag::Support,
                 SpecialtyTag::Anomaly,
                 SpecialtyTag::Rupture,
             ]),
-            // All other skill types have no role restriction
+            // 所有其他技能类型没有角色限制
             _ => None,
         }
     }
 
-    /// Validate the character's specialty is valid for the skill type.
+    /// 验证角色的专长是否符合技能类型的要求。
     ///
-    /// Most skill types have no restriction. Restricted types
-    /// (e.g., Coordinated) check against an allowlist of specialties.
+    /// 大多数技能类型没有限制。受限类型（例如 Coordinated）对照允许的专长列表进行检查。
     pub fn validate_role(
         &self,
         character: &Character,
@@ -303,20 +299,20 @@ impl ResourceValidator {
     }
 
     // ------------------------------------------------------------------
-    // Aggregated: validate_all
+    // 聚合验证：validate_all
     // ------------------------------------------------------------------
 
-    /// Run all applicable validations and collect every failure.
+    /// 运行所有适用的验证并收集所有失败。
     ///
-    /// Unlike individual validators, this does **not** short-circuit —
-    /// it evaluates all 8 dimensions and returns every error found.
+    /// 与单个验证器不同，这**不会**短路 ——
+    /// 它会评估所有 8 个维度并返回发现的每个错误。
     ///
-    /// **Conditional checks:**
-    /// - Chain point: only checked when `skill.action_type == Chain`.
-    /// - Switch cooldown: only checked for `Assist` / `QuickAssist`.
-    /// - Anomaly state: only checked when `enemy` is `Some`.
+    /// **条件检查：**
+    /// - 连携点数：仅在 `skill.action_type == Chain` 时检查。
+    /// - 切换冷却：仅对 `Assist` / `QuickAssist` 检查。
+    /// - 异常状态：仅在 `enemy` 为 `Some` 时检查。
     ///
-    /// Returns an empty `Vec` when all checks pass.
+    /// 当所有检查通过时返回空的 `Vec`。
     pub fn validate_all(
         &self,
         character: &Character,
@@ -327,12 +323,12 @@ impl ResourceValidator {
     ) -> Vec<ValidationError> {
         let mut errors = Vec::new();
 
-        // 1. Energy
+        // 1. 能量
         if let Err(e) = self.validate_energy(character, skill) {
             errors.push(e);
         }
 
-        // 2. Skill cooldown
+        // 2. 技能冷却
         if let Err(e) = self.validate_cooldown(&skill.action_id, current_tick) {
             errors.push(e);
         }
@@ -347,14 +343,14 @@ impl ResourceValidator {
             errors.push(e);
         }
 
-        // 5. Chain point (relevant for Chain-type skills)
+        // 5. 连携点数（适用于 Chain 类型技能）
         if skill.action_type == SkillType::Chain {
             if let Err(e) = self.validate_chain_point(&skill.action_id, team) {
                 errors.push(e);
             }
         }
 
-        // 6. Switch cooldown (relevant for switch-triggering actions)
+        // 6. 切换冷却（适用于触发切换的动作）
         if matches!(
             skill.action_type,
             SkillType::Assist | SkillType::QuickAssist
@@ -364,14 +360,14 @@ impl ResourceValidator {
             }
         }
 
-        // 7. Anomaly state (requires enemy context)
+        // 7. 异常状态（需要敌人上下文）
         if let Some(enemy) = enemy {
             if let Err(e) = self.validate_anomaly_state(character, enemy) {
                 errors.push(e);
             }
         }
 
-        // 8. Role
+        // 8. 角色
         if let Err(e) = self.validate_role(character, skill) {
             errors.push(e);
         }
@@ -394,7 +390,7 @@ mod tests {
     use crate::entities::models::BaseStats;
 
     // ------------------------------------------------------------------
-    // Helpers
+    // 辅助函数
     // ------------------------------------------------------------------
 
     fn make_character(
@@ -477,7 +473,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Cooldown management (5 tests)
+    // 冷却管理（5 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -519,7 +515,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // validate_energy (2 tests)
+    // validate_energy（2 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -555,7 +551,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // validate_hp (3 tests)
+    // validate_hp（3 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -598,7 +594,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // validate_decibel (2 tests)
+    // validate_decibel（2 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -622,7 +618,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // validate_chain_point (2 tests)
+    // validate_chain_point（2 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -644,7 +640,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // validate_switch_cooldown (2 tests)
+    // validate_switch_cooldown（2 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -666,7 +662,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // validate_anomaly_state (2 tests)
+    // validate_anomaly_state（2 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -694,7 +690,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // validate_cooldown (2 tests)
+    // validate_cooldown（2 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -713,7 +709,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // validate_role (3 tests)
+    // validate_role（3 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -760,7 +756,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // validate_all (9 tests)
+    // validate_all（9 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -903,7 +899,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Integration: full flow with cooldown lifecycle (2 tests)
+    // 集成：完整流程与冷却生命周期（2 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -921,7 +917,7 @@ mod tests {
         team.characters[0].resources.energy = 50.0;
         let enemy = make_enemy();
 
-        // All checks should pass
+        // 所有检查应该通过
         let errors = v.validate_all(&character, &skill, &team, 0, Some(&enemy));
         assert!(
             errors.is_empty(),
@@ -929,16 +925,16 @@ mod tests {
             errors
         );
 
-        // Execute skill: set cooldown
+        // 执行技能：设置冷却
         let mut v = v;
         v.set_cooldown(&skill.action_id, skill.cooldown_ticks, 0);
 
-        // Immediate re-use should fail cooldown
+        // 立即复用应该触发冷却失败
         let errors = v.validate_all(&character, &skill, &team, 5, Some(&enemy));
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].missing_resource, ResourceType::SkillCooldown);
 
-        // After cooldown expires, should pass again
+        // 冷却过期后，应该再次通过
         let errors = v.validate_all(&character, &skill, &team, 15, Some(&enemy));
         assert!(
             errors.is_empty(),
@@ -958,7 +954,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Error display & trait impl (2 tests)
+    // 错误显示与 trait 实现（2 个测试）
     // ------------------------------------------------------------------
 
     #[test]
@@ -987,7 +983,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Default impl
+    // 默认实现
     // ------------------------------------------------------------------
 
     #[test]

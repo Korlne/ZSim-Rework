@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-/// Eight buff categories covering all combat stat domains.
+/// 覆盖所有战斗属性领域的八种增益类别。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BuffCategory {
     Stat,
@@ -13,18 +13,18 @@ pub enum BuffCategory {
     Special,
 }
 
-/// How stacking behaves when the same buff is re-applied.
+/// 当同一增益被重新施加时的叠层行为。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StackType {
-    /// New application replaces the existing buff entirely (refresh duration).
+    /// 新施加完全替换现有增益（刷新持续时间）。
     Replace,
-    /// Each application adds one stack up to max_stacks (refresh duration).
+    /// 每次施加增加一层叠层，最高至 max_stacks（刷新持续时间）。
     Additive,
-    /// Each application creates an independent instance (no stacking limit).
+    /// 每次施加创建一个独立的实例（无叠层上限）。
     Independent,
 }
 
-/// A single stat modifier within a buff.
+/// 增益内单个属性修改器。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModifierEntry {
     pub stat_name: String,
@@ -40,7 +40,7 @@ impl ModifierEntry {
     }
 }
 
-/// Template / blueprint for a buff loaded from data.
+/// 从数据加载的增益模板/蓝图。
 #[derive(Debug, Clone, PartialEq)]
 pub struct BuffData {
     pub buff_id: String,
@@ -80,7 +80,7 @@ impl BuffData {
     }
 }
 
-/// An active buff instance on a character, tracking stacks and remaining time.
+/// 角色身上的活跃增益实例，追踪叠层数和剩余时间。
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActiveBuff {
     pub data: BuffData,
@@ -89,9 +89,9 @@ pub struct ActiveBuff {
     pub applied_at_tick: u64,
 }
 
-/// Aggregated effective stat modifiers for a character.
+/// 角色的聚合有效属性修正值。
 ///
-/// All values default to 0.0 — callers add the snapshot to base stats.
+/// 所有值默认为 0.0 —— 调用者将此快照加到基础属性上。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ModifierSnapshot {
     pub atk_flat: f64,
@@ -112,7 +112,7 @@ pub struct ModifierSnapshot {
 }
 
 impl ModifierSnapshot {
-    /// Sum two snapshots together (commutative).
+    /// 将两个快照相加（可交换）。
     pub fn combine(&self, other: &ModifierSnapshot) -> ModifierSnapshot {
         ModifierSnapshot {
             atk_flat: self.atk_flat + other.atk_flat,
@@ -134,7 +134,7 @@ impl ModifierSnapshot {
     }
 }
 
-/// Central buff manager holding active buffs keyed by character ID.
+/// 中心增益管理器，以角色 ID 为键持有所有活跃增益。
 pub struct BuffManager {
     buffs: HashMap<String, Vec<ActiveBuff>>,
 }
@@ -146,16 +146,15 @@ impl BuffManager {
         }
     }
 
-    /// Apply a buff to a character.  Stacking behaviour follows the buff's
-    /// `stack_type`.  When the same `buff_id` already exists on the target
-    /// the existing entry is updated; otherwise a new entry is pushed.
+    /// 向角色施加一个增益。叠层行为遵循增益的 `stack_type`。
+    /// 如果目标上已存在相同的 `buff_id`，则更新现有条目；否则推送新条目。
     pub fn apply_buff(&mut self, character_id: &str, data: BuffData, current_tick: u64) {
         let buff_list = self.buffs.entry(character_id.to_string()).or_default();
 
         match data.stack_type {
             StackType::Replace => {
                 let duration = data.duration_ticks;
-                // Remove any existing buff with the same ID, then push fresh.
+                // 移除任何具有相同 ID 的现有增益，然后推送新的。
                 buff_list.retain(|b| b.data.buff_id != data.buff_id);
                 buff_list.push(ActiveBuff {
                     data,
@@ -195,15 +194,15 @@ impl BuffManager {
         }
     }
 
-    /// Remove all buffs whose remaining duration has reached zero.
+    /// 移除所有剩余持续时间已归零的增益。
     pub fn remove_expired(&mut self, _current_tick: u64) {
         for buff_list in self.buffs.values_mut() {
             buff_list.retain(|b| b.remaining_ticks > 0);
         }
     }
 
-    /// Decrement remaining ticks for every active buff by one.
-    /// Call once per simulation tick.
+    /// 将所有活跃增益的剩余 tick 数减一。
+    /// 每个模拟 tick 调用一次。
     pub fn on_tick(&mut self, _current_tick: u64) {
         for buff_list in self.buffs.values_mut() {
             for buff in buff_list.iter_mut() {
@@ -214,8 +213,8 @@ impl BuffManager {
         }
     }
 
-    /// Aggregate all active buff modifiers for a character into a single snapshot.
-    /// Flat stats are multiplied by stack count; percentage stats are summed once per buff.
+    /// 聚合角色所有活跃增益的修改器为一个快照。
+    /// 固定值属性乘以叠层数；百分比属性每个增益只加一次。
     pub fn get_effective_modifiers(&self, character_id: &str) -> ModifierSnapshot {
         let mut snap = ModifierSnapshot::default();
 
@@ -249,7 +248,7 @@ impl BuffManager {
         snap
     }
 
-    /// Return the number of active buffs across all characters.
+    /// 返回所有角色的活跃增益总数。
     pub fn total_active_buffs(&self) -> usize {
         self.buffs.values().map(|v| v.len()).sum()
     }
@@ -272,7 +271,7 @@ mod tests {
             .with_modifier("atk_flat", 50.0)
     }
 
-    // ── apply_buff ──────────────────────────────────────────────────────
+    // ── 施加增益 ─────────────────────────────────────────────────────────
 
     #[test]
     fn test_apply_buff_replace() {
@@ -283,7 +282,7 @@ mod tests {
         let snap = mgr.get_effective_modifiers("char_A");
         assert_eq!(snap.atk_flat, 50.0);
 
-        // Re-apply same buff — replace should override.
+        // 重新施加同一增益 — 替换模式应覆盖。
         let buff2 = BuffData::new("buff_atk_20", BuffCategory::Stat, StackType::Replace)
             .with_duration(100)
             .with_modifier("atk_flat", 80.0);
@@ -305,10 +304,10 @@ mod tests {
         mgr.apply_buff("char_A", buff.clone(), 0);
         mgr.apply_buff("char_A", buff.clone(), 0);
         mgr.apply_buff("char_A", buff.clone(), 0);
-        mgr.apply_buff("char_A", buff, 0); // 4th — should cap at max_stacks
+        mgr.apply_buff("char_A", buff, 0); // 第 4 次 — 应达到 max_stacks 上限
 
         let snap = mgr.get_effective_modifiers("char_A");
-        // 3 stacks × 30 flat = 90
+        // 3 层 × 30 固定值 = 90
         assert_eq!(snap.atk_flat, 90.0);
         assert_eq!(mgr.total_active_buffs(), 1);
     }
@@ -323,13 +322,13 @@ mod tests {
         mgr.apply_buff("char_A", buff.clone(), 0);
         mgr.apply_buff("char_A", buff, 0);
 
-        // Two independent entries — their mods add up.
+        // 两个独立条目 — 它们的修改器累加。
         let snap = mgr.get_effective_modifiers("char_A");
         assert_eq!(snap.crit_rate, 0.2);
         assert_eq!(mgr.total_active_buffs(), 2);
     }
 
-    // ── remove_expired ──────────────────────────────────────────────────
+    // ── 移除过期增益 ─────────────────────────────────────────────────────
 
     #[test]
     fn test_remove_expired_clears_zero_duration() {
@@ -337,7 +336,7 @@ mod tests {
         let buff = BuffData::new("temp", BuffCategory::Stat, StackType::Replace).with_duration(3);
         mgr.apply_buff("char_A", buff, 0);
 
-        // Manually drain remaining_ticks
+        // 手动耗尽 remaining_ticks
         mgr.on_tick(1);
         mgr.on_tick(2);
         mgr.on_tick(3);
@@ -357,12 +356,12 @@ mod tests {
         mgr.remove_expired(1);
 
         let snap = mgr.get_effective_modifiers("char_A");
-        // Should still be present (99 ticks remaining).
+        // 应该仍然存在（剩余 99 tick）。
         assert_eq!(mgr.total_active_buffs(), 1);
-        assert_eq!(snap, ModifierSnapshot::default()); // no modifiers on this buff
+        assert_eq!(snap, ModifierSnapshot::default()); // 该增益上没有修改器
     }
 
-    // ── on_tick ─────────────────────────────────────────────────────────
+    // ── 逐 tick 更新 ────────────────────────────────────────────────────
 
     #[test]
     fn test_on_tick_decrements_remaining() {
@@ -385,12 +384,12 @@ mod tests {
         mgr.apply_buff("char_A", buff, 0);
         mgr.on_tick(1);
         assert_eq!(mgr.buffs.get("char_A").unwrap()[0].remaining_ticks, 0);
-        // Another tick should not underflow (guarded by > 0 check)
+        // 再一个 tick 不应下溢（由 > 0 检查保护）
         mgr.on_tick(2);
         assert_eq!(mgr.buffs.get("char_A").unwrap()[0].remaining_ticks, 0);
     }
 
-    // ── get_effective_modifiers ─────────────────────────────────────────
+    // ── 获取有效修改器 ───────────────────────────────────────────────────
 
     #[test]
     fn test_get_effective_modifiers_empty_for_unknown_character() {
@@ -438,13 +437,13 @@ mod tests {
         mgr.apply_buff("char_A", buff, 0); // 2 stacks
 
         let snap = mgr.get_effective_modifiers("char_A");
-        // atk_flat is multiplied by stacks: 50 * 2 = 100
-        // atk_pct is NOT multiplied by stacks: 0.2 (once per buff)
+        // atk_flat 乘以叠层数：50 * 2 = 100
+        // atk_pct 不乘以叠层数：0.2（每个增益只加一次）
         assert_eq!(snap.atk_flat, 100.0);
         assert_eq!(snap.atk_pct, 0.2);
     }
 
-    // ── Combine ─────────────────────────────────────────────────────────
+    // ── 合并 ────────────────────────────────────────────────────────────
 
     #[test]
     fn test_modifier_snapshot_combine() {
@@ -464,7 +463,7 @@ mod tests {
         assert_eq!(c.crit_rate, 0.05);
     }
 
-    // ── BuffData builder ────────────────────────────────────────────────
+    // ── BuffData 构建器 ──────────────────────────────────────────────────
 
     #[test]
     fn test_buff_data_builder() {
@@ -486,17 +485,17 @@ mod tests {
     #[test]
     fn test_max_stacks_clamped_at_one() {
         let buff =
-            BuffData::new("clamped", BuffCategory::Stat, StackType::Additive).with_max_stacks(0); // should be clamped to 1
+            BuffData::new("clamped", BuffCategory::Stat, StackType::Additive).with_max_stacks(0); // 应被限制为 1
         assert_eq!(buff.max_stacks, 1);
     }
 
-    // ── Full lifecycle ──────────────────────────────────────────────────
+    // ── 完整生命周期 ─────────────────────────────────────────────────────
 
     #[test]
     fn test_buff_full_lifecycle() {
         let mut mgr = BuffManager::new();
 
-        // Apply a short-duration buff and a long-duration buff.
+        // 施加一个短持续时间和一个长持续时间的增益。
         let short_buff = BuffData::new("short", BuffCategory::Stat, StackType::Replace)
             .with_duration(3)
             .with_modifier("atk_flat", 100.0);
@@ -509,7 +508,7 @@ mod tests {
 
         assert_eq!(mgr.total_active_buffs(), 2);
 
-        // Tick 3 times — short buff expires.
+        // 运行 3 个 tick — 短持续时间增益过期。
         for t in 1..=3 {
             mgr.on_tick(t);
         }

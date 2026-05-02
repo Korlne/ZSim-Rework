@@ -1,4 +1,4 @@
-// zsim-cli: Command-line interface for ZSim 2.0 simulation engine.
+// zsim-cli：ZSim 2.0 仿真引擎的命令行界面。
 
 fn main() {
     println!("ZSim 2.0 CLI — Rust Simulation Engine");

@@ -1,23 +1,23 @@
 use serde::{Deserialize, Serialize};
 
-/// A single action entry in an APL track, specifying when to execute which action.
+/// APL 轨道中的单个动作条目，指定在何时执行哪个动作。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActionEntry {
     pub action_id: String,
-    /// Tick at which this action should start executing.
+    /// 该动作应开始执行的 Tick 数。
     pub at: u64,
 }
 
-/// A single track (one character's APL sequence) in an APL plan.
+/// APL 计划中的单个轨道（一个角色的 APL 序列）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Track {
     pub track_id: String,
-    /// The character ID this track is assigned to.
+    /// 此轨道分配到的角色 ID。
     pub char_id: String,
     pub actions: Vec<ActionEntry>,
 }
 
-/// Full APL (Action Priority List) data loaded from data/apl/.
+/// 从 data/apl/ 加载的完整 APL（动作优先级列表）数据。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct APLData {
     pub tracks: Vec<Track>,

@@ -3,15 +3,15 @@ use std::sync::mpsc;
 
 use crate::events::signals::{EventType, GameEvent};
 
-/// Type alias for subscriber receivers.
+/// 订阅者接收器的类型别名。
 pub type EventReceiver = mpsc::Receiver<GameEvent>;
 
-/// Publish-subscribe event bus using `std::sync::mpsc` channels.
+/// 使用 `std::sync::mpsc` 信道的发布-订阅事件总线。
 ///
-/// Each subscriber receives its own dedicated channel.  Publishing
-/// sends a clone of the event to every subscriber of that event type.
-/// When all `EventReceiver` handles are dropped the sender side
-/// detects the disconnect and silently stops forwarding.
+/// 每个订阅者收到自己的专用信道。发布时
+/// 会将事件的克隆发送给该事件类型的每个订阅者。
+/// 当所有 `EventReceiver` 句柄被丢弃时，发送方
+/// 检测到断开连接并静默停止转发。
 pub struct EventBus {
     senders: HashMap<EventType, Vec<mpsc::Sender<GameEvent>>>,
 }
@@ -23,58 +23,58 @@ impl EventBus {
         }
     }
 
-    /// Subscribe to a specific event type.
+    /// 订阅特定事件类型。
     ///
-    /// Returns a dedicated `EventReceiver` that the caller should
-    /// poll (via `try_recv`) or drain each tick.  Dropping the
-    /// receiver automatically cleans up the subscription.
+    /// 返回一个专用的 `EventReceiver`，调用者应在每个
+    /// tick 中轮询（通过 `try_recv`）或清空。丢弃
+    /// 接收器会自动清理订阅。
     pub fn subscribe(&mut self, event_type: EventType) -> EventReceiver {
         let (tx, rx) = mpsc::channel();
         self.senders.entry(event_type).or_default().push(tx);
         rx
     }
 
-    /// Publish an event to ALL subscribers of its `EventType`.
+    /// 向 `EventType` 的所有订阅者发布一个事件。
     ///
-    /// Dead subscribers (those whose `EventReceiver` has been
-    /// dropped) are silently skipped.  If no one is listening the
-    /// event is simply discarded.
+    /// 失效的订阅者（其 `EventReceiver` 已被丢弃的）
+    /// 被静默跳过。如果没有人在监听，
+    /// 事件会被直接丢弃。
     pub fn publish(&self, event: GameEvent) {
         if let Some(senders) = self.senders.get(&event.event_type) {
-            // Remove dead senders while iterating.
+            // 在迭代过程中移除失效的发送者。
             for tx in senders {
-                // send() returns Err when the receiver has been dropped.
+                // send() 在接收器被丢弃时返回 Err。
                 let _ = tx.send(event.clone());
             }
         }
     }
 
-    /// Publish an event with a builder-style payload.
+    /// 使用构建器风格的负载发布一个事件。
     pub fn publish_event(&self, event_type: EventType, tick: u64) {
         self.publish(GameEvent::new(event_type, tick));
     }
 
-    /// Remove all dead subscribers (those whose receivers have been
-    /// dropped).  Called automatically each tick; also exposed for
-    /// explicit cleanup.
+    /// 移除所有失效的订阅者（其接收器已被丢弃的）。
+    /// 每个 tick 自动调用；也暴露出来以便
+    /// 显式清理。
     pub fn cleanup(&mut self) {
         for senders in self.senders.values_mut() {
             senders.retain(|tx| !tx.send(GameEvent::new(EventType::TickStart, 0)).is_err());
-            // Note: the dummy event above was sent only for connectivity
-            // testing.  Real subscribers should ignore it, but to avoid
-            // spurious events we instead use a simpler approach:
+            // 注意：上面的哑事件仅用于连通性测试。
+            // 真正的订阅者应忽略它，但为了避免
+            // 虚假事件，我们转而采用更简单的方法：
         }
-        // Clear and rebuild the subscriber lists using mpsc::Sender's
-        // try_send to test liveness without actually sending.
+        // 清除并使用 mpsc::Sender 的 try_send 重建订阅者列表，
+        // 以测试活跃性而不实际发送消息。
         let mut cleaned: HashMap<EventType, Vec<mpsc::Sender<GameEvent>>> = HashMap::new();
         for (event_type, senders) in self.senders.drain() {
             let live: Vec<_> = senders
                 .into_iter()
                 .filter(|tx| {
-                    // A zero-capacity channel probe would be ideal,
-                    // but mpsc doesn't provide that.  Instead, we
-                    // retain all senders and let send() failures
-                    // during publish handle dead removal lazily.
+                    // 零容量信道探测是理想的方式，
+                    // 但 mpsc 不提供该功能。因此，我们
+                    // 保留所有发送者，让 publish 时的 send()
+                    // 失败来延迟处理失效的移除。
                     true
                 })
                 .collect();
@@ -85,12 +85,12 @@ impl EventBus {
         self.senders = cleaned;
     }
 
-    /// Return the total number of active subscribers across all event types.
+    /// 返回所有事件类型的活跃订阅者总数。
     pub fn subscriber_count(&self) -> usize {
         self.senders.values().map(|v| v.len()).sum()
     }
 
-    /// Check if any subscribers exist for a given event type.
+    /// 检查给定事件类型是否存在任何订阅者。
     pub fn has_subscribers(&self, event_type: &EventType) -> bool {
         self.senders
             .get(event_type)
@@ -153,7 +153,7 @@ mod tests {
         bus.publish(GameEvent::new(EventType::DamageDealt, 5));
 
         assert!(rx_dmg.try_recv().is_ok());
-        assert!(rx_buff.try_recv().is_err()); // no BuffChanged published
+        assert!(rx_buff.try_recv().is_err()); // 未发布 BuffChanged 事件
     }
 
     #[test]
@@ -164,14 +164,14 @@ mod tests {
 
         drop(rx);
 
-        // publish should not panic even with dead subscriber
+        // 即使订阅者已失效，publish 也不应 panic
         bus.publish(GameEvent::new(EventType::ActionStart, 0));
     }
 
     #[test]
     fn test_publish_no_subscribers() {
         let bus = EventBus::new();
-        // Should not panic when no one is listening.
+        // 没有监听者时不应 panic。
         bus.publish(GameEvent::new(EventType::CombatEnd, 100));
     }
 
@@ -235,12 +235,12 @@ mod tests {
         }
         assert_eq!(bus.subscriber_count(), 12);
 
-        // Publish one event of each type.
+        // 每种类型发布一个事件。
         for et in &types {
             bus.publish(GameEvent::new(et.clone(), 0));
         }
 
-        // Each receiver gets exactly one event.
+        // 每个接收器恰好收到一个事件。
         for (et, rx) in &receivers {
             let event = rx.try_recv().expect(&format!("should receive {et:?}"));
             assert_eq!(event.event_type, *et);

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-/// 12 combat attributes for characters and equipment.
-/// Serde aliases maintain backward compatibility with Python-origin JSON field names.
+/// 角色和装备的 12 项战斗属性。
+/// Serde 别名保持与 Python 原始 JSON 字段名的向后兼容性。
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BaseStats {
     #[serde(alias = "atk", default)]
@@ -95,9 +95,9 @@ mod tests {
 
     #[test]
     fn test_deserialize_python_style_json() {
-        // Python BaseStats uses: hp, atk, def_val, impact, anomaly_proficiency,
-        // anomaly_mastery, crit_rate, crit_dmg, pen_ratio, pen_fixed,
-        // energy_regen, energy_gen_rate
+        // Python BaseStats 使用：hp、atk、def_val、impact、anomaly_proficiency、
+        // anomaly_mastery、crit_rate、crit_dmg、pen_ratio、pen_fixed、
+        // energy_regen、energy_gen_rate
         let json = r#"{
             "hp": 8000.0,
             "atk": 1200.0,
@@ -165,7 +165,7 @@ mod tests {
         let stats: BaseStats = serde_json::from_str(json).expect("deserialize");
         assert_eq!(stats.atk, 500.0);
         assert_eq!(stats.hp, 3000.0);
-        assert_eq!(stats.def, 0.0); // default
+        assert_eq!(stats.def, 0.0); // 默认值
         assert_eq!(stats.crit_rate, 0.0);
     }
 }

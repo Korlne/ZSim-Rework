@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use crate::calculation::buff::{BuffCategory, BuffData, BuffManager, StackType};
 use crate::data::equipment::{DiscSet, DriveDisc, EquipmentData, WEngine};
 
-/// Duration assigned to permanent equipment stat buffs (covers max simulation length).
+/// 分配给永久装备属性增益的持续时间（覆盖最大模拟时长）。
 pub const EQUIPMENT_BUFF_DURATION: u64 = 18_000;
 
-/// Per-character equipment assignment: one W-Engine and up to 6 Drive Discs.
+/// 每个角色的装备分配：一把音擎（W-Engine）和最多 6 个驱动盘（Drive Disc）。
 #[derive(Debug, Clone)]
 pub struct CharacterEquipment {
     pub w_engine: Option<WEngine>,
@@ -38,18 +38,17 @@ impl Default for CharacterEquipment {
     }
 }
 
-/// Manages equipment-to-buff translation.
+/// 管理装备到增益的转换。
 ///
-/// Holds per-character equipment assignments and resolves them into buffs
-/// applied via BuffManager.  Disc set definitions are loaded from EquipmentData
-/// so that set-bonus thresholds (2-piece, 4-piece) can be evaluated.
+/// 持有每个角色的装备分配，并将其解析为通过 BuffManager 施加的增益。
+/// 盘片套装定义从 EquipmentData 加载，以便评估套装效果阈值（2 件套、4 件套）。
 pub struct EquipmentManager {
     assignments: HashMap<String, CharacterEquipment>,
     disc_sets: HashMap<String, DiscSet>,
 }
 
 impl EquipmentManager {
-    /// Create a new, empty EquipmentManager.
+    /// 创建一个新的空 EquipmentManager。
     pub fn new() -> Self {
         EquipmentManager {
             assignments: HashMap::new(),
@@ -57,7 +56,7 @@ impl EquipmentManager {
         }
     }
 
-    /// Initialise from full equipment data, loading disc set definitions.
+    /// 从完整的装备数据初始化，加载盘片套装定义。
     pub fn from_equipment_data(data: &EquipmentData) -> Self {
         let disc_sets = data
             .disc_sets
@@ -70,27 +69,27 @@ impl EquipmentManager {
         }
     }
 
-    /// Assign equipment to a character (replaces any existing assignment).
+    /// 为角色分配装备（替换任何现有分配）。
     pub fn equip_character(&mut self, character_id: &str, equipment: CharacterEquipment) {
         self.assignments.insert(character_id.to_string(), equipment);
     }
 
-    /// Get a reference to a character's equipment assignment.
+    /// 获取角色装备分配的引用。
     pub fn get_equipment(&self, character_id: &str) -> Option<&CharacterEquipment> {
         self.assignments.get(character_id)
     }
 
-    /// Remove a character's equipment assignment.
+    /// 移除角色的装备分配。
     pub fn unequip_character(&mut self, character_id: &str) {
         self.assignments.remove(character_id);
     }
 
-    /// Resolve a buff_id string to a BuffData template.
+    /// 将 buff_id 字符串解析为 BuffData 模板。
     ///
-    /// Returns `None` for unknown buff IDs (can be extended externally).
+    /// 对于未知的 buff ID 返回 `None`（可在外部扩展）。
     pub fn resolve_buff(buff_id: &str) -> Option<BuffData> {
         match buff_id {
-            // ── Disc set bonuses ──────────────────────────────────────
+            // ── 盘片套装加成 ───────────────────────────────────────────
             "buff_electric_dmg_10" => Some(
                 BuffData::new(
                     "buff_electric_dmg_10",
@@ -106,11 +105,11 @@ impl EquipmentManager {
                     BuffCategory::Stat,
                     StackType::Replace,
                 )
-                .with_duration(900) // 15 s × 60 fps
+                .with_duration(900) // 15 秒 × 60 fps
                 .with_modifier("atk_pct", 0.20),
             ),
 
-            // ── W-Engine passives ─────────────────────────────────────
+            // ── 音擎被动效果 ───────────────────────────────────────────
             "passive_crit_dmg_20" => Some(
                 BuffData::new(
                     "passive_crit_dmg_20",
@@ -125,7 +124,7 @@ impl EquipmentManager {
         }
     }
 
-    /// Count the number of drive discs per set and return qualifying bonus buff IDs.
+    /// 统计每个套装的驱动盘数量，并返回符合条件的加成增益 ID。
     fn resolve_set_bonuses(&self, drive_discs: &[DriveDisc]) -> Vec<String> {
         let mut set_counts: HashMap<String, usize> = HashMap::new();
         for disc in drive_discs {
@@ -156,10 +155,9 @@ impl EquipmentManager {
         buffs
     }
 
-    /// Map equipment JSON stat names to BuffManager modifier names.
+    /// 将装备 JSON 中的属性名称映射到 BuffManager 的修改器名称。
     ///
-    /// Equipment uses short names like `"atk"` or `"pen_fixed"` while the
-    /// buff system expects `"atk_flat"` / `"pen"`.
+    /// 装备使用短名称如 `"atk"` 或 `"pen_fixed"`，而增益系统期望 `"atk_flat"` / `"pen"`。
     pub fn map_stat_name(name: &str) -> &str {
         match name {
             "hp" => "hp_flat",
@@ -170,8 +168,8 @@ impl EquipmentManager {
         }
     }
 
-    /// Build a single buff with multiple modifiers from a WEngine's base stats.
-    /// Skips zero-valued stats to keep the buff compact.
+    /// 从音擎的基础属性构建一个包含多个修改器的单一增益。
+    /// 跳过零值属性以保持增益的紧凑性。
     fn build_wengine_stats_buff(we: &WEngine) -> Option<BuffData> {
         let buff_id = format!("eq_we_{}_stats", we.id);
         let mut buff = BuffData::new(&buff_id, BuffCategory::Stat, StackType::Replace)
@@ -208,14 +206,14 @@ impl EquipmentManager {
         }
     }
 
-    /// Apply all equipment-derived buffs for a character.
+    /// 为角色施加所有源自装备的增益。
     ///
-    /// * W-Engine base stats are registered as a single multi-modifier buff.
-    /// * W-Engine passive effects are registered as per-id buffs.
-    /// * Drive Disc main stats and sub-stats are registered as stat buffs.
-    /// * Disc set bonuses (2-piece, 4-piece) are evaluated and registered.
+    /// * 音擎的基础属性注册为单个多修改器增益。
+    /// * 音擎的被动效果按 ID 注册为增益。
+    /// * 驱动盘的主属性和副属性注册为属性增益。
+    /// * 盘片套装加成（2 件套、4 件套）被评估并注册。
     ///
-    /// Unknown or unresolvable buff IDs are silently skipped.
+    /// 未知或无法解析的增益 ID 会被静默跳过。
     pub fn apply_equipment_buffs(
         &self,
         character_id: &str,
@@ -226,14 +224,14 @@ impl EquipmentManager {
             return;
         };
 
-        // ── W-Engine ──────────────────────────────────────────────────
+        // ── 音擎 ───────────────────────────────────────────────────────
         if let Some(ref we) = equipment.w_engine {
-            // Base stats → single buff with all non-zero stat modifiers
+            // 基础属性 → 包含所有非零属性修改器的单个增益
             if let Some(stats_buff) = Self::build_wengine_stats_buff(we) {
                 buff_manager.apply_buff(character_id, stats_buff, current_tick);
             }
 
-            // Passive effects
+            // 被动效果
             for passive_id in &we.passive_effects {
                 if let Some(buff) = Self::resolve_buff(passive_id) {
                     buff_manager.apply_buff(character_id, buff, current_tick);
@@ -241,9 +239,9 @@ impl EquipmentManager {
             }
         }
 
-        // ── Drive Discs ───────────────────────────────────────────────
+        // ── 驱动盘 ─────────────────────────────────────────────────────
         for disc in &equipment.drive_discs {
-            // Main stat → single-modifier buff
+            // 主属性 → 单个修改器的增益
             let main_buff_id = format!("eq_dd_{}_main", disc.id);
             let mapped_main = Self::map_stat_name(&disc.main_stat.stat_name);
             let main_buff = BuffData::new(&main_buff_id, BuffCategory::Stat, StackType::Replace)
@@ -251,7 +249,7 @@ impl EquipmentManager {
                 .with_modifier(mapped_main, disc.main_stat.value);
             buff_manager.apply_buff(character_id, main_buff, current_tick);
 
-            // Sub-stats → one independent buff per sub-stat entry
+            // 副属性 → 每个副属性条目一个独立增益
             for sub in &disc.sub_stats {
                 let mapped_sub = Self::map_stat_name(&sub.stat_name);
                 let sub_buff_id = format!("eq_dd_{}_sub_{}", disc.id, sub.stat_name);
@@ -263,7 +261,7 @@ impl EquipmentManager {
             }
         }
 
-        // ── Disc Set Bonuses ──────────────────────────────────────────
+        // ── 盘片套装加成 ───────────────────────────────────────────────
         for buff_id in self.resolve_set_bonuses(&equipment.drive_discs) {
             if let Some(buff) = Self::resolve_buff(&buff_id) {
                 buff_manager.apply_buff(character_id, buff, current_tick);
@@ -271,7 +269,7 @@ impl EquipmentManager {
         }
     }
 
-    /// Return the number of characters with equipment assigned.
+    /// 返回已分配装备的角色数量。
     pub fn total_equipped(&self) -> usize {
         self.assignments.len()
     }
@@ -288,7 +286,7 @@ mod tests {
     use super::*;
     use crate::data::equipment::{DiscBonus, StatEntry};
 
-    // ── Helpers ──────────────────────────────────────────────────────────
+    // ── 辅助函数 ─────────────────────────────────────────────────────────
 
     fn sample_w_engine() -> WEngine {
         WEngine {
@@ -339,7 +337,7 @@ mod tests {
         EquipmentManager::from_equipment_data(&data)
     }
 
-    // ── Basic assignment ─────────────────────────────────────────────────
+    // ── 基础分配 ─────────────────────────────────────────────────────────
 
     #[test]
     fn test_new_manager_is_empty() {
@@ -387,7 +385,7 @@ mod tests {
         assert!(mgr.get_equipment("nobody").is_none());
     }
 
-    // ── Disc set bonus resolution ────────────────────────────────────────
+    // ── 盘片套装加成解析 ─────────────────────────────────────────────────
 
     #[test]
     fn test_no_discs_no_bonuses() {
@@ -451,7 +449,7 @@ mod tests {
     #[test]
     fn test_discs_with_empty_set_id_ignored() {
         let mut mgr = setup_manager_with_sets();
-        // Also add a disc with empty set_id directly
+        // 额外添加一个 set_id 为空的盘片
         mgr.disc_sets.insert(
             "set_no_bonus".into(),
             DiscSet {
@@ -490,7 +488,7 @@ mod tests {
         assert!(buffs.is_empty());
     }
 
-    // ── apply_equipment_buffs (integration with BuffManager) ─────────────
+    // ── 应用装备增益（与 BuffManager 集成）───────────────────────────────
 
     #[test]
     fn test_apply_no_equipment_does_nothing() {
@@ -512,11 +510,11 @@ mod tests {
         mgr.apply_equipment_buffs("char_a", &mut bm, 0);
 
         let snap = bm.get_effective_modifiers("char_a");
-        // W-Engine base stats → atk_flat = 680.0
+        // 音擎基础属性 → atk_flat = 680.0
         assert_eq!(snap.atk_flat, 680.0);
-        // W-Engine passive → crit_dmg +0.20
+        // 音擎被动 → crit_dmg +0.20
         assert_eq!(snap.crit_dmg, 0.20);
-        // 2 buffs: we_stats + we_passive
+        // 2 个增益：音擎属性 + 音擎被动
         assert_eq!(bm.total_active_buffs(), 2);
     }
 
@@ -532,13 +530,13 @@ mod tests {
         mgr.apply_equipment_buffs("char_a", &mut bm, 0);
 
         let snap = bm.get_effective_modifiers("char_a");
-        // 4 discs × hp=1000 main stat each
+        // 4 个盘片 × 每个主属性 hp=1000
         assert_eq!(snap.hp_flat, 4000.0);
-        // 2-pc set bonus
+        // 2 件套套装加成
         assert_eq!(snap.dmg_bonus, 0.10);
-        // 4-pc set bonus
+        // 4 件套套装加成
         assert_eq!(snap.atk_pct, 0.20);
-        // 4 main stat buffs + 2 set bonus buffs
+        // 4 个主属性增益 + 2 个套装加成增益
         assert_eq!(bm.total_active_buffs(), 6);
     }
 
@@ -559,17 +557,17 @@ mod tests {
         mgr.apply_equipment_buffs("char_a", &mut bm, 0);
 
         let snap = bm.get_effective_modifiers("char_a");
-        // W-Engine base stats → atk_flat = 680.0
+        // 音擎基础属性 → atk_flat = 680.0
         assert_eq!(snap.atk_flat, 680.0);
-        // W-Engine passive → crit_dmg +0.20
+        // 音擎被动 → crit_dmg +0.20
         assert_eq!(snap.crit_dmg, 0.20);
-        // 4 discs × hp=1000 main stat
+        // 4 个盘片 × 主属性 hp=1000
         assert_eq!(snap.hp_flat, 4000.0);
-        // 2-pc set bonus
+        // 2 件套套装加成
         assert_eq!(snap.dmg_bonus, 0.10);
-        // 4-pc set bonus
+        // 4 件套套装加成
         assert_eq!(snap.atk_pct, 0.20);
-        // 1 we_stats + 1 we_passive + 4 main stat + 2 set bonus = 8
+        // 1 音擎属性 + 1 音擎被动 + 4 主属性 + 2 套装加成 = 8
         assert_eq!(bm.total_active_buffs(), 8);
     }
 
@@ -585,13 +583,13 @@ mod tests {
         mgr.apply_equipment_buffs("char_a", &mut bm, 0);
 
         let snap = bm.get_effective_modifiers("char_a");
-        // 2 discs × hp=1000 main stat each
+        // 2 个盘片 × 每个主属性 hp=1000
         assert_eq!(snap.hp_flat, 2000.0);
-        // 2-pc only
+        // 仅 2 件套
         assert_eq!(snap.dmg_bonus, 0.10);
-        // 4-pc not applied
+        // 4 件套未生效
         assert_eq!(snap.atk_pct, 0.0);
-        // 2 main stat buffs + 1 set bonus buff = 3
+        // 2 个主属性增益 + 1 个套装加成增益 = 3
         assert_eq!(bm.total_active_buffs(), 3);
     }
 
@@ -616,25 +614,25 @@ mod tests {
         mgr.equip_character("char_a", CharacterEquipment::new().with_drive_discs(discs));
 
         let mut bm = BuffManager::new();
-        // Should not panic — unknown buff IDs are silently skipped.
+        // 不应 panic — 未知的增益 ID 会被静默跳过。
         mgr.apply_equipment_buffs("char_a", &mut bm, 0);
-        // 2 discs × main stat buffs applied, unknown set bonus buff skipped
+        // 2 个盘片 × 主属性增益已应用，未知套装增益被跳过
         assert_eq!(bm.total_active_buffs(), 2);
     }
 
-    // ── Multi-character ──────────────────────────────────────────────────
+    // ── 多角色 ───────────────────────────────────────────────────────────
 
     #[test]
     fn test_multiple_characters_independent_buffs() {
         let mut mgr = setup_manager_with_sets();
 
-        // Character A: W-Engine only
+        // 角色 A：仅音擎
         mgr.equip_character(
             "char_a",
             CharacterEquipment::new().with_w_engine(sample_w_engine()),
         );
 
-        // Character B: 4-piece disc set
+        // 角色 B：4 件套盘片
         let discs = (1..=4)
             .map(|slot| sample_disc("set_thunder_metal", slot))
             .collect();
@@ -656,7 +654,7 @@ mod tests {
         assert_eq!(snap_b.atk_pct, 0.20); // 4-pc set
     }
 
-    // ── resolve_buff ─────────────────────────────────────────────────────
+    // ── 解析增益 ─────────────────────────────────────────────────────────
 
     #[test]
     fn test_resolve_known_buffs() {
@@ -671,7 +669,7 @@ mod tests {
         assert!(EquipmentManager::resolve_buff("").is_none());
     }
 
-    // ── from_equipment_data ──────────────────────────────────────────────
+    // ── 从装备数据初始化 ─────────────────────────────────────────────────
 
     #[test]
     fn test_from_equipment_data_loads_disc_sets() {
@@ -691,7 +689,7 @@ mod tests {
         assert!(mgr.disc_sets.is_empty());
     }
 
-    // ── CharacterEquipment builder ───────────────────────────────────────
+    // ── CharacterEquipment 构建器 ────────────────────────────────────────
 
     #[test]
     fn test_character_equipment_default() {
@@ -707,7 +705,7 @@ mod tests {
         assert_eq!(eq.w_engine.unwrap().id, "we_sharp_storm");
     }
 
-    // ── map_stat_name ──────────────────────────────────────────────────────
+    // ── 属性名称映射 ───────────────────────────────────────────────────────
 
     #[test]
     fn test_map_stat_name_mappings() {
@@ -719,7 +717,7 @@ mod tests {
 
     #[test]
     fn test_map_stat_name_passthrough() {
-        // Names that don't need mapping are returned as-is.
+        // 不需要映射的名称原样返回。
         assert_eq!(EquipmentManager::map_stat_name("crit_rate"), "crit_rate");
         assert_eq!(EquipmentManager::map_stat_name("crit_dmg"), "crit_dmg");
         assert_eq!(
@@ -733,7 +731,7 @@ mod tests {
         assert_eq!(EquipmentManager::map_stat_name(""), "");
     }
 
-    // ── build_wengine_stats_buff ──────────────────────────────────────────
+    // ── 构建音擎属性增益 ──────────────────────────────────────────────────
 
     #[test]
     fn test_build_wengine_stats_buff_all_zeros() {
@@ -776,7 +774,7 @@ mod tests {
         assert!(mod_names.contains(&"crit_dmg"));
     }
 
-    // ── Integration with real equipment data file ────────────────────────
+    // ── 与真实装备数据文件的集成测试 ────────────────────────────────────
 
     #[test]
     fn test_load_real_equipment_and_apply() {
@@ -788,7 +786,7 @@ mod tests {
         let data: EquipmentData = serde_json::from_str(&contents).expect("parse equipment JSON");
         let mut mgr = EquipmentManager::from_equipment_data(&data);
 
-        // Use real Sharp Storm W-Engine (atk=680, crit_rate=0.24).
+        // 使用真实 Sharp Storm 音擎（atk=680, crit_rate=0.24）。
         let we = data
             .w_engines
             .iter()
@@ -796,7 +794,7 @@ mod tests {
             .cloned()
             .expect("we_sharp_storm in data");
 
-        // Use all 6 Thunder Metal discs.
+        // 使用全部 6 个雷霆金属盘片。
         let discs = data
             .drive_discs
             .iter()
@@ -816,11 +814,11 @@ mod tests {
         mgr.apply_equipment_buffs("anby", &mut bm, 0);
 
         let snap = bm.get_effective_modifiers("anby");
-        // Real Sharp Storm: atk=680 baseline, plus disc main/sub atk contributions
+        // 真实 Sharp Storm 音擎：基础 atk=680，加上盘片主/副属性的攻击力贡献
         assert_eq!(snap.atk_flat, 1396.0);
-        // W-Engine passive + disc sub-stats
+        // 音擎被动 + 盘片副属性
         assert_eq!(snap.crit_dmg, 0.57);
-        // 6 Thunder Metal discs → 2-pc (+10% Electric DMG) + 4-pc (ATK +20%)
+        // 6 个 Thunder Metal 盘片 → 2 件套（+10% 电属性伤害）+ 4 件套（攻击力 +20%）
         assert_eq!(snap.dmg_bonus, 0.10);
         assert_eq!(snap.atk_pct, 0.20);
     }

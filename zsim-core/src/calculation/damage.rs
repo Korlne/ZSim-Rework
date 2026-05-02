@@ -1,57 +1,57 @@
 use crate::calculation::rng::RNGManager;
 use crate::entities::enums::ElementTag;
 
-/// Input parameters shared across all 6 calculation modules.
+/// 所有 6 个计算模块共享的输入参数。
 ///
-/// Every field has a clear default so partial initialization works for
-/// tests that only set the fields relevant to the module under test.
+/// 每个字段都有明确的默认值，因此对于只设置被测模块相关字段的测试，
+/// 部分初始化也能正常工作。
 #[derive(Debug, Clone)]
 pub struct CalcInput {
-    // ---- Regular / Anomaly damage ----
+    // ---- 普通 / 异常伤害 ----
     pub atk: f64,
     pub multiplier: f64,
     pub dmg_bonus: f64,
 
-    // ---- Crit ----
+    // ---- 暴击 ----
     pub crit_rate: f64,
     pub crit_dmg: f64,
 
-    // ---- Penetration & Defense ----
+    // ---- 穿透与防御 ----
     pub pen: f64,
     pub pen_ratio: f64,
     pub def: f64,
 
-    // ---- Enemy mitigation ----
-    /// Final resistance multiplier (0.0 = immune, 1.0 = no resistance).
+    // ---- 敌人减伤 ----
+    /// 最终抗性乘数（0.0 = 免疫，1.0 = 无抗性）。
     pub res_factor: f64,
     pub dmg_reduction: f64,
 
-    /// Element for damage typing.
+    /// 伤害类型的元素属性。
     pub element: ElementTag,
 
-    // ---- Anomaly ----
+    // ---- 异常 ----
     pub anomaly_mastery: f64,
     pub anomaly_proficiency: f64,
     pub anomaly_multiplier: f64,
     pub anomaly_dmg_bonus: f64,
-    /// Current buildup gauge on the enemy (before this hit).
+    /// 敌人当前的异常累积值（本次攻击前）。
     pub anomaly_gauge_current: f64,
-    /// Threshold at which the anomaly triggers.
+    /// 异常触发所需的阈值。
     pub anomaly_threshold: f64,
 
-    // ---- Stun ----
+    // ---- 击晕 ----
     pub impact: f64,
     pub daze_multiplier: f64,
     pub daze_bonus: f64,
     pub daze_resistance: f64,
 
-    // ---- Disorder ----
+    // ---- 紊乱 ----
     pub old_gauge: f64,
     pub new_gauge: f64,
     pub disorder_multiplier: f64,
 }
 
-/// Default values for fields not relevant to a particular calc module.
+/// 与特定计算模块无关的字段的默认值。
 impl Default for CalcInput {
     fn default() -> Self {
         Self {
@@ -83,34 +83,34 @@ impl Default for CalcInput {
     }
 }
 
-/// Output produced by any calc module.
+/// 任何计算模块产生的输出。
 ///
-/// Fields not relevant to the calling module are left at their default (zero/false).
+/// 与调用模块无关的字段保持其默认值（零/false）。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct CalcOutput {
-    /// Final damage dealt (regular, anomaly, or disorder).
+    /// 最终造成的伤害（普通、异常或紊乱）。
     pub damage: f64,
-    /// Whether the hit was a critical strike.
+    /// 此次攻击是否为暴击。
     pub is_crit: bool,
-    /// Stun (daze) damage applied to the enemy.
+    /// 对敌人造成的击晕（daze）伤害。
     pub stun_damage: f64,
-    /// Anomaly buildup gauge added by this hit.
+    /// 此次攻击增加的异常累积值。
     pub anomaly_gauge: f64,
-    /// Whether the anomaly gauge reached the threshold.
+    /// 异常累积值是否已达到阈值。
     pub triggered_anomaly: bool,
 }
 
 // ---------------------------------------------------------------------------
-// 1. RegularMul – regular damage formula
+// 1. RegularMul – 普通伤害公式
 // ---------------------------------------------------------------------------
 //
-//   DMG = ATK × multiplier × (1 + DMG_BONUS) × crit_factor × def_factor
-//         × res_factor × (1 - dmg_reduction)
+//   伤害 = 攻击力 × 倍率 × (1 + 伤害加成) × 暴击系数 × 防御系数
+//          × 抗性系数 × (1 - 伤害减免)
 //
-//   crit_factor = 1.0          (non-crit)
-//                 1.0 + CRIT_DMG (crit)
-//   def_factor  = 1.0 / (1.0 + effective_DEF / 1000)
-//   effective_DEF = DEF × (1 - PEN_RATIO) - PEN
+//   暴击系数 = 1.0              （非暴击）
+//               1.0 + 暴击伤害   （暴击）
+//   防御系数 = 1.0 / (1.0 + 有效防御 / 1000)
+//   有效防御 = 防御 × (1 - 穿透比例) - 固定穿透
 
 pub struct RegularMul;
 
@@ -141,12 +141,12 @@ impl RegularMul {
 }
 
 // ---------------------------------------------------------------------------
-// 2. AnomalyMul – anomaly damage formula
+// 2. AnomalyMul – 异常伤害公式
 // ---------------------------------------------------------------------------
 //
-//   DMG = ATK × anomaly_multiplier × proficiency_factor × (1 + anomaly_dmg_bonus)
+//   伤害 = 攻击力 × 异常倍率 × 精通系数 × (1 + 异常伤害加成)
 //
-//   proficiency_factor = 1.0 + ANOMALY_PROFICIENCY / 100
+//   精通系数 = 1.0 + 异常精通 / 100
 
 pub struct AnomalyMul;
 
@@ -167,10 +167,10 @@ impl AnomalyMul {
 }
 
 // ---------------------------------------------------------------------------
-// 3. StunMul – stun (daze) damage formula
+// 3. StunMul – 击晕（daze）伤害公式
 // ---------------------------------------------------------------------------
 //
-//   STUN = IMPACT × daze_multiplier × (1 + daze_bonus) × (1 - daze_resistance)
+//   击晕值 = 冲击力 × 眩晕倍率 × (1 + 眩晕加成) × (1 - 眩晕抗性)
 
 pub struct StunMul;
 
@@ -192,11 +192,11 @@ impl StunMul {
 }
 
 // ---------------------------------------------------------------------------
-// 4. CalAnomaly – anomaly accumulation
+// 4. CalAnomaly – 异常累积
 // ---------------------------------------------------------------------------
 //
-//   gauge_added = ANOMALY_MASTERY × multiplier
-//   triggered   = (gauge_current + gauge_added) >= threshold
+//   累积值 = 异常掌控 × 倍率
+//   是否触发 = (当前累积值 + 新增累积值) >= 阈值
 
 pub struct CalAnomaly;
 
@@ -217,10 +217,10 @@ impl CalAnomaly {
 }
 
 // ---------------------------------------------------------------------------
-// 5. CalDisorder – disorder damage
+// 5. CalDisorder – 紊乱伤害
 // ---------------------------------------------------------------------------
 //
-//   DMG = (old_gauge + new_gauge) × disorder_multiplier
+//   伤害 = (旧累积值 + 新累积值) × 紊乱倍率
 
 pub struct CalDisorder;
 
@@ -239,14 +239,13 @@ impl CalDisorder {
 }
 
 // ---------------------------------------------------------------------------
-// 6. CalPolarityDisorder – polarity disorder damage
+// 6. CalPolarityDisorder – 极性紊乱伤害
 // ---------------------------------------------------------------------------
 //
-//   DMG = (old_gauge + new_gauge) × disorder_multiplier × polarity_factor
+//   伤害 = (旧累积值 + 新累积值) × 紊乱倍率 × 极性系数
 //
-// Polarity disorder occurs when applying an anomaly of one element on top of
-// the same element's anomaly already active.  The 1.5× multiplier is a
-// representative value (actual tuning may vary by character kit).
+// 极性紊乱发生在对已处于活跃状态的同元素异常再次施加该元素异常时。
+// 1.5 倍系数为代表性取值（实际数值可能因角色配置而异）。
 
 pub struct CalPolarityDisorder;
 
@@ -265,16 +264,16 @@ impl CalPolarityDisorder {
 }
 
 // ===========================================================================
-// Tests
+// 测试
 // ===========================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // ---- RegularMul tests ------------------------------------------------
+    // ---- RegularMul 测试 ------------------------------------------------
 
-    /// Basic non-crit hit with simple values.
+    /// 使用简单值的基础非暴击攻击。
     #[test]
     fn test_regular_mul_basic() {
         let mut rng = RNGManager::new(1);
@@ -288,14 +287,14 @@ mod tests {
             ..Default::default()
         };
         // effective_def = 500, def_factor = 1/1.5 ≈ 0.6666667
-        // dmg = 1000 × 2 × 1.3 × 1 × 0.6666667 × 1 × 1 ≈ 1733.333...
+        // 伤害 = 1000 × 2 × 1.3 × 1 × 0.6666667 × 1 × 1 ≈ 1733.333...
         let out = RegularMul.calc(&input, &mut rng);
         let expected = 1000.0 * 2.0 * 1.3 * (1.0 / 1.5);
         assert!(!out.is_crit);
         assert!((out.damage - expected).abs() < 1e-9);
     }
 
-    /// Crit hit should apply crit_dmg multiplier.
+    /// 暴击应应用暴击伤害倍率。
     #[test]
     fn test_regular_mul_crit() {
         let mut rng = RNGManager::new(42);
@@ -311,14 +310,14 @@ mod tests {
         };
         let out = RegularMul.calc(&input, &mut rng);
         assert!(out.is_crit);
-        assert!((out.damage - 2500.0).abs() < 1e-9); // 1000 × 2.5
+        assert!((out.damage - 2500.0).abs() < 1e-9); // 1000 × 2.5 = 2500
     }
 
-    /// Penetration reduces effective defense.
+    /// 穿透减少有效防御。
     #[test]
     fn test_regular_mul_pen() {
         let mut rng = RNGManager::new(1);
-        // With 50% PEN_RATIO: effective_def = 500 * 0.5 = 250
+        // 50% 穿透比例下：effective_def = 500 * 0.5 = 250
         // def_factor = 1/1.25 = 0.8
         let input = CalcInput {
             atk: 1000.0,
@@ -335,7 +334,7 @@ mod tests {
         assert!((out.damage - expected).abs() < 1e-9);
     }
 
-    /// Resistance and damage reduction both reduce final damage.
+    /// 抗性和伤害减免都会减少最终伤害。
     #[test]
     fn test_regular_mul_resistance_and_dr() {
         let mut rng = RNGManager::new(1);
@@ -345,15 +344,15 @@ mod tests {
             dmg_bonus: 0.0,
             crit_rate: 0.0,
             def: 0.0,
-            res_factor: 0.5,    // 50% resistance
-            dmg_reduction: 0.2, // 20% DR
+            res_factor: 0.5,    // 50% 抗性
+            dmg_reduction: 0.2, // 20% 伤害减免
             ..Default::default()
         };
         let out = RegularMul.calc(&input, &mut rng);
         assert!((out.damage - 400.0).abs() < 1e-9); // 1000 × 0.5 × 0.8
     }
 
-    /// Zero ATK produces zero damage.
+    /// 攻击力为零时造成零伤害。
     #[test]
     fn test_regular_mul_zero_atk() {
         let mut rng = RNGManager::new(1);
@@ -367,7 +366,7 @@ mod tests {
         assert_eq!(out.damage, 0.0);
     }
 
-    /// Same seed, same input → same damage (RNG is deterministic).
+    /// 相同种子、相同输入 → 相同伤害（RNG 是确定性的）。
     #[test]
     fn test_regular_mul_deterministic() {
         let mut rng_a = RNGManager::new(42);
@@ -388,30 +387,30 @@ mod tests {
         assert_eq!(a.is_crit, b.is_crit);
     }
 
-    // ---- AnomalyMul tests ------------------------------------------------
+    // ---- AnomalyMul 测试 ------------------------------------------------
 
-    /// Basic anomaly damage.
+    /// 基础异常伤害。
     #[test]
     fn test_anomaly_mul_basic() {
         let mut rng = RNGManager::new(1);
         let input = CalcInput {
             atk: 2000.0,
             anomaly_multiplier: 5.0,
-            anomaly_proficiency: 100.0, // prof_factor = 2.0
+            anomaly_proficiency: 100.0, // 精通系数 = 2.0
             anomaly_dmg_bonus: 0.3,
             ..Default::default()
         };
         let out = AnomalyMul.calc(&input, &mut rng);
         let expected = 2000.0 * 5.0 * 2.0 * 1.3; // 26000
         assert!((out.damage - expected).abs() < 1e-9);
-        assert!(!out.is_crit); // anomaly never crits
+        assert!(!out.is_crit); // 异常从不暴击
     }
 
-    /// Anomaly proficiency scaling.
+    /// 异常精通缩放。
     #[test]
     fn test_anomaly_mul_proficiency_scaling() {
         let mut rng = RNGManager::new(1);
-        // At 0 proficiency, prof_factor = 1.0
+        // 精通为 0 时，精通系数 = 1.0
         let input = CalcInput {
             atk: 1000.0,
             anomaly_multiplier: 4.0,
@@ -421,7 +420,7 @@ mod tests {
         let out = AnomalyMul.calc(&input, &mut rng);
         assert!((out.damage - 4000.0).abs() < 1e-9);
 
-        // At 200 proficiency, prof_factor = 3.0
+        // 精通为 200 时，精通系数 = 3.0
         let input2 = CalcInput {
             atk: 1000.0,
             anomaly_multiplier: 4.0,
@@ -432,9 +431,9 @@ mod tests {
         assert!((out2.damage - 12000.0).abs() < 1e-9);
     }
 
-    // ---- StunMul tests ---------------------------------------------------
+    // ---- StunMul 测试 ---------------------------------------------------
 
-    /// Basic stun damage.
+    /// 基础击晕伤害。
     #[test]
     fn test_stun_mul_basic() {
         let mut rng = RNGManager::new(1);
@@ -449,7 +448,7 @@ mod tests {
         assert!((out.stun_damage - 250.0).abs() < 1e-9); // 100 × 2 × 1.25
     }
 
-    /// Daze resistance reduces stun damage.
+    /// 眩晕抗性减少击晕伤害。
     #[test]
     fn test_stun_mul_resistance() {
         let mut rng = RNGManager::new(1);
@@ -463,7 +462,7 @@ mod tests {
         assert!((out.stun_damage - 60.0).abs() < 1e-9); // 100 × 1 × 0.6
     }
 
-    /// Zero impact produces zero stun.
+    /// 冲击力为零时造成零击晕。
     #[test]
     fn test_stun_mul_zero_impact() {
         let mut rng = RNGManager::new(1);
@@ -476,9 +475,9 @@ mod tests {
         assert_eq!(out.stun_damage, 0.0);
     }
 
-    // ---- CalAnomaly tests ------------------------------------------------
+    // ---- CalAnomaly 测试 ------------------------------------------------
 
-    /// Basic anomaly gauge accumulation.
+    /// 基础异常累积值累积。
     #[test]
     fn test_cal_anomaly_basic() {
         let mut rng = RNGManager::new(1);
@@ -494,14 +493,14 @@ mod tests {
         assert!(!out.triggered_anomaly);
     }
 
-    /// Gauge reaches threshold → triggered_anomaly = true.
+    /// 累积值达到阈值 → triggered_anomaly = true。
     #[test]
     fn test_cal_anomaly_triggers_at_threshold() {
         let mut rng = RNGManager::new(1);
         let input = CalcInput {
             anomaly_mastery: 80.0,
             multiplier: 1.0,
-            anomaly_gauge_current: 30.0, // 30 + 80 = 110 >= 100
+            anomaly_gauge_current: 30.0, // 30 + 80 = 110 且 110 >= 100
             anomaly_threshold: 100.0,
             ..Default::default()
         };
@@ -509,14 +508,14 @@ mod tests {
         assert!(out.triggered_anomaly);
     }
 
-    /// Exactly at threshold triggers anomaly.
+    /// 恰好达到阈值时触发异常。
     #[test]
     fn test_cal_anomaly_exactly_at_threshold() {
         let mut rng = RNGManager::new(1);
         let input = CalcInput {
             anomaly_mastery: 50.0,
             multiplier: 1.0,
-            anomaly_gauge_current: 50.0, // 50 + 50 = 100 >= 100
+            anomaly_gauge_current: 50.0, // 50 + 50 = 100 且 100 >= 100
             anomaly_threshold: 100.0,
             ..Default::default()
         };
@@ -524,9 +523,9 @@ mod tests {
         assert!(out.triggered_anomaly);
     }
 
-    // ---- CalDisorder tests -----------------------------------------------
+    // ---- CalDisorder 测试 -----------------------------------------------
 
-    /// Basic disorder damage.
+    /// 基础紊乱伤害。
     #[test]
     fn test_cal_disorder_basic() {
         let mut rng = RNGManager::new(1);
@@ -540,7 +539,7 @@ mod tests {
         assert!((out.damage - 700.0).abs() < 1e-9); // (60+80) × 5
     }
 
-    /// Zero gauges produce zero disorder damage.
+    /// 累积值为零时造成零紊乱伤害。
     #[test]
     fn test_cal_disorder_zero_gauges() {
         let mut rng = RNGManager::new(1);
@@ -552,9 +551,9 @@ mod tests {
         assert_eq!(out.damage, 0.0);
     }
 
-    // ---- CalPolarityDisorder tests ---------------------------------------
+    // ---- CalPolarityDisorder 测试 ---------------------------------------
 
-    /// Polarity disorder applies a 1.5× multiplier on top.
+    /// 极性紊乱额外应用 1.5 倍乘数。
     #[test]
     fn test_cal_polarity_disorder_basic() {
         let mut rng = RNGManager::new(1);
@@ -569,9 +568,9 @@ mod tests {
         assert!((out.damage - 1050.0).abs() < 1e-9);
     }
 
-    // ---- Cross-module consistency ----------------------------------------
+    // ---- 跨模块一致性 ---------------------------------------------------
 
-    /// Disorder vs PolarityDisorder: polarity should be 1.5× regular disorder.
+    /// 紊乱 vs 极性紊乱：极性应为普通紊乱的 1.5 倍。
     #[test]
     fn test_polarity_vs_regular_disorder_ratio() {
         let mut rng_a = RNGManager::new(1);
@@ -587,10 +586,10 @@ mod tests {
         assert!((polarity.damage / regular.damage - 1.5).abs() < 1e-9);
     }
 
-    /// RegularMul with 0% crit produces a fixed damage (no RNG dependency).
+    /// RegularMul 在 0% 暴击率下产生固定伤害（无 RNG 依赖）。
     #[test]
     fn test_regular_mul_zero_crit_deterministic() {
-        // Two different RNG seeds, but 0% crit → same result.
+        // 两个不同的 RNG 种子，但 0% 暴击率 → 相同结果。
         let mut rng_a = RNGManager::new(1);
         let mut rng_b = RNGManager::new(999);
         let input = CalcInput {
@@ -609,13 +608,12 @@ mod tests {
         assert!(!b.is_crit);
     }
 
-    /// Precision: all calculations use f64 and should be within 1e-9 of
-    /// hand-computed reference values.
+    /// 精度：所有计算均使用 f64，应与手动计算的参考值在 1e-9 范围内。
     #[test]
     fn test_precision_1e9() {
         let mut rng = RNGManager::new(1);
 
-        // RegularMul: carefully chosen values that avoid floating-point pitfalls.
+        // RegularMul：精心选择的值，避免浮点数陷阱。
         let reg = CalcInput {
             atk: 1234.0,
             multiplier: 3.5,
@@ -631,14 +629,14 @@ mod tests {
         };
         // effective_def = 600 * 0.8 - 50 = 430
         // def_factor = 1 / 1.43 = 0.6993006993...
-        // dmg = 1234 * 3.5 * 1.15 * 1.8 * 0.6993006993 * 0.8 * 0.9
+        // 伤害 = 1234 * 3.5 * 1.15 * 1.8 * 0.6993006993 * 0.8 * 0.9
         let effective_def = f64::max(600.0 * 0.8 - 50.0, 0.0);
         let df = 1.0 / (1.0 + effective_def / 1000.0);
         let expected = 1234.0 * 3.5 * 1.15 * 1.8 * df * 0.8 * 0.9;
         let out = RegularMul.calc(&reg, &mut rng);
         assert!((out.damage - expected).abs() < 1e-9);
 
-        // StunMul
+        // StunMul 测试
         let stun = CalcInput {
             impact: 95.0,
             daze_multiplier: 2.5,
@@ -650,7 +648,7 @@ mod tests {
         let out_stun = StunMul.calc(&stun, &mut rng);
         assert!((out_stun.stun_damage - expected_stun).abs() < 1e-9);
 
-        // AnomalyMul
+        // AnomalyMul 测试
         let anom = CalcInput {
             atk: 1500.0,
             anomaly_multiplier: 6.0,

@@ -1,4 +1,4 @@
-/// The 12 event types dispatched by the simulation engine.
+/// 模拟引擎分发的 12 种事件类型。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EventType {
     TickStart,
@@ -15,17 +15,17 @@ pub enum EventType {
     StunTriggered,
 }
 
-/// A typed game event with payload carried as a JSON value.
+/// 一个携带 JSON 值作为负载的类型化游戏事件。
 #[derive(Debug, Clone)]
 pub struct GameEvent {
     pub event_type: EventType,
-    /// Tick at which the event was generated.
+    /// 事件产生时的 Tick 数。
     pub tick: u64,
-    /// Source entity ID (character or enemy).
+    /// 来源实体 ID（角色或敌人）。
     pub source_id: Option<String>,
-    /// Target entity ID.
+    /// 目标实体 ID。
     pub target_id: Option<String>,
-    /// Flexible JSON payload with event-specific data.
+    /// 包含事件特定数据的灵活 JSON 负载。
     pub payload: Option<serde_json::Value>,
 }
 
