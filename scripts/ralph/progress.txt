@@ -432,3 +432,20 @@ Started: Sat May  2 10:38:49     2026
   - Gotchas encountered: The existing send_to_sidecar was a stub returning a hardcoded response — real sidecar communication required adding stdout to SidecarState and restructuring spawn_sidecar to take ownership of child.stdout. stdin and stdout must be locked in separate scopes to avoid Mutex deadlock. Plotly library must be loaded via CDN with `defer` to ensure it's available before JS runs. Plotly.purge() must be called before removing chart containers to prevent memory leaks.
   - Useful context: The sidecar protocol is synchronous (write command → read one line response). Plotly.js is loaded from CDN in index.html (not bundled via npm), so it's available as a global `Plotly` object. The anomaly timeline requires a per-tick AggQuery for true stacked area chart — current implementation shows grouped bars from aggregated stats.
 ---
+
+## 2026-05-02 13:30 - US-024
+- Implemented data export functionality (HTML + CSV) for the Tauri frontend
+- **main.js**: Added `save` import from `@tauri-apps/plugin-dialog`; `exportHtml()` collects Plotly chart data from all visible containers (`_fullData`/`_fullLayout`) and calls `generateStandaloneHtml()` to create a standalone dark-themed report page with embedded JSON + Plotly.js CDN; `exportCsv()` reads stat-card values from DOM and generates CSV; `enableExport()`/`disableExport()` manage button state
+- **generateStandaloneHtml()**: Creates full standalone HTML document with embedded chart JSON data, Plotly.js CDN v2.35.2, dark theme CSS, responsive charts with scrollZoom
+- **index.html**: Added export-controls div with Export Charts as HTML and Export Summary as CSV buttons
+- **capabilities/default.json**: Added `dialog:allow-save` and `dialog:allow-open` permissions
+- **src-tauri**: Added `write_file` Tauri command for writing exported content to user-selected paths; registered `tauri-plugin-dialog` in lib.rs
+- **Cargo.toml**: Added `tauri-plugin-dialog = "2"` dependency
+- **Export flow**: Analyze completes → enableExport() enables both buttons → click → save dialog → write_file → notification
+- Quality: cargo check + cargo clippy clean, vite build succeeds
+- Files changed: index.html, src/main.js, src-tauri/Cargo.toml, src-tauri/src/lib.rs, src-tauri/capabilities/default.json, scripts/ralph/prd.json, scripts/ralph/progress.txt
+- **Learnings for future iterations:**
+  - Patterns discovered: Tauri v2 dialog plugin uses `@tauri-apps/plugin-dialog` on frontend + `tauri-plugin-dialog` on Rust side with `dialog:allow-save` capability. Plotly `_fullData`/`_fullLayout` provides current state including user zoom/selection modifications — useful for accurate export.
+  - Gotchas encountered: `Plotly.getFigmaData` is not a real API (VSCode autocomplete hallucination). Must check `element.classList.contains("hidden")` before reading `_fullData` to avoid empty chart exports. `dialog:allow-save` permission must be in capabilities/default.json for the save() function to work.
+  - Useful context: Export buttons are disabled until analysis completes. The standalone HTML includes Plotly.js CDN reference (requires internet to render). CSV export reads from DOM stat cards — if card format changes, CSV export must be updated in sync. Full verification requires `cargo tauri dev` for dialog interaction.
+

@@ -391,8 +391,8 @@
         "cargo tauri dev 验证导出功能"
       ],
       "priority": 24,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Export HTML button ('Export Charts as HTML') gathers Plotly chart data from all visible chart containers (_fullData/_fullLayout), generates standalone HTML with embedded JSON + Plotly.js CDN v2.35.2. Export CSV button ('Export Summary as CSV') reads stat-card values from DOM and generates CSV. Both use @tauri-apps/plugin-dialog save() dialog for path selection and write_file Tauri command for writing. generateStandaloneHtml() creates dark-themed standalone report page with all charts rendered in sections. enableExport()/disableExport() manage button state — export enabled after analysis completes. cargo tauri dev required for end-to-end dialog verification."
     },
     {
       "id": "US-024a",
