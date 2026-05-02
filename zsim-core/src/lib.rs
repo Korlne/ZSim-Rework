@@ -3,5 +3,6 @@
 
 pub mod calculation;
 pub mod combat;
+pub mod data;
 pub mod entities;
 pub mod events;

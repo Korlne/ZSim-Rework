@@ -1,0 +1,102 @@
+{
+  "w_engines": [
+    {
+      "id": "we_sharp_storm",
+      "name": "Sharp Storm",
+      "level": 60,
+      "ascension": 6,
+      "base_stats": {
+        "atk": 680.0,
+        "crit_rate": 0.24
+      },
+      "passive_effects": ["passive_crit_dmg_20"]
+    }
+  ],
+  "drive_discs": [
+    {
+      "id": "dd_thunder_1",
+      "slot": 1,
+      "level": 15,
+      "main_stat": {"stat_name": "hp", "value": 2200.0},
+      "sub_stats": [
+        {"stat_name": "atk", "value": 80.0},
+        {"stat_name": "crit_rate", "value": 0.05}
+      ],
+      "set_id": "set_thunder_metal"
+    },
+    {
+      "id": "dd_thunder_2",
+      "slot": 2,
+      "level": 15,
+      "main_stat": {"stat_name": "atk", "value": 316.0},
+      "sub_stats": [
+        {"stat_name": "crit_dmg", "value": 0.12},
+        {"stat_name": "pen_fixed", "value": 30.0},
+        {"stat_name": "anomaly_proficiency", "value": 18.0}
+      ],
+      "set_id": "set_thunder_metal"
+    },
+    {
+      "id": "dd_thunder_3",
+      "slot": 3,
+      "level": 15,
+      "main_stat": {"stat_name": "def", "value": 212.0},
+      "sub_stats": [
+        {"stat_name": "atk", "value": 60.0},
+        {"stat_name": "crit_rate", "value": 0.03},
+        {"stat_name": "hp", "value": 400.0}
+      ],
+      "set_id": "set_thunder_metal"
+    },
+    {
+      "id": "dd_thunder_4",
+      "slot": 4,
+      "level": 15,
+      "main_stat": {"stat_name": "crit_rate", "value": 0.24},
+      "sub_stats": [
+        {"stat_name": "atk", "value": 90.0},
+        {"stat_name": "crit_dmg", "value": 0.15},
+        {"stat_name": "pen_fixed", "value": 25.0}
+      ],
+      "set_id": "set_thunder_metal"
+    },
+    {
+      "id": "dd_thunder_5",
+      "slot": 5,
+      "level": 15,
+      "main_stat": {"stat_name": "hp", "value": 2200.0},
+      "sub_stats": [
+        {"stat_name": "atk", "value": 70.0},
+        {"stat_name": "crit_dmg", "value": 0.10},
+        {"stat_name": "energy_regen", "value": 0.15}
+      ],
+      "set_id": "set_thunder_metal"
+    },
+    {
+      "id": "dd_thunder_6",
+      "slot": 6,
+      "level": 15,
+      "main_stat": {"stat_name": "energy_regen", "value": 0.6},
+      "sub_stats": [
+        {"stat_name": "atk", "value": 100.0},
+        {"stat_name": "crit_rate", "value": 0.06},
+        {"stat_name": "anomaly_proficiency", "value": 21.0}
+      ],
+      "set_id": "set_thunder_metal"
+    }
+  ],
+  "disc_sets": [
+    {
+      "set_id": "set_thunder_metal",
+      "name": "Thunder Metal",
+      "two_piece_bonus": {
+        "description": "+10% Electric DMG",
+        "buff_id": "buff_electric_dmg_10"
+      },
+      "four_piece_bonus": {
+        "description": "When the equipping character deals Electric DMG, increases ATK by 20% for 15s.",
+        "buff_id": "buff_thunder_atk_20"
+      }
+    }
+  ]
+}

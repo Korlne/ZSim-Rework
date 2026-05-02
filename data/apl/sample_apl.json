@@ -1,0 +1,18 @@
+{
+  "tracks": [
+    {
+      "track_id": "track_01",
+      "char_id": "anby_demara",
+      "actions": [
+        {"action_id": "Attack_Normal_1", "at": 0},
+        {"action_id": "Attack_Normal_2", "at": 30},
+        {"action_id": "Attack_Normal_3", "at": 70},
+        {"action_id": "Skill_Ex_1", "at": 120},
+        {"action_id": "Dodge_1", "at": 170},
+        {"action_id": "Attack_Normal_1", "at": 195},
+        {"action_id": "Attack_Normal_2", "at": 225},
+        {"action_id": "Ultimate_1", "at": 300}
+      ]
+    }
+  ]
+}

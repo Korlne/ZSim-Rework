@@ -1,0 +1,121 @@
+[
+  {
+    "action_id": "Attack_Normal_1",
+    "action_type": "Normal",
+    "damage_multipliers": [
+      {"frame": 8, "multiplier": 0.5},
+      {"frame": 16, "multiplier": 0.7}
+    ],
+    "daze_multiplier": 0.4,
+    "hit_frames": [8, 16],
+    "invincible_frames": [],
+    "interruptible_frame": 25,
+    "is_snapshot": false,
+    "charge_branches": [],
+    "prerequisite_action_id": null,
+    "hp_cost": 0.0,
+    "energy_cost": 0.0,
+    "decibel_cost": 0.0,
+    "cooldown_ticks": 0,
+    "animation_frames": 30
+  },
+  {
+    "action_id": "Attack_Normal_2",
+    "action_type": "Normal",
+    "damage_multipliers": [
+      {"frame": 10, "multiplier": 0.6},
+      {"frame": 20, "multiplier": 0.8},
+      {"frame": 30, "multiplier": 1.1}
+    ],
+    "daze_multiplier": 0.5,
+    "hit_frames": [10, 20, 30],
+    "invincible_frames": [],
+    "interruptible_frame": 35,
+    "is_snapshot": false,
+    "charge_branches": [],
+    "prerequisite_action_id": "Attack_Normal_1",
+    "hp_cost": 0.0,
+    "energy_cost": 0.0,
+    "decibel_cost": 0.0,
+    "cooldown_ticks": 0,
+    "animation_frames": 40
+  },
+  {
+    "action_id": "Attack_Normal_3",
+    "action_type": "Normal",
+    "damage_multipliers": [
+      {"frame": 12, "multiplier": 0.8},
+      {"frame": 24, "multiplier": 1.2},
+      {"frame": 36, "multiplier": 1.5}
+    ],
+    "daze_multiplier": 0.7,
+    "hit_frames": [12, 24, 36],
+    "invincible_frames": [],
+    "interruptible_frame": 45,
+    "is_snapshot": false,
+    "charge_branches": [],
+    "prerequisite_action_id": "Attack_Normal_2",
+    "hp_cost": 0.0,
+    "energy_cost": 0.0,
+    "decibel_cost": 0.0,
+    "cooldown_ticks": 0,
+    "animation_frames": 50
+  },
+  {
+    "action_id": "Skill_Ex_1",
+    "action_type": "Special",
+    "damage_multipliers": [
+      {"frame": 15, "multiplier": 3.0},
+      {"frame": 30, "multiplier": 4.0}
+    ],
+    "daze_multiplier": 2.5,
+    "hit_frames": [15, 30],
+    "invincible_frames": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    "interruptible_frame": 45,
+    "is_snapshot": false,
+    "charge_branches": [],
+    "prerequisite_action_id": null,
+    "hp_cost": 0.0,
+    "energy_cost": 40.0,
+    "decibel_cost": 0.0,
+    "cooldown_ticks": 8,
+    "animation_frames": 50
+  },
+  {
+    "action_id": "Ultimate_1",
+    "action_type": "Ultimate",
+    "damage_multipliers": [
+      {"frame": 25, "multiplier": 6.0},
+      {"frame": 50, "multiplier": 8.0}
+    ],
+    "daze_multiplier": 5.0,
+    "hit_frames": [25, 50],
+    "invincible_frames": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    "interruptible_frame": 90,
+    "is_snapshot": true,
+    "charge_branches": [],
+    "prerequisite_action_id": null,
+    "hp_cost": 0.0,
+    "energy_cost": 0.0,
+    "decibel_cost": 3000.0,
+    "cooldown_ticks": 0,
+    "animation_frames": 90
+  },
+  {
+    "action_id": "Dodge_1",
+    "action_type": "Dodge",
+    "damage_multipliers": [],
+    "daze_multiplier": 0.0,
+    "hit_frames": [],
+    "invincible_frames": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+    "interruptible_frame": 25,
+    "is_snapshot": false,
+    "charge_branches": [],
+    "prerequisite_action_id": null,
+    "hp_cost": 0.0,
+    "energy_cost": 0.0,
+    "decibel_cost": 0.0,
+    "cooldown_ticks": 0,
+    "animation_frames": 25
+  }
+]
