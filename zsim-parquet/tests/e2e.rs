@@ -5,7 +5,6 @@
 //! 它们还验证种子的可复现性。
 
 use std::collections::HashMap;
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
