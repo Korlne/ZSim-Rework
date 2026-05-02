@@ -279,8 +279,8 @@
         "cargo test 通过"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "ParquetWriter in zsim-parquet/src/writer.rs with 15-column schema (sim_index/tick/event_type/source_id/target_id/action_id/damage/crit/element/anomaly_gauge/stun_dmg/buff_id/buff_value/coordinated_flag/timestamp), Compression::ZSTD(ZstdLevel(3)), one row-group per SimResult via ArrowWriter.flush(). Streaming ParquetWriter struct supports append mode (multiple write_batch calls). 17 tests cover schema, roundtrip, null handling, extended fields, append mode, large data, drop auto-close, and error handling. LoggedEvent extended with 6 optional payload fields (element, anomaly_gauge, stun_dmg, buff_id, buff_value, coordinated_flag). zsim-core added as dependency of zsim-parquet."
     },
     {
       "id": "US-018",

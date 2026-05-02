@@ -20,6 +20,9 @@ Started: Sat May  2 10:38:49     2026
 - W-Engine base stats and Drive Disc main/sub stats should be registered as individual buffs with unique IDs to allow the BuffManager to aggregate them correctly.
 - CoordinatedActionSystem pattern: `last_trigger_tick: Option<u64>` for per-listener cooldown — `None` means first trigger always allowed. This avoids the off-by-one bug where initializing `last_trigger_tick = 0` blocks the first trigger when cooldown > 0. Cooldown check: `current_tick < last + cooldown_ticks`, skip if `None`.
 - CoordinatedListener trait with `Debug` supertrait makes `Box<dyn CoordinatedListener>` implement `Debug` automatically (vtable dispatch).
+- Parquet writer pattern: `ArrowWriter::flush()` creates row-group boundaries. `Compression::ZSTD` takes `ZstdLevel` (newtype), not `Option<i32>`, in parquet 55. Use `SerializedFileReader` for metadata row-group counts (reader merges on read).
+- LoggedEvent has 6 optional extended payload fields (element, anomaly_gauge, stun_dmg, buff_id, buff_value, coordinated_flag) that can be populated as events are generated for richer Parquet output.
+- zsim-parquet crate depends on zsim-core for type access (SimResult, LoggedEvent, EventType).
 ---
 ## 2026-05-02 11:00 - US-005
 - Implemented 6 damage calculation modules in zsim-core/src/calculation/damage.rs
@@ -300,3 +303,20 @@ Started: Sat May  2 10:38:49     2026
   - Gotchas encountered: SimMode doesn't derive Copy, so `mode.clone()` is needed in the rayon closure. Closures in rayon's `.map()` are Fn (not FnOnce), so captured values that aren't Copy must be used by reference or cloned. Wrapping data in Arc avoids the Clone requirement for cross-thread sharing.
   - Useful context: ParallelConfig uses Arc<Vec<Character>> and Arc<HashMap<String, SkillData>> for zero-cost sharing, but each par_iter iteration still clones the data for its local SimConfig (since SimulationRunner::run takes ownership). For very large skill maps, a future optimization could make SimulationRunner accept Arc references directly.
 ---
+
+## 2026-05-02 22:00 - US-017
+- Implemented ParquetWriter in zsim-parquet/src/writer.rs
+- 15-column Parquet schema: sim_index/tick/event_type/source_id/target_id/action_id/damage/crit/element/anomaly_gauge/stun_dmg/buff_id/buff_value/coordinated_flag/timestamp
+- Compression::ZSTD(ZstdLevel(3)) via parquet WriterProperties
+- One row-group per SimResult via ArrowWriter::flush() after each SimResult batch
+- write_results() convenience function plus streaming ParquetWriter struct with write_batch()/close() for append mode
+- LoggedEvent extended with 6 optional payload fields (element, anomaly_gauge, stun_dmg, buff_id, buff_value, coordinated_flag)
+- zsim-core added as dependency of zsim-parquet for type access
+- tick_to_timestamp() helper derives tick * 1000 / 60 ms timestamps
+- 17 new tests: schema validation (15 columns, names, non-nullable), basic write+read, multi-result row groups, empty events, all-nullable, extended field roundtrip, timestamp derivation, event type string format, append mode (2 batches), large data (1000 events), compression validity, invalid path error, empty results, drop auto-close
+- Files changed: zsim-core/src/combat/runner.rs (LoggedEvent +6 fields, 2 construction sites), zsim-parquet/Cargo.toml (+zsim-core dep), zsim-parquet/src/writer.rs (placeholder to full ParquetWriter with 17 tests), scripts/ralph/prd.json (US-017 passes:true)
+- All 372 tests pass (355 core + 17 parquet), clippy clean for zsim-parquet, fmt clean
+- **Learnings for future iterations:**
+  - Patterns discovered: ArrowWriter::flush() creates row-group boundaries -- call after each SimResult's RecordBatch. WriterProperties.set_compression() takes ZstdLevel (not Option<i32>) in parquet 55. SerializedFileReader (from parquet::file::serialized_reader) provides metadata().num_row_groups() for true row-group counts (ParquetRecordBatchReaderBuilder merges row groups on read).
+  - Gotchas encountered: The default max_row_group_size in ArrowWriter is very large, so all batches get combined into one row group unless flush() is called explicitly. Compression::ZSTD takes ZstdLevel (a newtype), not Option<i32> or i32. LoggedEvent's new fields must be explicitly set at both construction sites in runner.rs -- failing to do so causes compiler errors.
+  - Useful context: zsim-parquet now depends on zsim-core for SimResult/LoggedEvent/EventType types. The writer module is self-contained in zsim-parquet/src/writer.rs. EventType to string conversion uses Debug format (PascalCase variant names). Timestamps are derived from tick via tick * 1000 / 60 at 60fps, stored as Int64 milliseconds.

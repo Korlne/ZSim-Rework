@@ -12,3 +12,4 @@ parquet = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 rayon = { workspace = true }
+zsim-core = { path = "../zsim-core" }
