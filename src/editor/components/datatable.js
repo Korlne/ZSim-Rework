@@ -27,7 +27,7 @@ export function createDataTable(columns, rows, options = {}) {
   if (options.onEdit || options.onDelete) {
     const th = document.createElement("th");
     th.className = "col-actions";
-    th.textContent = t("editor.action.actions");
+    th.textContent = "Actions";
     headerRow.appendChild(th);
   }
   thead.appendChild(headerRow);
