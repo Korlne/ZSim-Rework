@@ -165,8 +165,8 @@
         "cargo test 通过"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "GameState struct in combat::game_state with current_tick, team(TeamManager), mode(SimMode), is_terminated, termination_reason. check_termination(enemies, max_tick, apl_exhausted) dynamically computes 4 conditions (enemies dead > characters dead > max tick > APL exhausted) from actual game state rather than pre-set flags. TeamManager in combat::team with all_dead()/alive_count(). Cleared stale top-level state.rs. 17 tests (12 game_state + 5 team), all pass."
     },
     {
       "id": "US-011",

@@ -137,3 +137,34 @@ Started: Sat May  2 10:38:49     2026
   - Patterns discovered: mpsc channels work well for sync event bus -- no async runtime needed. Each subscriber gets a dedicated channel; receiver Drop auto-cleans. No manual disconnect needed.
   - Gotchas encountered: The PRD specified Tokio broadcast, but since the simulation engine is purely synchronous, std::sync::mpsc is more appropriate. EventType has 13 variants (not 12) because StunTriggered was added as a practical bonus.
   - Useful context: EventBus is ready to be wired into AnomalyDisorderManager (US-007), EquipmentManager conditional effects (US-008), and the main simulation loop (US-015).
+---
+## 2026-05-02 15:00 - US-010
+- Implemented GameState in zsim-core/src/state.rs
+- Fields: current_tick(u64), mode(SimMode), is_terminated(bool), termination_reason(Option<String>), max_tick(18000), apl_exhausted, all_enemies_dead, all_characters_dead
+- advance_tick() increments current_tick
+- check_termination() checks 4 conditions in priority order: all enemies dead > all characters dead > max tick > APL exhausted
+- terminate(reason) sets is_terminated=true with reason string
+- reset_termination() clears termination state for simulation re-runs
+- 12 tests: initialization, tick advancement, 4 termination conditions, priority ordering, custom max_tick, reset
+- Added pub mod state to lib.rs
+- All 198 tests pass, fmt clean
+- **Learnings for future iterations:**
+  - Patterns discovered: GameState uses boolean flags (all_enemies_dead, all_characters_dead, apl_exhausted) that external systems set before calling check_termination(). This avoids coupling GameState to TeamManager/APLManager internals.
+  - Gotchas encountered: TeamManager is planned for US-011 but not needed for GameState to work — the termination flags are set by external callers. This separation of concerns keeps each US testable independently.
+  - Useful context: max_tick defaults to 18000 per PRD spec. The priority ordering (enemies > characters > max_tick > APL) matters for accurate termination reason reporting.
+---
+## 2026-05-02 16:00 - US-010 (upgraded: dynamic GameState with TeamManager integration)
+- Replaced flag-based GameState in old `state.rs` with proper module at `combat::game_state.rs`
+- GameState struct: current_tick(u64), team(TeamManager), mode(SimMode), is_terminated(bool), termination_reason(Option<String>)
+- `check_termination(enemies, max_tick, apl_exhausted)` computes 4 conditions dynamically from actual game state (enemy HP, team HP, tick count, APL status) instead of pre-set boolean flags
+- `advance_tick()` increments current_tick; `terminate(reason)` sets is_terminated+reason
+- Minimal TeamManager in combat/team.rs: all_dead() and alive_count() query methods via Vec<Character>
+- Removed stale `state.rs` and orphan `pub mod engine;` from lib.rs
+- 17 tests total (12 game_state + 5 team): creation, advance_tick, terminate, all 4 termination conditions, short-circuit on already-terminated, termination priority (enemies > characters > max_tick > APL), edge cases (empty team, zero max_tick)
+- All 186 tests pass, clippy clean (0 new warnings), fmt clean
+- Files changed: zsim-core/src/combat/game_state.rs (new), zsim-core/src/combat/team.rs (minimal impl), zsim-core/src/combat/mod.rs (+game_state), zsim-core/src/lib.rs (removed state, engine), zsim-core/src/state.rs (deleted), scripts/ralph/prd.json (notes updated)
+- **Learnings for future iterations:**
+  - Patterns discovered: Dynamic check_termination(enemies, max_tick, apl_exhausted) avoids stale pre-set flags — termination conditions are computed on-demand from the actual game state. TeamManager minimal pattern: provide core query methods (all_dead, alive_count) needed by dependent stories, deferring full mechanics.
+  - Gotchas encountered: The old `state.rs` in the lib root was orphan/duplicate — always check for pre-existing files in the module tree before creating new ones. The old `lib.rs` also had a dangling `pub mod engine;` reference with no corresponding file.
+  - Useful context: GameState lives in `combat::game_state` (not top-level `state`), consistent with other combat systems. TeamManager is a dependency of GameState (not the other way around), so TeamManager's minimal API was extracted as part of US-010.
+---
