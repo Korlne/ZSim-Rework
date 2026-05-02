@@ -5,6 +5,7 @@
 - Vite + Vanilla JS is the minimal frontend setup: `vite.config.js`, `index.html` at root, JS in `src/`
 - `src-tauri/` can be a Rust workspace member without conflicts on Windows
 - Sidecar processes: manage via `tauri::State` with `Mutex<Option<Child>>` + `Mutex<Option<ChildStdin>>`
+- **Import module pattern**: Each data type has its own `import_<type>()` function in `import.rs`. They take `&Connection` and `data_dir: &Path`, return `ImportResult { success, errors }`. Use zsim-core's existing entity structs for JSON deserialization (they already have correct serde annotations for the data files). Convert enums to strings via `serde_json::to_value()` + `as_str()`. Store complex nested data (constellations, resistances, tracks) as JSON TEXT in SQLite. Use `INSERT OR REPLACE` for idempotent reimport.
 
 ---
 ## 2026-05-02 23:45 - US-019
@@ -39,4 +40,20 @@
   - Gotchas encountered: The acceptance criterion references `tauri::api::process::Command::new_sidecar()` which is Tauri v1 API. Tauri v2 uses `tauri-plugin-shell` for sidecar management. Implemented with `std::process::Command` wrapped in `tauri::State` for the scaffold.
   - Useful context: `src-tauri/` works fine as a Rust workspace member. `beforeDevCommand` runs from the workspace root. The `dist/` directory must exist at project root for `cargo tauri build`. Tauri v2 capabilities/permissions are in `src-tauri/capabilities/default.json` using the standard permission identifiers.
   - Frontend context: Vite config needs `envPrefix: ["VITE_", "TAURI_"]` and `server.strictPort: true` for Tauri integration. The `@tauri-apps/api/core` `invoke()` function handles IPC to Rust commands. Tauri events use `listen()` from `@tauri-apps/api/event`.
+---
+## 2026-05-02 23:56 - US-002
+- Created `src-tauri/src/data_entry/import.rs` with 5 import functions
+- `import_characters`: reads `data/characters/*.json` via zsim-core `Character`, flattens `base_stats` into individual columns, stores constellations/action_dict as JSON TEXT
+- `import_skills`: reads `data/skills/{char_id}.json` via zsim-core `SkillData`, inserts skills + `skill_multipliers` rows per skill with FK cascade
+- `import_equipment`: reads `data/equipment/equipment.json` via zsim-core `EquipmentData`, splits across 3 tables (w_engines, drive_discs, disc_sets)
+- `import_enemies`: reads `data/enemies/*.json` via zsim-core `EnemyState`, stores resistances/weaknesses/anomaly_buildup as JSON TEXT
+- `import_apl`: reads `data/apl/*.json` via zsim-core `APLData`, stores tracks as JSON TEXT
+- Added `zsim-core` as dependency of `src-tauri/Cargo.toml`
+- Added `tempfile` dev-dependency for tests
+- All import functions use `INSERT OR REPLACE` for idempotent reimport
+- Error handling: per-file try/catch with descriptive error messages, continues on malformed files
+- **Learnings for future iterations:**
+  - Patterns discovered: zsim-core entity structs (Character, SkillData, EquipmentData, EnemyState, APLData) can be reused directly for JSON deserialization in the Tauri crate since they have correct serde annotations.
+  - Gotchas encountered: `EnemyState` has no `level` field (not in JSON), so default 60 is used for the SQLite column. `BaseStats.dmg_bonus` maps to `energy_gen_rate` field in character JSON files via serde alias. zsim-core's `Character` has enum fields (`FactionTag`, `SpecialtyTag`, `ElementTag`) that serialize to their serde-rename strings — need `serde_json::to_value()` to extract the string value, not `format!("{:?}")`.
+  - Useful context: The `ImportResult` struct with `success` + `errors` fields provides structured feedback suitable for the Tauri command response. All 11 tests use in-memory SQLite with `tempfile::TempDir` for isolated file I/O.
 ---

@@ -19,3 +19,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
 rusqlite = { version = "0.31", features = ["bundled"] }
+zsim-core = { path = "../zsim-core" }
+
+[dev-dependencies]
+tempfile = "3"

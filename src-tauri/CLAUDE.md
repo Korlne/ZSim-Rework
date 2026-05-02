@@ -31,6 +31,7 @@ Tauri v2 desktop shell for ZSim Analyzer.
 - **Parameterized queries**: Always use `?N` placeholders (e.g., `conn.execute(sql, [param1, param2])`) — never string interpolation for user input.
 - **ID columns**: Integer PKs use `AUTOINCREMENT`, text-based IDs use `TEXT PRIMARY KEY`. Skill+character uniqueness enforced via `UNIQUE(char_id, action_id)`.
 - **JSON in TEXT**: Complex nested data (constellations, resistances, tracks) stored as JSON `TEXT` columns, parsed in the application layer with `serde_json`.
+- **Import module**: `data_entry::import::import_<type>(conn, data_dir)` functions for each data type. Reuse `zsim-core` entity structs (Character, SkillData, EquipmentData, EnemyState, APLData) for JSON deserialization — they already have correct serde annotations. Convert enum fields to strings via `serde_json::to_value().as_str()`. Use `INSERT OR REPLACE` for idempotent reimport. Functions return `ImportResult { success, errors }` with per-file error handling.
 
 ## Dev Setup
 
