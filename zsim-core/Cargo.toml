@@ -1,0 +1,14 @@
+[package]
+name = "zsim-core"
+version = "0.1.0"
+edition = "2021"
+description = "ZSim 2.0 core simulation engine — combat calculation, event bus, state machine"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+rayon = { workspace = true }

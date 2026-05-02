@@ -1,0 +1,15 @@
+[package]
+name = "zsim-pyo3"
+version = "0.1.0"
+edition = "2021"
+description = "ZSim 2.0 PyO3 extension — exposes Rust aggregation to Python sidecar"
+
+[lib]
+name = "zsim_rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+zsim-parquet = { path = "../zsim-parquet" }

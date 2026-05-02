@@ -14,3 +14,9 @@ tests/
 Docs/*.md
 # Virtual environments
 .venv
+
+# Rust
+target/
+*.pyd
+*.so
+*.dylib

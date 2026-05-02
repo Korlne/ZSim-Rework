@@ -1,0 +1,12 @@
+[package]
+name = "zsim-cli"
+version = "0.1.0"
+edition = "2021"
+description = "ZSim 2.0 CLI — command-line interface for running simulations"
+
+[dependencies]
+zsim-core = { path = "../zsim-core" }
+zsim-parquet = { path = "../zsim-parquet" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }

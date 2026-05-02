@@ -1,0 +1,14 @@
+[package]
+name = "zsim-parquet"
+version = "0.1.0"
+edition = "2021"
+description = "ZSim 2.0 Parquet storage layer — columnar write, aggregation, and statistics"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+arrow = { workspace = true }
+parquet = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+rayon = { workspace = true }
