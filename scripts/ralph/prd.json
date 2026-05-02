@@ -118,8 +118,8 @@
         "所有命令使用参数化查询"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现。commit 368d007。enemies.rs 含完整 CRUD（get_enemies/get_enemy/save_enemy/delete_enemy），resistances/weaknesses/anomaly_buildup 为 JSON TEXT 字段，7 个单元测试全部通过。Tauri 命令已注册。"
     },
     {
       "id": "US-008",
@@ -131,8 +131,8 @@
         "使用参数化查询防止 SQL 注入"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现。commit 368d007。queries.rs 含 get_data_summary（7 表统计）+ search_data（跨 5 种类型搜索），使用参数化 LIKE 查询，7 个单元测试全部通过。Tauri 命令已注册。"
     },
     {
       "id": "US-009",
