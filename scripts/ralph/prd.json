@@ -247,8 +247,8 @@
         "侧边栏/表格/表单/弹窗等全部组件覆盖"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现。datatable.js/confirm.js/form.js 中所有硬编码的英文字符串替换为 i18n t() 调用。en-US/zh-CN/ja-JP 三语言添加 editor.action.edit/delete/add/noData/actions/search、editor.confirm.cancel/delete、editor.form.add 等通用 i18n 键。ja-JP 补充 editor.action.actions/editor.confirm.*/editor.form.add 键。zh-CN 与 en-US 补齐之前缺失的 editor.action.* 通用键（相较于 ja-JP）。vite build 通过（29 modules, 0 errors）。"
     }
   ]
 }

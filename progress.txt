@@ -198,7 +198,25 @@
 - skills.js has all 7 acceptance criteria: character dropdown with skill loading, skill table (action_id/type/energy/cooldown/actions), inline edit panel with all basic params, dynamic multiplier rows (add/delete segment/frame/multiplier/decay), effect_id free input, prerequisite action dropdown from existing skills, save/cancel/delete with confirmation
 - Files changed: scripts/ralph/prd.json, progress.txt
 ---
-## 2026-05-03 02:45 - US-012
+## 2026-05-03 03:00 - US-014
+- Implemented frontend data dashboard with quick search box (cross-type search across characters/skills/enemies/w_engines/disc_sets with clickable results that navigate to the corresponding page)
+- Implemented full import page replacing the "coming soon" stub:
+  - Scan Data Directory button calls scan_data_files Tauri command, shows available JSON files grouped by type as tag items
+  - Import mode selection: Overwrite (clear + import) / Append (INSERT OR REPLACE)
+  - Per-type import buttons with progress and result notifications
+  - Import All button: uses reimportAll for overwrite, individual imports for append
+  - Notification feedback for import results (success count + errors)
+- Added scan_data_files Tauri command: scans data/ subdirectories (characters/skills/equipment/enemies/apl) for JSON files, returns grouped file list
+- Added clear_data_type Tauri command: deletes all records for a specific data type (used in overwrite mode)
+- Added scanDataFiles() and clearDataType() API wrappers in api.js
+- Added search-results dropdown CSS (absolute-positioned below search bar with type/id/name display)
+- Added 21 new i18n keys across all 3 locales (5 search + 16 import)
+- Files changed: src-tauri/src/lib.rs, src/editor/pages/dashboard.js, src/editor/pages/import.js, src/editor/styles.css, src/editor/utils/api.js, src/locales/{en-US,zh-CN,ja-JP}.json, scripts/ralph/prd.json
+- cargo check + vite build both pass
+- **Learnings for future iterations:**
+  - Patterns discovered: Import page follows the same component pattern as other editor pages. scan_data_files + clear_data_type provide a clean backend API pair for import workflows. Search results use absolute positioning within .search-bar (which needs position: relative).
+  - Gotchas encountered: JSON files with trailing commas on the last entry cause vite build failures — the en-US file was safe because it had existing keys after the insertion point, but zh-CN/ja-JP needed trailing comma removal. Always verify all 3 locales after edits.
+  - Useful context: reimportAll handles table clearing in FK-safe order for "overwrite all". clear_data_type handles per-type clearing with CASCADE for characters→skills. search_data already supports "all" type for cross-table search.
 - Implemented frontend equipment management page with 3 sub-tabs (W-Engines, Drive Discs, Disc Sets)
 - W-Engines tab: list table (ID/Name/Lv/ATK/Crit Rate/Crit DMG) + inline edit form with all stat fields + passive effects tag input (JSON.stringify array)
 - Drive Discs tab: list table (ID/Slot/Lv/Set/Main Stat) + inline edit form with slot selector 1-6, main stat name/value, 4 dynamic sub-stat rows (name select + value input), set_id text field
@@ -223,4 +241,17 @@
 - **Learnings for future iterations:**
   - Patterns discovered: Enemies page follows the same inline edit pattern as characters/skills/equipment — anti-resistance dynamic rows are nearly identical to equipment sub-stat rows. Weakness tag input follows same pattern as passive effects tag input.
   - Gotchas encountered: The en-US locale already had editor.enemies.* keys but zh-CN and ja-JP did not — always verify all 3 locales.
-  - Useful context: All frontend CRUD pages (characters, skills, equipment, enemies) now share consistent implementation patterns: hash-based routing, inline edit panels, notification helper, confirm dialog for deletes.
+  - Useful context: All frontend CRUD pages (characters, skills, equipment, enemies) now share consistent implementation patterns: hash-based routing, inline edit panels, notification helper, confirm dialog for deletes.---
+## 2026-05-03 03:15 - US-015
+- Replaced all hardcoded English strings in datatable.js ("Actions", "No data", "Edit", "Del") with i18n t() calls
+- Replaced hardcoded defaults in confirm.js ("Cancel", "Delete") with i18n t() calls
+- Replaced hardcoded defaults in form.js ("Save", "Cancel", "Add...") with i18n t() calls
+- Added missing editor.action.edit/delete/add/noData/actions/search keys to en-US and zh-CN (were only in ja-JP)
+- Added editor.confirm.cancel/delete and editor.form.add keys to all 3 locales
+- Added editor.action.actions key to ja-JP (was missing)
+- Files changed: src/editor/components/datatable.js, src/editor/components/confirm.js, src/editor/components/form.js, src/locales/{en-US,zh-CN,ja-JP}.json, scripts/ralph/prd.json
+- **Learnings for future iterations:**
+  - Patterns discovered: The datatable component is the single place where "Actions" column header, "Edit"/"Del" action buttons, and "No data" empty state are rendered — these should always use t() calls to support i18n. Similarly confirm.js and form.js use hardcoded English fallback strings.
+  - Gotchas encountered: The ja-JP locale was ahead of en-US/zh-CN in editor.action.* keys — it had edit/delete/add/noData/search/confirmDelete while en-US and zh-CN only had save/cancel. Always cross-check all 3 locale files against the complete key set when doing i18n work.
+  - Useful context: The i18n.t() function falls back to English (en-US) and then to raw key name, so missing keys in zh-CN/ja-JP silently fall back to English rather than crashing. Always rebuild and visually verify after i18n changes.
+---
