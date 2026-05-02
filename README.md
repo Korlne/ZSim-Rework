@@ -16,6 +16,10 @@ ZSim 是一个面向 **《绝区零 (Zenless Zone Zero)》** 的 combat DPS 模�
 - **数据存储** — 模拟结果以 Apache Parquet 列式格式存储，支持 Zstd 压缩，含 15 字段的规范化事件模式
 - **数据分析** — 支持总伤害、DPS 曲线、伤害构成、异常统计、暴击率统计等聚合查询
 - **桌面 GUI** — Tauri v2 桌面应用，提供可视化操作界面
+- **数据录入系统** — 独立的 Tauri 桌面数据录入界面，支持角色/技能/装备/敌人的可视化 CRUD 管理
+- **SQLite 持久化** — 录入数据通过 SQLite 本地存储，与模拟引擎解耦但数据结构兼容
+- **JSON 导入** — 支持从 JSON 文件批量导入游戏数据（角色/技能/装备/敌人/APL）
+- **数据总览与搜索** — 仪表盘展示数据统计，支持跨表快速搜索
 - **多语言** — 中/英/日三语界面 (i18n)
 - **数据导出** — 支持 HTML 报告和 CSV 导出
 
@@ -35,6 +39,25 @@ zsim-rework/
 ├── zsim-parquet/       # Parquet 列式存储与聚合查询（Rust）
 ├── zsim-pyo3/          # Python 扩展模块，暴露 Rust 聚合接口（Rust → Python）
 ├── src-tauri/          # Tauri v2 桌面应用壳（Rust + Vanilla JS + Vite）
+│   ├── src/
+│   │   └── data_entry/ # 数据录入后端（Rust CRUD + SQLite + JSON 导入导出）
+│   │       ├── db.rs           # SQLite Schema 初始化（8 张业务表）
+│   │       ├── characters.rs   # 角色 CRUD 命令
+│   │       ├── skills.rs       # 技能 CRUD 命令（含倍率段管理）
+│   │       ├── equipment.rs    # 装备 CRUD 命令（音擎/驱动盘/套装）
+│   │       ├── enemies.rs      # 敌人 CRUD 命令
+│   │       ├── queries.rs      # 数据概览与跨表搜索
+│   │       ├── import.rs       # JSON 文件批量导入
+│   │       └── export.rs       # 数据导出（HTML/CSV）
+│   └── ...
+├── src/                # 前端源码（Vanilla JS + Vite）
+│   ├── editor/         # 数据录入前端界面
+│   │   ├── app.js      # 入口文件（hash 路由 + 懒加载页面）
+│   │   ├── pages/      # 页面组件（dashboard/characters/skills/equipment/enemies/import）
+│   │   ├── components/ # 通用组件（sidebar/datatable/form/modal/confirm）
+│   │   └── utils/      # 工具函数（api/validation/format）
+│   ├── i18n.js         # 国际化支持（zh-CN/en-US/ja-JP）
+│   └── ...
 ├── scripts/            # 构建与部署脚本
 ├── data/               # 游戏数据文件（角色、技能、APL 定义）
 └── Docs/               # 项目文档
@@ -63,6 +86,11 @@ graph TB
 
     PARQUET --> PY3[zsim-pyo3<br/>Python 聚合接口<br/>aggregate / summary / dps_curve]
     PARQUET --> TAURI[src-tauri<br/>Tauri v2 桌面应用<br/>Vanilla JS + Vite / Rust 命令 / Python 侧车]
+
+    TAURI --> DE[data_entry<br/>数据录入系统<br/>SQLite CRUD / JSON 导入]
+    DE --> DB[(SQLite<br/>zsim.db)]
+    DE --> FE[editor<br/>录入前端界面<br/>表格 / 表单 / 搜索]
+    DATA -.-> DE
 ```
 
 ### 模拟引擎数据流
@@ -255,6 +283,10 @@ npm run tauri dev
 - [x] Tauri v2 桌面 GUI
 - [x] i18n 多语言支持
 - [x] 数据导出（HTML/CSV）
+- [x] SQLite 数据持久化（8 张业务表 + 元数据表）
+- [x] JSON 批量导入（角色/技能/装备/敌人/APL）
+- [x] 数据录入 CRUD 后端（Rust + Tauri 命令）
+- [x] 数据录入前端界面（角色/技能/装备/敌人管理 + 仪表盘 + 搜索）
 - [ ] 协同攻击系统（完成基础框架，待丰富触发规则）
 - [ ] 邦布独立行动轴与连携判定
 - [ ] 装备驱动盘数据加载与计算
