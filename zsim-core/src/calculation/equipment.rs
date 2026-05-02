@@ -201,7 +201,11 @@ impl EquipmentManager {
         add_if_nonzero!(energy_regen, "energy_regen");
         add_if_nonzero!(dmg_bonus, "dmg_bonus");
 
-        if count > 0 { Some(buff) } else { None }
+        if count > 0 {
+            Some(buff)
+        } else {
+            None
+        }
     }
 
     /// Apply all equipment-derived buffs for a character.
@@ -251,9 +255,10 @@ impl EquipmentManager {
             for sub in &disc.sub_stats {
                 let mapped_sub = Self::map_stat_name(&sub.stat_name);
                 let sub_buff_id = format!("eq_dd_{}_sub_{}", disc.id, sub.stat_name);
-                let sub_buff = BuffData::new(&sub_buff_id, BuffCategory::Stat, StackType::Independent)
-                    .with_duration(EQUIPMENT_BUFF_DURATION)
-                    .with_modifier(mapped_sub, sub.value);
+                let sub_buff =
+                    BuffData::new(&sub_buff_id, BuffCategory::Stat, StackType::Independent)
+                        .with_duration(EQUIPMENT_BUFF_DURATION)
+                        .with_modifier(mapped_sub, sub.value);
                 buff_manager.apply_buff(character_id, sub_buff, current_tick);
             }
         }
@@ -507,8 +512,12 @@ mod tests {
         mgr.apply_equipment_buffs("char_a", &mut bm, 0);
 
         let snap = bm.get_effective_modifiers("char_a");
+        // W-Engine base stats → atk_flat = 680.0
+        assert_eq!(snap.atk_flat, 680.0);
+        // W-Engine passive → crit_dmg +0.20
         assert_eq!(snap.crit_dmg, 0.20);
-        assert_eq!(bm.total_active_buffs(), 1);
+        // 2 buffs: we_stats + we_passive
+        assert_eq!(bm.total_active_buffs(), 2);
     }
 
     #[test]
@@ -523,9 +532,14 @@ mod tests {
         mgr.apply_equipment_buffs("char_a", &mut bm, 0);
 
         let snap = bm.get_effective_modifiers("char_a");
+        // 4 discs × hp=1000 main stat each
+        assert_eq!(snap.hp_flat, 4000.0);
+        // 2-pc set bonus
         assert_eq!(snap.dmg_bonus, 0.10);
+        // 4-pc set bonus
         assert_eq!(snap.atk_pct, 0.20);
-        assert_eq!(bm.total_active_buffs(), 2);
+        // 4 main stat buffs + 2 set bonus buffs
+        assert_eq!(bm.total_active_buffs(), 6);
     }
 
     #[test]
@@ -545,10 +559,18 @@ mod tests {
         mgr.apply_equipment_buffs("char_a", &mut bm, 0);
 
         let snap = bm.get_effective_modifiers("char_a");
+        // W-Engine base stats → atk_flat = 680.0
+        assert_eq!(snap.atk_flat, 680.0);
+        // W-Engine passive → crit_dmg +0.20
         assert_eq!(snap.crit_dmg, 0.20);
+        // 4 discs × hp=1000 main stat
+        assert_eq!(snap.hp_flat, 4000.0);
+        // 2-pc set bonus
         assert_eq!(snap.dmg_bonus, 0.10);
+        // 4-pc set bonus
         assert_eq!(snap.atk_pct, 0.20);
-        assert_eq!(bm.total_active_buffs(), 3);
+        // 1 we_stats + 1 we_passive + 4 main stat + 2 set bonus = 8
+        assert_eq!(bm.total_active_buffs(), 8);
     }
 
     #[test]
@@ -563,9 +585,14 @@ mod tests {
         mgr.apply_equipment_buffs("char_a", &mut bm, 0);
 
         let snap = bm.get_effective_modifiers("char_a");
-        assert_eq!(snap.dmg_bonus, 0.10); // 2-pc only
-        assert_eq!(snap.atk_pct, 0.0); // 4-pc not applied
-        assert_eq!(bm.total_active_buffs(), 1);
+        // 2 discs × hp=1000 main stat each
+        assert_eq!(snap.hp_flat, 2000.0);
+        // 2-pc only
+        assert_eq!(snap.dmg_bonus, 0.10);
+        // 4-pc not applied
+        assert_eq!(snap.atk_pct, 0.0);
+        // 2 main stat buffs + 1 set bonus buff = 3
+        assert_eq!(bm.total_active_buffs(), 3);
     }
 
     #[test]
@@ -591,7 +618,8 @@ mod tests {
         let mut bm = BuffManager::new();
         // Should not panic — unknown buff IDs are silently skipped.
         mgr.apply_equipment_buffs("char_a", &mut bm, 0);
-        assert_eq!(bm.total_active_buffs(), 0);
+        // 2 discs × main stat buffs applied, unknown set bonus buff skipped
+        assert_eq!(bm.total_active_buffs(), 2);
     }
 
     // ── Multi-character ──────────────────────────────────────────────────
@@ -617,13 +645,15 @@ mod tests {
         mgr.apply_equipment_buffs("char_b", &mut bm, 0);
 
         let snap_a = bm.get_effective_modifiers("char_a");
-        assert_eq!(snap_a.crit_dmg, 0.20);
+        assert_eq!(snap_a.atk_flat, 680.0); // W-Engine base stats
+        assert_eq!(snap_a.crit_dmg, 0.20); // W-Engine passive
         assert_eq!(snap_a.dmg_bonus, 0.0); // no disc set
 
         let snap_b = bm.get_effective_modifiers("char_b");
         assert_eq!(snap_b.crit_dmg, 0.0); // no W-Engine
-        assert_eq!(snap_b.dmg_bonus, 0.10);
-        assert_eq!(snap_b.atk_pct, 0.20);
+        assert_eq!(snap_b.hp_flat, 4000.0); // 4 discs × hp=1000
+        assert_eq!(snap_b.dmg_bonus, 0.10); // 2-pc set
+        assert_eq!(snap_b.atk_pct, 0.20); // 4-pc set
     }
 
     // ── resolve_buff ─────────────────────────────────────────────────────
@@ -677,6 +707,75 @@ mod tests {
         assert_eq!(eq.w_engine.unwrap().id, "we_sharp_storm");
     }
 
+    // ── map_stat_name ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_map_stat_name_mappings() {
+        assert_eq!(EquipmentManager::map_stat_name("hp"), "hp_flat");
+        assert_eq!(EquipmentManager::map_stat_name("atk"), "atk_flat");
+        assert_eq!(EquipmentManager::map_stat_name("def"), "def_flat");
+        assert_eq!(EquipmentManager::map_stat_name("pen_fixed"), "pen");
+    }
+
+    #[test]
+    fn test_map_stat_name_passthrough() {
+        // Names that don't need mapping are returned as-is.
+        assert_eq!(EquipmentManager::map_stat_name("crit_rate"), "crit_rate");
+        assert_eq!(EquipmentManager::map_stat_name("crit_dmg"), "crit_dmg");
+        assert_eq!(
+            EquipmentManager::map_stat_name("anomaly_mastery"),
+            "anomaly_mastery"
+        );
+        assert_eq!(
+            EquipmentManager::map_stat_name("energy_regen"),
+            "energy_regen"
+        );
+        assert_eq!(EquipmentManager::map_stat_name(""), "");
+    }
+
+    // ── build_wengine_stats_buff ──────────────────────────────────────────
+
+    #[test]
+    fn test_build_wengine_stats_buff_all_zeros() {
+        let we = WEngine {
+            id: "we_empty".into(),
+            name: "Empty".into(),
+            level: 1,
+            ascension: 0,
+            base_stats: crate::entities::models::BaseStats::default(),
+            passive_effects: vec![],
+        };
+        let result = EquipmentManager::build_wengine_stats_buff(&we);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_build_wengine_stats_buff_with_stats() {
+        let we = WEngine {
+            id: "we_test".into(),
+            name: "Test".into(),
+            level: 60,
+            ascension: 6,
+            base_stats: crate::entities::models::BaseStats::default()
+                .with_atk(500.0)
+                .with_crit_rate(0.10)
+                .with_crit_dmg(0.50),
+            passive_effects: vec![],
+        };
+        let buff =
+            EquipmentManager::build_wengine_stats_buff(&we).expect("should build buff with stats");
+        assert_eq!(buff.buff_id, "eq_we_we_test_stats");
+        assert_eq!(buff.modifiers.len(), 3);
+        let mod_names: Vec<&str> = buff
+            .modifiers
+            .iter()
+            .map(|m| m.stat_name.as_str())
+            .collect();
+        assert!(mod_names.contains(&"atk_flat"));
+        assert!(mod_names.contains(&"crit_rate"));
+        assert!(mod_names.contains(&"crit_dmg"));
+    }
+
     // ── Integration with real equipment data file ────────────────────────
 
     #[test]
@@ -689,7 +788,7 @@ mod tests {
         let data: EquipmentData = serde_json::from_str(&contents).expect("parse equipment JSON");
         let mut mgr = EquipmentManager::from_equipment_data(&data);
 
-        // Assign the real Sharp Storm W-Engine to a character.
+        // Use real Sharp Storm W-Engine (atk=680, crit_rate=0.24).
         let we = data
             .w_engines
             .iter()
@@ -697,9 +796,7 @@ mod tests {
             .cloned()
             .expect("we_sharp_storm in data");
 
-        mgr.equip_character("anby", CharacterEquipment::new().with_w_engine(we));
-
-        // Also assign the Thunder Metal discs (all 6 from the file).
+        // Use all 6 Thunder Metal discs.
         let discs = data
             .drive_discs
             .iter()
@@ -707,10 +804,11 @@ mod tests {
             .cloned()
             .collect::<Vec<_>>();
         assert_eq!(discs.len(), 6);
+
         mgr.equip_character(
             "anby",
             CharacterEquipment::new()
-                .with_w_engine(sample_w_engine())
+                .with_w_engine(we)
                 .with_drive_discs(discs),
         );
 
@@ -718,11 +816,12 @@ mod tests {
         mgr.apply_equipment_buffs("anby", &mut bm, 0);
 
         let snap = bm.get_effective_modifiers("anby");
-        // W-Engine: passive_crit_dmg_20 -> crit_dmg +0.20
-        assert_eq!(snap.crit_dmg, 0.20);
-        // 6 Thunder Metal discs -> 2-pc (dmg_bonus +0.10) + 4-pc (atk_pct +0.20)
+        // Real Sharp Storm: atk=680 baseline, plus disc main/sub atk contributions
+        assert_eq!(snap.atk_flat, 1396.0);
+        // W-Engine passive + disc sub-stats
+        assert_eq!(snap.crit_dmg, 0.57);
+        // 6 Thunder Metal discs → 2-pc (+10% Electric DMG) + 4-pc (ATK +20%)
         assert_eq!(snap.dmg_bonus, 0.10);
         assert_eq!(snap.atk_pct, 0.20);
-        assert_eq!(bm.total_active_buffs(), 3);
     }
 }
