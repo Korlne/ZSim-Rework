@@ -76,3 +76,19 @@ Started: Sat May  2 10:38:49     2026
   - Gotchas encountered: `and_then` with `&mut` iterator requires careful sequencing. Compute `duration_for` before the mutable borrow.
   - Useful context: ElementTag is now Copy (fieldless enum) — use `*element` instead of `element.clone()` when dereferencing a `&ElementTag`.
 ---
+
+## 2026-05-02 13:30 - US-007
+- Implemented AnomalyDisorderManager with per-enemy Vec<AnomalyState>, lazy-slot creation per element
+- accumulate(enemy_id, element, amount): adds gauge, auto-triggers anomaly at threshold (default 100.0), detects disorder when overriding active different-element anomaly
+- trigger_anomaly(): activates anomaly with per-element configurable duration (default 600 ticks = 10s @ 60fps)
+- check_disorder(): detects active-element override, returns DisorderResult. Returns None when no different-element anomaly active
+- on_tick(): decrements remaining_duration for active anomalies, auto-expires at 0
+- 25 tests: accumulation (partial/exact/over/multi-hit/multi-element), trigger, durations, on_tick (decrement/expiry/no-underflow), disorder (different/same/expired), check_disorder, query helpers, total slots, full lifecycle
+- clippy --fix added Copy derive to ElementTag (fieldless enum), fixing all clone-on-copy warnings
+- All 125 tests pass, clippy clean, fmt clean
+- Files changed: zsim-core/src/calculation/anomaly.rs (placeholder → 635 lines), zsim-core/src/entities/enums.rs (+Copy derive), scripts/ralph/prd.json (US-007 passes)
+- **Learnings for future iterations:**
+  - Patterns discovered: check_disorder must handle new element with no AnomalyState slot yet — use get_state() (returns None), default gauge to 0.0
+  - Gotchas encountered: Borrow checker requires splitting mutable borrows — read gauge in inner block before calling &self methods. ElementTag is Copy; use dereference not .clone()
+  - Useful context: AnomalyDisorderManager stores gauge_at_trigger for disorder damage calcs. Event broadcast will be wired to EventBus in US-009.
+---
