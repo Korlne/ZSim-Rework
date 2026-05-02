@@ -53,6 +53,36 @@ fn default_animation_frames() -> u64 {
     1
 }
 
+impl SkillData {
+    /// Create a minimal skill with defaults suitable for tests.
+    ///
+    /// Fields that commonly need non-default values:
+    /// - `action_id`, `action_type`
+    /// - `damage_multipliers`, `daze_multiplier`, `hit_frames`
+    /// - `charge_branches`, `prerequisite_action_id`
+    /// - `hp_cost`, `energy_cost`, `decibel_cost`, `cooldown_ticks`
+    /// - `animation_frames` (defaults to 1)
+    pub fn default_for_test() -> Self {
+        Self {
+            action_id: String::new(),
+            action_type: SkillType::Normal,
+            damage_multipliers: Vec::new(),
+            daze_multiplier: 0.0,
+            hit_frames: Vec::new(),
+            invincible_frames: Vec::new(),
+            interruptible_frame: 0,
+            is_snapshot: false,
+            charge_branches: Vec::new(),
+            prerequisite_action_id: None,
+            hp_cost: 0.0,
+            energy_cost: 0.0,
+            decibel_cost: 0.0,
+            cooldown_ticks: 0,
+            animation_frames: 1,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

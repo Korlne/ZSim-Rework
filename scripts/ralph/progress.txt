@@ -18,6 +18,8 @@ Started: Sat May  2 10:38:49     2026
 - Buff resolution via string ID: define a `resolve_buff(buff_id: &str) -> Option<BuffData>` match-based method on the manager. Unknown IDs return None and are silently skipped. This pattern is extensible as more buff IDs are added.
 - EventBus pattern: use `std::sync::mpsc` channels for sync pub-sub event bus (simpler than Tokio broadcast for zero-async simulation engines). Each subscriber gets a dedicated channel. Dropping the receiver auto-cleans up.
 - W-Engine base stats and Drive Disc main/sub stats should be registered as individual buffs with unique IDs to allow the BuffManager to aggregate them correctly.
+- CoordinatedActionSystem pattern: `last_trigger_tick: Option<u64>` for per-listener cooldown — `None` means first trigger always allowed. This avoids the off-by-one bug where initializing `last_trigger_tick = 0` blocks the first trigger when cooldown > 0. Cooldown check: `current_tick < last + cooldown_ticks`, skip if `None`.
+- CoordinatedListener trait with `Debug` supertrait makes `Box<dyn CoordinatedListener>` implement `Debug` automatically (vtable dispatch).
 ---
 ## 2026-05-02 11:00 - US-005
 - Implemented 6 damage calculation modules in zsim-core/src/calculation/damage.rs
@@ -247,4 +249,19 @@ Started: Sat May  2 10:38:49     2026
   - Patterns discovered: The ResourceValidator already handles cooldown tracking internally (cooldowns HashMap + set_cooldown). APLManager simply delegates to it rather than duplicating cooldown state. The consuming queue pattern (get_pending_actions = mem::take) allows the caller to drain actions while the APLManager retains ownership.
   - Gotchas encountered: Calling get_pending_actions() twice in a row returns empty the second time (it's consuming!). Tests must bind the result to a variable. Unknown skills must advance the track (next_action_index += 1) to avoid blocking the track forever. The validate_all signature changed to (character, skill, team, current_tick, enemy Option) — cleaner than the old 11-param version.
   - Useful context: process_next_action takes (current_tick, team, skills, enemies) rather than full GameState — keeps the signature focused. Decibel deduction only when acting character is on-field. Charge branch resolution deferred to future story. APLManager lives in combat::apl, consistent with other combat systems.
+---
+## 2026-05-02 19:00 - US-014
+- Implemented CoordinatedActionSystem in zsim-core/src/combat/coordinated.rs
+- CoordinatedListener trait: on_event(event, game_state) -> Vec<SkillAction>, event_types() -> Vec<EventType>
+- SimpleCoordinatedListener: triggers a fixed action on a specific EventType, uses event's target_id
+- CoordinatedActionSystem: register(listener, event_types, cooldown_ticks), on_event(), process_events(), get_pending_actions() consuming queue, listener_count(), pending_count()
+- Per-listener independent cooldown via Option<u64> last_trigger_tick (None = never triggered, first always allowed)
+- Cooldown check: current_tick < last + cooldown_ticks → blocked; empty listener result skips cooldown update
+- 35 tests: creation/query (4), register & fire (8), cooldown (7), consuming queue (3), event type filtering (4), custom listener (3), edge cases (6)
+- Files changed: zsim-core/src/combat/coordinated.rs (placeholder → 1182 lines)
+- All 324 tests pass, clippy clean (0 new warnings)
+- **Learnings for future iterations:**
+  - Patterns discovered: `last_trigger_tick: Option<u64>` avoids cooldown-on-first-trigger bug. Debug as supertrait on CoordinatedListener allows `Box<dyn CoordinatedListener>` to be Debug automatically.
+  - Gotchas encountered: Initializing last_trigger_tick = 0 blocks first trigger when cooldown > 0 (0 < 0 + cooldown → always blocked). Solution: use Option<u64>, start at None.
+  - Useful context: SimpleCoordinatedListener uses the event's target_id for the derived action. No-target events fall back to "enemy_default". The CoordinatedListener trait's Debug supertrait is required for the CoordinatedActionSystem to derive Debug.
 ---

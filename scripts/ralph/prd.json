@@ -230,8 +230,8 @@
         "cargo test 通过（30+ tests）"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "CoordinatedActionSystem with CoordinatedListener trait (on_event + event_types), SimpleCoordinatedListener concrete impl. Per-listener independent cooldown in ticks via Option<u64> last_trigger_tick (first trigger always allowed). on_event/process_events methods, consuming get_pending_actions queue. 35 tests covering creation/query, matching/non-matching events, cooldown lifecycle (block/expire/independence), event type filtering (DamageDealt/AnomalyTriggered/ChainAttack), multi-listener, multi-event-type, custom listeners with payload access, and full lifecycle."
     },
     {
       "id": "US-015",

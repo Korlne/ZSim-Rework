@@ -504,11 +504,7 @@ mod tests {
         }
 
         let mut system = CoordinatedActionSystem::new();
-        system.register(
-            Box::new(DoubleHitListener),
-            vec![EventType::DamageDealt],
-            0,
-        );
+        system.register(Box::new(DoubleHitListener), vec![EventType::DamageDealt], 0);
 
         let state = make_game_state();
         let event = damage_event(0, "enemy_1");
@@ -899,11 +895,7 @@ mod tests {
         }
 
         let mut system = CoordinatedActionSystem::new();
-        system.register(
-            Box::new(CustomListener),
-            vec![EventType::ActionStart],
-            0,
-        );
+        system.register(Box::new(CustomListener), vec![EventType::ActionStart], 0);
 
         let state = make_game_state();
         let event = GameEvent::new(EventType::ActionStart, 5);
@@ -935,10 +927,7 @@ mod tests {
                     vec![SkillAction {
                         action_id: "crit_followup".into(),
                         source_id: "char_payload".into(),
-                        target_id: event
-                            .target_id
-                            .clone()
-                            .unwrap_or_else(|| "enemy".into()),
+                        target_id: event.target_id.clone().unwrap_or_else(|| "enemy".into()),
                         started_at_tick: state.current_tick,
                     }]
                 } else {
@@ -1060,10 +1049,7 @@ mod tests {
         // Wrong event type
         system.on_event(&damage_event(0, "enemy_1"), &state);
         system.on_event(&anomaly_event(0), &state);
-        system.on_event(
-            &GameEvent::new(EventType::BuffChanged, 0),
-            &state,
-        );
+        system.on_event(&GameEvent::new(EventType::BuffChanged, 0), &state);
 
         assert_eq!(system.pending_count(), 0);
     }
