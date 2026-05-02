@@ -295,8 +295,8 @@
         "cargo test 通过"
       ],
       "priority": 18,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "ParquetAggregator with 7 query types (TotalDamage/DPS/DamageBreakdown/AnomalyStats/StunStats/CritRate/StatsSummary). All results JSON-serializable via serde. Columnar reads with in-memory filter pushdown. StatsSummary uses Welford's online algorithm for mean/variance + R7 percentile interpolation. 18 aggregator tests + 17 writer tests = 39 total in zsim-parquet. All 394 tests pass."
     },
     {
       "id": "US-019",

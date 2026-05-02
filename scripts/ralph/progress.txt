@@ -23,6 +23,30 @@ Started: Sat May  2 10:38:49     2026
 - Parquet writer pattern: `ArrowWriter::flush()` creates row-group boundaries. `Compression::ZSTD` takes `ZstdLevel` (newtype), not `Option<i32>`, in parquet 55. Use `SerializedFileReader` for metadata row-group counts (reader merges on read).
 - LoggedEvent has 6 optional extended payload fields (element, anomaly_gauge, stun_dmg, buff_id, buff_value, coordinated_flag) that can be populated as events are generated for richer Parquet output.
 - zsim-parquet crate depends on zsim-core for type access (SimResult, LoggedEvent, EventType).
+- ParquetAggregator pattern: unit struct with `aggregate(path, &AggQuery) -> AggResult`. Each of 7 query types has a dedicated private function. Batch iteration over all row groups with in-memory event_type filtering. StatsSummary uses Welford's online algorithm for O(n) mean+variance, and R7 interpolation for percentiles.
+---
+## 2026-05-02 23:00 - US-018
+- Implemented ParquetAggregator in zsim-parquet/src/aggregator.rs
+- 7 AggQuery variants: TotalDamage / DPS(window_ticks) / DamageBreakdown / AnomalyStats / StunStats / CritRate / StatsSummary
+- 7 AggResult variants, all JSON-serializable via serde `#[serde(tag = "type", content = "data")]`
+- Aggregation methods:
+  - aggregate_total_damage: filters DamageDealt events, sums non-null damage values
+  - aggregate_dps: groups DamageDealt events into tick windows, computes DPS (damage / window_duration_secs at 60 ticks/s)
+  - aggregate_damage_breakdown: groups damage by source_id
+  - aggregate_anomaly_stats: counts AnomalyTriggered/DisorderTriggered events, tracks damage + gauge per element
+  - aggregate_stun_stats: sums all non-null stun_dmg values across all events
+  - aggregate_crit_rate: counts total hits vs crit hits for DamageDealt events
+  - aggregate_stats_summary: Welford's online algorithm for mean+variance+std_dev, R7 interpolation for p50/p90/p95/p99
+- Columnar reading via ParquetRecordBatchReaderBuilder (all row groups, in-memory filtering)
+- DpsPoint, AnomalyStatsResult + ElementAnomalyStats, StunStatsResult, CritRateResult, StatsSummaryResult structs
+- Convenience `aggregate()` free function
+- 18 new tests: basic/edge cases for all 7 query types, multi-result, no-events, single-value, consistency cross-check (total == mean * count), JSON serialization, deserialization, missing file
+- Files changed: zsim-parquet/src/aggregator.rs (new, ~700 lines), scripts/ralph/prd.json (US-018 passes:true), scripts/ralph/progress.txt
+- All 394 tests pass (355 core + 39 parquet), clippy clean for zsim-parquet, 0 new clippy warnings overall
+- **Learnings for future iterations:**
+  - Patterns discovered: Welford's online algorithm (pairwise update) gives O(1) memory mean+variance without storing all values. R7 percentile interpolation matches numpy/pandas default. serde `#[serde(tag = "type", content = "data")]` on enums produces `{"type": "VariantName", "data": value}` JSON — clean for Python/Tauri consumers.
+  - Gotchas encountered: ParquetRecordBatchReaderBuilder merges row groups on read (create row groups with explicit flush()). Unit variant enums serialize as `"VariantName"` (bare string), not `{"VariantName": null}`. `with_projection()` requires `ProjectionMask::roots(schema_descr, columns)` from parquet's SchemaDescriptor, not arrow schema.
+  - Useful context: The aggregator reads all columns currently (no projection optimization). For 10M+ row performance requirements, adding `ProjectionMask` to read only needed columns per query type would reduce I/O. StatsSummary percentiles currently sort all values — for extremely large datasets an online/reservoir percentile algorithm could be substituted.
 ---
 ## 2026-05-02 11:00 - US-005
 - Implemented 6 damage calculation modules in zsim-core/src/calculation/damage.rs
