@@ -133,8 +133,8 @@
         "cargo test 通过"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "EquipmentManager with per-character CharacterEquipment assignments (WEngine + Vec<DriveDisc>). from_equipment_data() loads disc set definitions. equip_character()/unequip_character()/get_equipment() manage assignments. resolve_set_bonuses() counts discs per set and returns qualifying bonus buff IDs (2-piece >= 2 discs, 4-piece >= 4 discs). apply_equipment_buffs() resolves W-Engine passives and disc set bonuses to BuffData and registers them with BuffManager. resolve_buff() maps known buff IDs (buff_electric_dmg_10, buff_thunder_atk_20, passive_crit_dmg_20) to BuffData. 26 tests covering assignment, set bonus resolution thresholds, BuffManager integration, multi-character independence, unknown buff ID graceful handling, and real equipment file integration."
     },
     {
       "id": "US-009",

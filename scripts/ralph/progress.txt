@@ -14,7 +14,8 @@ Started: Sat May  2 10:38:49     2026
 - Anomaly damage never crits. Proficiency factor = `1 + anomaly_proficiency / 100`.
 - Anomaly accumulation: `gauge_added = anomaly_mastery * multiplier`, trigger at threshold.
 - Stun is deterministic (no RNG). Resources/DR also have no RNG dependency.
----
+- EquipmentManager pattern: use `from_equipment_data()` to index disc sets into `HashMap<String, DiscSet>` for O(1) set bonus lookup. Disc set bonus resolution counts discs per set_id and checks thresholds (2-piece >= 2 discs, 4-piece >= 4 discs).
+- Buff resolution via string ID: define a `resolve_buff(buff_id: &str) -> Option<BuffData>` match-based method on the manager. Unknown IDs return None and are silently skipped. This pattern is extensible as more buff IDs are added.---
 ## 2026-05-02 11:00 - US-005
 - Implemented 6 damage calculation modules in zsim-core/src/calculation/damage.rs
 - RegularMul: ATK × multiplier × (1+DMG_BONUS) × crit_factor × def_factor × res_factor × (1-DR)
@@ -92,3 +93,19 @@ Started: Sat May  2 10:38:49     2026
   - Gotchas encountered: Borrow checker requires splitting mutable borrows — read gauge in inner block before calling &self methods. ElementTag is Copy; use dereference not .clone()
   - Useful context: AnomalyDisorderManager stores gauge_at_trigger for disorder damage calcs. Event broadcast will be wired to EventBus in US-009.
 ---
+
+
+## 2026-05-02 14:00 - US-008
+- Implemented EquipmentManager in zsim-core/src/calculation/equipment.rs
+- CharacterEquipment: per-character assignment holding Option<WEngine> + Vec<DriveDisc>
+- from_equipment_data(): loads disc sets into HashMap<String, DiscSet> for set bonus resolution
+- resolve_set_bonuses(): counts discs per set_id, returns buff IDs for qualifying thresholds (2-piece >= 2 discs, 4-piece >= 4 discs)
+- apply_equipment_buffs(): resolves W-Engine passive effects and disc set bonuses to BuffData via resolve_buff() and registers with BuffManager
+- resolve_buff(): maps known buff IDs (buff_electric_dmg_10, buff_thunder_atk_20, passive_crit_dmg_20) to BuffData templates. Unknown IDs return None (skipped silently)
+- 26 tests: empty/new, equip/get/unequip/replace, set bonus thresholds (0/1/2/4/6 discs), unknown sets, empty buff_ids, BuffManager integration (W-Engine, disc sets, combined, incomplete sets), multi-character isolation, unknown buff_id gracefully skipped, real equipment file integration test
+- All 146 tests pass, clippy clean, fmt clean
+- Files changed: zsim-core/src/calculation/equipment.rs (placeholder -> EquipmentManager), scripts/ralph/prd.json (US-008 passes)
+- **Learnings for future iterations:**
+  - Patterns discovered: Disc set bonus resolution is a counting problem -- group discs by set_id, check count thresholds. Equipment buffs are registered via the existing BuffManager API, not stored separately.
+  - Gotchas encountered: `resolve_buff()` is a match-based static method. New buff IDs (from data files or future passives) must be added here. Unknown IDs don't crash but produce no effect -- important to log/track missing IDs in production.
+  - Useful context: EquipmentManager currently treats set bonuses as always-active buffs. Conditional effects (e.g., "on dealing Electric DMG") require event-based application which will be handled by EventBus (US-009). Disc bonus `buff_id` strings refer to entries in `resolve_buff()` -- the resolver and data must stay in sync.
