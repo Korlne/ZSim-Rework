@@ -55,7 +55,7 @@ pub enum SpecialtyTag {
 }
 
 /// Element tag for damage typing and anomaly interactions.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ElementTag {
     #[serde(rename = "Ice")]
     Ice,

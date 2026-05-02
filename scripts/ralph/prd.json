@@ -116,8 +116,8 @@
         "cargo test 通过"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "AnomalyDisorderManager with per-enemy Vec<AnomalyState> (element/gauge/max_gauge/gauge_at_trigger/remaining_duration/trigger_count/is_active). accumulate() adds gauge + auto-triggers at threshold. trigger_anomaly() activates status effect with configurable duration per element. check_disorder() detects active-element override. on_tick() decrements remaining_duration, auto-expires. 25 tests covering accumulation, trigger, disorder detection (same/different elements, expired), tick, full lifecycle, per-element durations, multi-enemy independence."
     },
     {
       "id": "US-008",

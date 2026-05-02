@@ -2,6 +2,10 @@
 Started: Sat May  2 10:38:49     2026
 
 ## Codebase Patterns
+- ElementTag is a fieldless enum, derive Copy + Clone to avoid unnecessary .clone() calls.
+- AnomalyDisorderManager pattern: `states: HashMap<String, Vec<AnomalyState>>` per-enemy, lazy-slot-creation per element. Borrow split trick: read gauge in a block, drop mutable borrow, then call &self methods before resuming mutation.
+- AnomalyState stores `gauge_at_trigger` for disorder damage calculations. If the new element has no AnomalyState slot yet, gauge is treated as 0.0 for disorder calcs.
+- AccumulateResult/TriggerAnomalyResult/DisorderResult structs provide structured feedback without coupling to the event bus.
 - Ralph tracking files are at `scripts/ralph/prd.json` and `scripts/ralph/progress.txt`. The `ralph/` directory at project root is a separate Claude Code plugin repo with its own `.git`.
 - Rust toolchain: Always use `stable-x86_64-pc-windows-gnu` as default. The MSVC toolchain builds cached artifacts but fails when rebuilds are needed because `link.exe` from Git for Windows shadows the MSVC linker. `rustup default stable-x86_64-pc-windows-gnu` fixes this.
 - When using `data` in a struct literal like `ActiveBuff { data, remaining_ticks: data.duration_ticks }`, read the field BEFORE the move: `let duration = data.duration_ticks; ActiveBuff { data, remaining_ticks: duration, ... }`.
@@ -56,4 +60,19 @@ Started: Sat May  2 10:38:49     2026
   - Gotchas encountered: `data` field in struct literal `ActiveBuff { data, ... }` moves the whole struct; read `data.field` BEFORE moving it into the struct.
   - Useful context: The MSVC toolchain has linker issues because `link.exe` from Git is in PATH and shadows the MSVC linker. The GNU toolchain works correctly once set as default.
 ---
-
+## 2026-05-02 12:30 - US-007
+- Implemented AnomalyDisorderManager in zsim-core/src/calculation/anomaly.rs
+- AnomalyState: per-element gauge/max_gauge/remaining_duration/trigger_count/is_active
+- accumulate(): adds gauge, auto-triggers at threshold, detects disorder on other active anomaly
+- trigger_anomaly(): activates anomaly with configurable per-element duration
+- check_disorder(): detects if triggering a new element anomaly would override an active one
+- on_tick(): decrements remaining_duration, auto-expires active anomalies
+- Added Copy derive to ElementTag enum (fieldless, zero-cost)
+- 25 tests: accumulation, triggering, disorder (cross-element, same-element, expired), tick lifecycle, custom durations, multi-enemy independence
+- Files changed: zsim-core/src/calculation/anomaly.rs, zsim-core/src/entities/enums.rs, scripts/ralph/prd.json
+- 125 tests pass, clippy clean, fmt clean
+- **Learnings for future iterations:**
+  - Patterns discovered: Borrow-split trick for managers that need mutable state access followed by &self queries in the same method — wrap the mutable access in a block to drop the borrow.
+  - Gotchas encountered: `and_then` with `&mut` iterator requires careful sequencing. Compute `duration_for` before the mutable borrow.
+  - Useful context: ElementTag is now Copy (fieldless enum) — use `*element` instead of `element.clone()` when dereferencing a `&ElementTag`.
+---
