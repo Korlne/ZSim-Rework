@@ -10,6 +10,17 @@ function ensureLayout() {
   viewContainer = document.getElementById("editor-view");
   if (!viewContainer) return;
 
+  // Clear the static wrapper to avoid nesting conflict
+  if (viewContainer.querySelector(".editor-layout")) {
+    viewContainer.innerHTML = "";
+    viewContainer.className = "editor-layout view-panel";
+    contentArea = document.createElement("div");
+    contentArea.id = "editor-content";
+    contentArea.className = "editor-content";
+    viewContainer.appendChild(contentArea);
+    return;
+  }
+
   contentArea = document.getElementById("editor-content");
   if (!contentArea) {
     viewContainer.className = "editor-layout view-panel";
