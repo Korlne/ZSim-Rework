@@ -232,6 +232,18 @@ async function showEditForm(charId, rootContainer) {
   const potentials = parsePotentials(data.potentials);
   const actionDict = parseActionDict(data.action_dict);
 
+  function renderForm() {
+    editContainer.innerHTML = "";
+    buildFormContent(editContainer, data, charId, constellations, potentials, actionDict, rootContainer);
+  }
+
+  renderForm();
+  editContainer._langHandler = () => renderForm();
+  window.addEventListener("langchange", editContainer._langHandler);
+}
+
+function buildFormContent(editContainer, data, charId, constellations, potentials, actionDict, rootContainer) {
+
   // ── Build form manually for full control ──────────────
 
   const formEl = document.createElement("div");

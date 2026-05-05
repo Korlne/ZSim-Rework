@@ -299,14 +299,12 @@ async function showInlineForm(rootContainer, type, id, defaults, saveFn) {
   editContainer.style.marginTop = "20px";
   rootContainer.appendChild(editContainer);
 
-  // For edit, try to load existing data
   let values = { ...defaults };
   let isEdit = !!id;
   let loadedData = null;
 
   if (isEdit) {
     try {
-      // Fetch fresh data for the specific item
       if (type === "w-engine") {
         const all = await getWEngines();
         loadedData = all.find((w) => w.id === id);
@@ -322,6 +320,18 @@ async function showInlineForm(rootContainer, type, id, defaults, saveFn) {
       // Use defaults
     }
   }
+
+  function renderForm() {
+    editContainer.innerHTML = "";
+    buildInlineFormContent(editContainer, rootContainer, type, values, isEdit, saveFn);
+  }
+
+  renderForm();
+  editContainer._langHandler = () => renderForm();
+  window.addEventListener("langchange", editContainer._langHandler);
+}
+
+function buildInlineFormContent(editContainer, rootContainer, type, values, isEdit, saveFn) {
 
   const formEl = document.createElement("div");
   formEl.className = "editor-form";
