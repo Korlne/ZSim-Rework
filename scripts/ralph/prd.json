@@ -28,8 +28,8 @@
         "cargo check 通过"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "涉及文件: src-tauri/src/data_entry/db.rs"
+      "passes": true,
+      "notes": "已实现。commit 6cbb294。characters 表新增 potentials TEXT 列，默认 JSON 数组 [false×6]。更新 test_characters_schema 测试验证 potentials 读写。全部 68 个测试通过。"
     },
     {
       "id": "US-003",

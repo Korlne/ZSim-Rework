@@ -16,5 +16,12 @@ Started: 2026-05-05 21:33
 - **Learnings for future iterations:**
   - ja-JP locale 使用与 zh-CN/en-US 不同的 key 命名风格 (e.g., `editor.characters.field.xxx` vs `editor.characters.fieldXxx`)，添加新 key 时需遵循各语言已有风格
   - `validate()` 返回 `null` 表示通过，返回错误字符串表示失败 — 条件判断中直接使用返回值作 truthiness check，不要取反
----
 
+---
+## 2026-05-05 - US-002
+- 在 `db.rs` 的 characters 表 CREATE TABLE 语句中新增 `potentials TEXT NOT NULL DEFAULT '[false,false,false,false,false,false]'` 列
+- 更新 `test_characters_schema` 测试以 INSERT + SELECT potentials 字段并验证值
+- **Learnings for future iterations:**
+  - 修改 schema 后需同步更新所有引用该表的 INSERT 语句（测试和业务代码）
+  - `CREATE TABLE IF NOT EXISTS` 在新列添加时不会自动 ALTER 现有表，生产环境需注意 migration 策略
+---
