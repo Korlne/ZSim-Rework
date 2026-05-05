@@ -24,4 +24,16 @@ Started: 2026-05-05 21:33
 - **Learnings for future iterations:**
   - 修改 schema 后需同步更新所有引用该表的 INSERT 语句（测试和业务代码）
   - `CREATE TABLE IF NOT EXISTS` 在新列添加时不会自动 ALTER 现有表，生产环境需注意 migration 策略
+
+---
+## 2026-05-05 - US-003
+- zsim-core Character 结构体新增 `potentials: [bool; 6]`（serde default）
+- src-tauri CharacterRecord 新增 `potentials: String` 字段
+- 所有 SELECT/INSERT/ON CONFLICT UPDATE 查询同步更新（characters.rs、loader.rs、export.rs）
+- row_to_character 索引重排：constellations(19) → potentials(20) → action_dict(21)
+- 6 个测试 JSON 字符串新增 `"potentials"` 字段
+- **Learnings for future iterations:**
+  - 新增字段到 schema 后必须同步更新所有引用该表的：zsim-core Character 构造、CharacterRecord 结构体、row_to_character 映射、所有 SELECT 查询的列名列表、所有 INSERT/UPSERT 的列和参数、loader.rs 和 export.rs 的 SQL 映射
+  - zsim-core loader.rs 使用 zsim-core Character struct 直接构造（非 CharacterRecord），需单独更新
+  - 修改 zsim-core entity 后，源树中所有直接构造该 struct 的代码都会编译失败（loader.rs + export.rs），不要遗漏
 ---

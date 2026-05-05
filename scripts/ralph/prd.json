@@ -42,8 +42,8 @@
         "cargo check 通过"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "涉及文件: zsim-core/src/entities/character.rs, src-tauri/src/data_entry/characters.rs"
+      "passes": true,
+      "notes": "已实现。commit 3fade65。zsim-core Character 新增 potentials: [bool; 6]；src-tauri CharacterRecord 新增 potentials: String；所有 SELECT/INSERT/UPDATE 查询同步更新；loader.rs 和 export.rs 同步适配。全部 68 个测试通过。"
     },
     {
       "id": "US-004",
