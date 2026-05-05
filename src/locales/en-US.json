@@ -153,6 +153,7 @@
   "editor.characters.loadError": "Load failed",
   "editor.characters.fieldCharId": "Character ID",
   "editor.characters.fieldName": "Name",
+  "editor.characters.fieldExtraCritDmg": "Extra Crit DMG",
   "editor.characters.fieldFaction": "Faction",
   "editor.characters.fieldSpecialty": "Specialty",
   "editor.characters.fieldElement": "Element",

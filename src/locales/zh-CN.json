@@ -153,6 +153,7 @@
   "editor.characters.loadError": "加载失败",
   "editor.characters.fieldCharId": "角色 ID",
   "editor.characters.fieldName": "名称",
+  "editor.characters.fieldExtraCritDmg": "额外暴击伤害",
   "editor.characters.fieldFaction": "阵营",
   "editor.characters.fieldSpecialty": "专精",
   "editor.characters.fieldElement": "属性",

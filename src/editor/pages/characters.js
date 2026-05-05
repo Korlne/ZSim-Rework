@@ -310,12 +310,12 @@ async function showEditForm(charId, rootContainer) {
   const statFields = [
     ["hp", "HP", 1], ["atk", "ATK", 1], ["def", "DEF", 1],
     ["impact", "Impact", 1],
-    ["crit_rate", "Crit Rate", 0.01], ["crit_dmg", "Crit DMG", 0.01],
+    ["crit_rate", "Crit Rate", 0.01], ["crit_dmg", t("editor.characters.fieldExtraCritDmg"), 0.01],
     ["pen_ratio", "PEN Ratio", 0.01], ["pen_fixed", "PEN Fixed", 1],
     ["anomaly_mastery", "Anomaly Mastery", 1],
     ["anomaly_proficiency", "Anomaly Proficiency", 1],
-    ["energy_regen", "Energy Regen", 0.01],
-    ["energy_gen_rate", "Energy Gen Rate", 0.01],
+    ["energy_regen", "Energy Regen", "any"],
+    ["energy_gen_rate", "Energy Gen Rate", "any"],
   ];
   for (const [key, label, step] of statFields) {
     statGrid.appendChild(addField(key, label, "number", { step }));
@@ -421,7 +421,7 @@ async function showEditForm(charId, rootContainer) {
   saveBtn.addEventListener("click", async () => {
     // Validate required fields
     const errors = [];
-    if (!charId && !validate(data.char_id, [validateCharId])) {
+    if (!charId && validate(data.char_id, [validateCharId])) {
       errors.push("Character ID is required");
     }
     if (!data.name) errors.push("Name is required");

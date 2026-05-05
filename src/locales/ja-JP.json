@@ -184,6 +184,7 @@
   "editor.characters.loadError": "読み込みに失敗しました",
   "editor.characters.fieldCharId": "キャラクター ID",
   "editor.characters.fieldName": "名前",
+  "editor.characters.fieldExtraCritDmg": "追加会心ダメージ",
   "editor.characters.fieldFaction": "派閥",
   "editor.characters.fieldSpecialty": "スペシャリティ",
   "editor.characters.fieldElement": "元素",
