@@ -101,18 +101,20 @@ pub fn import_characters(conn: &Connection, data_dir: &Path) -> ImportResult {
         let element_str = enum_to_string(&character.element);
         let constellations_json =
             serde_json::to_string(&character.constellations).unwrap_or_else(|_| "[false,false,false,false,false,false]".to_string());
+        let potentials_json =
+            serde_json::to_string(&character.potentials).unwrap_or_else(|_| "[false,false,false,false,false,false]".to_string());
         let action_dict_json = set_to_json_string(&character.action_dict);
 
         if let Err(e) = conn.execute(
-            "INSERT OR REPLACE INTO characters
-             (char_id, name, faction, specialty, element, level, ascension,
-              hp, atk, def, impact, crit_rate, crit_dmg, pen_ratio, pen_fixed,
-              anomaly_mastery, anomaly_proficiency, energy_regen, energy_gen_rate,
-              constellations, action_dict, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
-                     ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                     ?16, ?17, ?18, ?19,
-                     ?20, ?21, datetime('now'))",
+             "INSERT OR REPLACE INTO characters
+              (char_id, name, faction, specialty, element, level, ascension,
+               hp, atk, def, impact, crit_rate, crit_dmg, pen_ratio, pen_fixed,
+               anomaly_mastery, anomaly_proficiency, energy_regen, energy_gen_rate,
+               constellations, potentials, action_dict, updated_at)
+              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
+                      ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
+                      ?16, ?17, ?18, ?19,
+                      ?20, ?21, ?22, datetime('now'))",
             params![
                 character.char_id,
                 character.name,
@@ -134,6 +136,7 @@ pub fn import_characters(conn: &Connection, data_dir: &Path) -> ImportResult {
                 character.base_stats.energy_regen,
                 character.base_stats.dmg_bonus,
                 constellations_json,
+                potentials_json,
                 action_dict_json,
             ],
         ) {
