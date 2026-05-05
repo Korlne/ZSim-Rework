@@ -56,8 +56,8 @@
         "cargo check 通过"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "涉及文件: src-tauri/src/data_entry/import.rs, src-tauri/src/data_entry/export.rs"
+      "passes": true,
+      "notes": "已实现。commit 72325b9。import.rs 的 INSERT 查询新增 potentials 列和参数；从 JSON 反序列化时若缺字段则默认 [false×6]。export.rs 已在 US-003 中一并更新。全部 68 个测试通过。"
     },
     {
       "id": "US-005",
@@ -73,8 +73,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "涉及文件: src/editor/pages/characters.js, src/locales/*.json (新增 editor.characters.sectionPotential, editor.characters.fieldPotential)"
+      "passes": true,
+      "notes": "已实现。commit 00438ec。新增 createToggleSection() 复用函数生成 C1-C6 影画 + P1-P6 潜能开关。顺序约束：开启需前一节点已亮，关闭级联关闭后续节点。新增 parsePotentials/stringifyPotentials 辅助函数。getEmptyRecord 新增 potentials 字段。3 种语言 locale 新增 sectionPotential 翻译。"
     },
     {
       "id": "US-006",
@@ -88,8 +88,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": "涉及文件: src/editor/pages/characters.js, src/editor/app.js"
+      "passes": true,
+      "notes": "已实现。commit 4315d69。characters.js: showEditForm 中提取 buildFormContent()，监听 langchange 事件后重新渲染。equipment.js: showInlineForm 中提取 buildInlineFormContent()，同样监听 langchange。表单状态通过闭包引用保留。"
     },
     {
       "id": "US-007",
@@ -103,8 +103,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": "涉及文件: src/editor/pages/equipment.js"
+      "passes": true,
+      "notes": "已实现。commit 4315d69。equipment.js: showInlineForm 中提取 buildInlineFormContent()，监听 langchange 事件重新渲染表单标签。"
     },
     {
       "id": "US-008",
@@ -120,8 +120,8 @@
         "Typecheck passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "涉及文件: src/editor/app.js, src/editor/components/sidebar.js, src/editor/pages/equipment.js, src/locales/*.json"
+      "passes": true,
+      "notes": "已实现。commit c99d7eb。sidebar 移除独立「驱动盘」入口；disc-sets 页面改为卡片网格展示所有套装（名称、二件套/四件套效果、编辑/删除按钮）；点击卡片跳转 #/disc-sets/{set_id}；app.js 路由移除 drive-discs 子路由。"
     },
     {
       "id": "US-009",
@@ -139,8 +139,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "涉及文件: src/editor/pages/equipment.js, src/editor/utils/api.js, src-tauri/src/data_entry/equipment.rs, src-tauri/src/lib.rs"
+      "passes": true,
+      "notes": "已实现。commit 1e17b98。Rust 后端新增 get_drive_discs_by_set_id 命令（按 set_id + slot 排序查询）；前端 API 新增 getDriveDiscsBySetId()；renderDiscSetDetail 页面显示 Slack 1-6 行编辑区（主词条 select + number，可展开 4 副词条行），缺省槽位自动创建默认记录，每槽位独立保存。"
     }
   ]
 }
