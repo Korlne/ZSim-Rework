@@ -52,6 +52,7 @@ pub fn init_db(conn: &Connection) -> Result<()> {
             energy_regen    REAL NOT NULL DEFAULT 0,
             energy_gen_rate REAL NOT NULL DEFAULT 0,
             constellations  TEXT NOT NULL DEFAULT '[false,false,false,false,false,false]',
+            potentials      TEXT NOT NULL DEFAULT '[false,false,false,false,false,false]',
             action_dict     TEXT NOT NULL DEFAULT '[]',
             created_at      TEXT NOT NULL DEFAULT (datetime('now')),
             updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -249,22 +250,25 @@ mod tests {
             "INSERT INTO characters (char_id, name, faction, specialty, element, level, ascension,
                 hp, atk, def, impact, crit_rate, crit_dmg, pen_ratio, pen_fixed,
                 anomaly_mastery, anomaly_proficiency, energy_regen, energy_gen_rate,
-                constellations, action_dict)
+                constellations, potentials, action_dict)
             VALUES ('test_char', 'Test', 'Gentle_House', 'Attack', 'Physical', 60, 6,
                 10000.0, 1200.0, 600.0, 110.0, 0.15, 0.80, 0.10, 40.0,
                 80.0, 90.0, 1.2, 0.3,
-                '[true,false,false,false,false,false]', '[\"action_1\"]')",
+                '[true,false,false,false,false,false]',
+                '[true,true,false,false,false,false]',
+                '[\"action_1\"]')",
             [],
         ).unwrap();
 
-        let row: (String, String, String, String, String, i64, i64, f64, f64, f64) = conn
+        let row: (String, String, String, String, String, i64, i64, f64, f64, f64, String) = conn
             .query_row(
-                "SELECT char_id, name, faction, specialty, element, level, ascension, hp, atk, def
+                "SELECT char_id, name, faction, specialty, element, level, ascension, hp, atk, def, potentials
                  FROM characters WHERE char_id = 'test_char'",
                 [],
                 |row| Ok((
                     row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
                     row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?,
+                    row.get(10)?,
                 )),
             )
             .unwrap();
@@ -279,6 +283,7 @@ mod tests {
         assert_eq!(row.7, 10000.0);
         assert_eq!(row.8, 1200.0);
         assert_eq!(row.9, 600.0);
+        assert_eq!(row.10, "[true,true,false,false,false,false]");
     }
 
     #[test]
