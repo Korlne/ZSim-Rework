@@ -64,7 +64,7 @@ fn export_characters(conn: &Connection, dir: &Path) -> Result<usize, String> {
             "SELECT char_id, name, faction, specialty, element, level, ascension,
                     hp, atk, def, impact, crit_rate, crit_dmg,
                     pen_ratio, pen_fixed, anomaly_mastery, anomaly_proficiency,
-                    energy_regen, energy_gen_rate, constellations, action_dict
+                    energy_regen, energy_gen_rate, constellations, potentials, action_dict
              FROM characters",
         )
         .map_err(|e| format!("Failed to prepare characters query: {e}"))?;
@@ -93,6 +93,7 @@ fn export_characters(conn: &Connection, dir: &Path) -> Result<usize, String> {
                 row.get::<_, f64>(18)?,
                 row.get::<_, String>(19)?,
                 row.get::<_, String>(20)?,
+                row.get::<_, String>(21)?,
             ))
         })
         .map_err(|e| format!("Failed to query characters: {e}"))?;
@@ -103,7 +104,7 @@ fn export_characters(conn: &Connection, dir: &Path) -> Result<usize, String> {
             char_id, name, faction_str, specialty_str, element_str,
             level, ascension, hp, atk, def, impact, crit_rate, crit_dmg,
             pen_ratio, pen_fixed, anomaly_mastery, anomaly_proficiency,
-            energy_regen, energy_gen_rate, constellations_json, action_dict_json,
+            energy_regen, energy_gen_rate, constellations_json, potentials_json, action_dict_json,
         ) = row.map_err(|e| format!("Failed to read character row: {e}"))?;
 
         let faction: FactionTag = parse_enum(&faction_str)?;
@@ -112,6 +113,8 @@ fn export_characters(conn: &Connection, dir: &Path) -> Result<usize, String> {
 
         let constellations: [bool; 6] =
             serde_json::from_str(&constellations_json).unwrap_or([false; 6]);
+        let potentials: [bool; 6] =
+            serde_json::from_str(&potentials_json).unwrap_or([false; 6]);
 
         let action_dict: HashSet<String> =
             serde_json::from_str(&action_dict_json).unwrap_or_default();
@@ -145,6 +148,7 @@ fn export_characters(conn: &Connection, dir: &Path) -> Result<usize, String> {
             state: Default::default(),
             action_dict,
             constellations,
+            potentials,
             realtime_modifiers: HashMap::new(),
         };
 

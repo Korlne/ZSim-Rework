@@ -23,6 +23,7 @@ pub struct CharacterRecord {
     pub energy_regen: f64,
     pub energy_gen_rate: f64,
     pub constellations: String,
+    pub potentials: String,
     pub action_dict: String,
 }
 
@@ -113,7 +114,7 @@ fn query_all_characters(conn: &Connection) -> Result<Vec<CharacterRecord>, Strin
             "SELECT char_id, name, faction, specialty, element, level, ascension,
                     hp, atk, def, impact, crit_rate, crit_dmg,
                     pen_ratio, pen_fixed, anomaly_mastery, anomaly_proficiency,
-                    energy_regen, energy_gen_rate, constellations, action_dict
+                    energy_regen, energy_gen_rate, constellations, potentials, action_dict
              FROM characters
              ORDER BY char_id",
         )
@@ -153,7 +154,8 @@ fn row_to_character(row: &rusqlite::Row) -> rusqlite::Result<CharacterRecord> {
         energy_regen: row.get(17)?,
         energy_gen_rate: row.get(18)?,
         constellations: row.get(19)?,
-        action_dict: row.get(20)?,
+        potentials: row.get(20)?,
+        action_dict: row.get(21)?,
     })
 }
 
@@ -170,7 +172,7 @@ pub fn get_character(conn: &Connection, char_id: &str) -> Result<String, String>
             "SELECT char_id, name, faction, specialty, element, level, ascension,
                     hp, atk, def, impact, crit_rate, crit_dmg,
                     pen_ratio, pen_fixed, anomaly_mastery, anomaly_proficiency,
-                    energy_regen, energy_gen_rate, constellations, action_dict
+                    energy_regen, energy_gen_rate, constellations, potentials, action_dict
              FROM characters WHERE char_id = ?1",
             params![char_id],
             row_to_character,
@@ -214,9 +216,9 @@ pub fn save_character(conn: &Connection, data: &str) -> Result<String, String> {
         "INSERT INTO characters (char_id, name, faction, specialty, element, level, ascension,
             hp, atk, def, impact, crit_rate, crit_dmg, pen_ratio, pen_fixed,
             anomaly_mastery, anomaly_proficiency, energy_regen, energy_gen_rate,
-            constellations, action_dict)
+            constellations, potentials, action_dict)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                 ?16, ?17, ?18, ?19, ?20, ?21)
+                 ?16, ?17, ?18, ?19, ?20, ?21, ?22)
          ON CONFLICT(char_id) DO UPDATE SET
             name=excluded.name, faction=excluded.faction, specialty=excluded.specialty,
             element=excluded.element, level=excluded.level, ascension=excluded.ascension,
@@ -225,14 +227,15 @@ pub fn save_character(conn: &Connection, data: &str) -> Result<String, String> {
             pen_ratio=excluded.pen_ratio, pen_fixed=excluded.pen_fixed,
             anomaly_mastery=excluded.anomaly_mastery, anomaly_proficiency=excluded.anomaly_proficiency,
             energy_regen=excluded.energy_regen, energy_gen_rate=excluded.energy_gen_rate,
-            constellations=excluded.constellations, action_dict=excluded.action_dict,
+            constellations=excluded.constellations, potentials=excluded.potentials,
+            action_dict=excluded.action_dict,
             updated_at=datetime('now')",
         params![
             rec.char_id, rec.name, rec.faction, rec.specialty, rec.element,
             rec.level, rec.ascension, rec.hp, rec.atk, rec.def, rec.impact,
             rec.crit_rate, rec.crit_dmg, rec.pen_ratio, rec.pen_fixed,
             rec.anomaly_mastery, rec.anomaly_proficiency, rec.energy_regen, rec.energy_gen_rate,
-            rec.constellations, rec.action_dict
+            rec.constellations, rec.potentials, rec.action_dict
         ],
     )
     .map_err(|e| format!("Failed to save character: {e}"))?;
@@ -376,6 +379,7 @@ mod tests {
             "energy_regen": 1.2,
             "energy_gen_rate": 0.3,
             "constellations": "[false,false,false,false,false,false]",
+            "potentials": "[false,false,false,false,false,false]",
             "action_dict": "[]"
         }"#;
         let result = save_character(&conn, data).unwrap();
@@ -416,6 +420,7 @@ mod tests {
             "energy_regen": 0.0,
             "energy_gen_rate": 0.0,
             "constellations": "[true,false,false,false,false,false]",
+            "potentials": "[false,false,false,false,false,false]",
             "action_dict": "[\"action_1\"]"
         }"#;
         save_character(&conn, data).unwrap();
@@ -430,7 +435,7 @@ mod tests {
     #[test]
     fn test_save_character_validation_empty_id() {
         let conn = setup_conn();
-        let data = r#"{"char_id":"","name":"Bad","faction":"X","specialty":"Attack","element":"Fire","level":60,"ascension":6,"hp":0,"atk":0,"def":0,"impact":0,"crit_rate":0,"crit_dmg":0,"pen_ratio":0,"pen_fixed":0,"anomaly_mastery":0,"anomaly_proficiency":0,"energy_regen":0,"energy_gen_rate":0,"constellations":"[]","action_dict":"[]"}"#;
+        let data = r#"{"char_id":"","name":"Bad","faction":"X","specialty":"Attack","element":"Fire","level":60,"ascension":6,"hp":0,"atk":0,"def":0,"impact":0,"crit_rate":0,"crit_dmg":0,"pen_ratio":0,"pen_fixed":0,"anomaly_mastery":0,"anomaly_proficiency":0,"energy_regen":0,"energy_gen_rate":0,"constellations":"[]","potentials":"[]","action_dict":"[]"}"#;
         let result = save_character(&conn, data);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("char_id is required"));
@@ -439,7 +444,7 @@ mod tests {
     #[test]
     fn test_save_character_validation_invalid_id() {
         let conn = setup_conn();
-        let data = r#"{"char_id":"UPPERCASE","name":"Bad","faction":"X","specialty":"Attack","element":"Fire","level":60,"ascension":6,"hp":0,"atk":0,"def":0,"impact":0,"crit_rate":0,"crit_dmg":0,"pen_ratio":0,"pen_fixed":0,"anomaly_mastery":0,"anomaly_proficiency":0,"energy_regen":0,"energy_gen_rate":0,"constellations":"[]","action_dict":"[]"}"#;
+        let data = r#"{"char_id":"UPPERCASE","name":"Bad","faction":"X","specialty":"Attack","element":"Fire","level":60,"ascension":6,"hp":0,"atk":0,"def":0,"impact":0,"crit_rate":0,"crit_dmg":0,"pen_ratio":0,"pen_fixed":0,"anomaly_mastery":0,"anomaly_proficiency":0,"energy_regen":0,"energy_gen_rate":0,"constellations":"[]","potentials":"[]","action_dict":"[]"}"#;
         let result = save_character(&conn, data);
         assert!(result.is_err());
     }
@@ -447,7 +452,7 @@ mod tests {
     #[test]
     fn test_save_character_validation_level_range() {
         let conn = setup_conn();
-        let data = r#"{"char_id":"bad_lvl","name":"Bad","faction":"X","specialty":"Attack","element":"Fire","level":99,"ascension":6,"hp":0,"atk":0,"def":0,"impact":0,"crit_rate":0,"crit_dmg":0,"pen_ratio":0,"pen_fixed":0,"anomaly_mastery":0,"anomaly_proficiency":0,"energy_regen":0,"energy_gen_rate":0,"constellations":"[]","action_dict":"[]"}"#;
+        let data = r#"{"char_id":"bad_lvl","name":"Bad","faction":"X","specialty":"Attack","element":"Fire","level":99,"ascension":6,"hp":0,"atk":0,"def":0,"impact":0,"crit_rate":0,"crit_dmg":0,"pen_ratio":0,"pen_fixed":0,"anomaly_mastery":0,"anomaly_proficiency":0,"energy_regen":0,"energy_gen_rate":0,"constellations":"[]","potentials":"[]","action_dict":"[]"}"#;
         let result = save_character(&conn, data);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("range"));
@@ -456,7 +461,7 @@ mod tests {
     #[test]
     fn test_save_character_validation_crit_range() {
         let conn = setup_conn();
-        let data = r#"{"char_id":"bad_crit","name":"Bad","faction":"X","specialty":"Attack","element":"Fire","level":60,"ascension":6,"hp":0,"atk":0,"def":0,"impact":0,"crit_rate":1.5,"crit_dmg":0,"pen_ratio":0,"pen_fixed":0,"anomaly_mastery":0,"anomaly_proficiency":0,"energy_regen":0,"energy_gen_rate":0,"constellations":"[]","action_dict":"[]"}"#;
+        let data = r#"{"char_id":"bad_crit","name":"Bad","faction":"X","specialty":"Attack","element":"Fire","level":60,"ascension":6,"hp":0,"atk":0,"def":0,"impact":0,"crit_rate":1.5,"crit_dmg":0,"pen_ratio":0,"pen_fixed":0,"anomaly_mastery":0,"anomaly_proficiency":0,"energy_regen":0,"energy_gen_rate":0,"constellations":"[]","potentials":"[]","action_dict":"[]"}"#;
         let result = save_character(&conn, data);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("crit_rate"));

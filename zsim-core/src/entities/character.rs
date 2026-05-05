@@ -40,6 +40,8 @@ pub struct Character {
     pub action_dict: HashSet<String>,
     #[serde(default = "default_constellations")]
     pub constellations: [bool; 6],
+    #[serde(default = "default_constellations")]
+    pub potentials: [bool; 6],
     #[serde(default)]
     pub realtime_modifiers: HashMap<String, f64>,
 }
@@ -70,6 +72,7 @@ impl Character {
             state: CharacterState::Standby,
             action_dict: HashSet::new(),
             constellations: [false; 6],
+            potentials: [false; 6],
             realtime_modifiers: HashMap::new(),
         }
     }

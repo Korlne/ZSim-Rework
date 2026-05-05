@@ -46,7 +46,7 @@ impl DataLoader {
             "SELECT char_id, name, faction, specialty, element, level, ascension,
                     hp, atk, def, impact, crit_rate, crit_dmg, pen_ratio, pen_fixed,
                     anomaly_mastery, anomaly_proficiency, energy_regen, energy_gen_rate,
-                    constellations, action_dict
+                    constellations, potentials, action_dict
              FROM characters
              ORDER BY char_id",
         )?;
@@ -73,7 +73,8 @@ impl DataLoader {
                 row.get::<_, f64>(17)?,    // energy_regen
                 row.get::<_, f64>(18)?,    // energy_gen_rate
                 row.get::<_, String>(19)?, // constellations (JSON)
-                row.get::<_, String>(20)?, // action_dict (JSON)
+                row.get::<_, String>(20)?, // potentials (JSON)
+                row.get::<_, String>(21)?, // action_dict (JSON)
             ))
         })?;
 
@@ -100,6 +101,7 @@ impl DataLoader {
                 energy_regen,
                 energy_gen_rate,
                 constellations_json,
+                potentials_json,
                 action_dict_json,
             ) = row?;
 
@@ -113,6 +115,8 @@ impl DataLoader {
 
             let constellations: [bool; 6] =
                 serde_json::from_str(&constellations_json).unwrap_or([false; 6]);
+            let potentials: [bool; 6] =
+                serde_json::from_str(&potentials_json).unwrap_or([false; 6]);
             let action_dict: HashSet<String> =
                 serde_json::from_str(&action_dict_json).unwrap_or_default();
 
@@ -145,6 +149,7 @@ impl DataLoader {
                 state: CharacterState::Standby,
                 action_dict,
                 constellations,
+                potentials,
                 realtime_modifiers: HashMap::new(),
             });
         }
