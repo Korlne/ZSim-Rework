@@ -160,6 +160,7 @@
   "editor.characters.fieldLevel": "Level",
   "editor.characters.fieldAscension": "Ascension",
   "editor.characters.sectionCinema": "Cinemas",
+  "editor.characters.sectionPotential": "Potentials",
   "editor.characters.sectionActions": "Action List",
   "editor.characters.actionPlaceholder": "Type action name and press Enter",
   "editor.characters.addTitle": "Add Character",

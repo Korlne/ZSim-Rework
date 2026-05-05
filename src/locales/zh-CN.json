@@ -160,6 +160,7 @@
   "editor.characters.fieldLevel": "等级",
   "editor.characters.fieldAscension": "突破",
   "editor.characters.sectionCinema": "影画",
+  "editor.characters.sectionPotential": "潜能",
   "editor.characters.sectionActions": "动作列表",
   "editor.characters.actionPlaceholder": "输入动作名称后按 Enter",
   "editor.characters.addTitle": "添加角色",

@@ -191,6 +191,7 @@
   "editor.characters.fieldLevel": "レベル",
   "editor.characters.fieldAscension": "突破",
   "editor.characters.sectionCinema": "影画",
+  "editor.characters.sectionPotential": "潜能",
   "editor.characters.sectionActions": "アクションリスト",
   "editor.characters.actionPlaceholder": "アクション名を入力して Enter",
   "editor.characters.addTitle": "キャラクター追加",

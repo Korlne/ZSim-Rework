@@ -46,7 +46,6 @@ function parseCinemas(raw) {
   try {
     const arr = JSON.parse(raw);
     if (!Array.isArray(arr)) return [false, false, false, false, false, false];
-    // Convert string arrays to boolean (cinema names → active)
     if (typeof arr[0] === "string") {
       const keys = ["cinema1","cinema2","cinema3","cinema4","cinema5","cinema6"];
       return keys.map((k) => arr.includes(k));
@@ -57,10 +56,25 @@ function parseCinemas(raw) {
   }
 }
 
+function parsePotentials(raw) {
+  if (!raw) return [false, false, false, false, false, false];
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return [false, false, false, false, false, false];
+    return arr.map(Boolean);
+  } catch {
+    return [false, false, false, false, false, false];
+  }
+}
+
 function stringifyCinemas(bools) {
   const keys = ["cinema1","cinema2","cinema3","cinema4","cinema5","cinema6"];
   const active = keys.filter((_, i) => bools[i]);
   return JSON.stringify(active);
+}
+
+function stringifyPotentials(bools) {
+  return JSON.stringify(bools);
 }
 
 function parseActionDict(raw) {
@@ -215,6 +229,7 @@ async function showEditForm(charId, rootContainer) {
   rootContainer.appendChild(editContainer);
 
   const constellations = parseCinemas(data.constellations);
+  const potentials = parsePotentials(data.potentials);
   const actionDict = parseActionDict(data.action_dict);
 
   // ── Build form manually for full control ──────────────
@@ -323,40 +338,63 @@ async function showEditForm(charId, rootContainer) {
 
   fieldsWrapper.appendChild(statGrid);
 
-  // Section 3: Cinema toggles
-  const cinemaSection = document.createElement("div");
-  cinemaSection.style.marginTop = "16px";
-  const cinemaLabel = document.createElement("div");
-  cinemaLabel.className = "form-label";
-  cinemaLabel.textContent = t("editor.characters.sectionCinema");
-  cinemaSection.appendChild(cinemaLabel);
+  // Section 3: Cinema toggles (sequential)
+  function createToggleSection(sectionLabel, stateArray, btnPrefix, btnRefsArray) {
+    const section = document.createElement("div");
+    section.style.marginTop = "16px";
+    const label = document.createElement("div");
+    label.className = "form-label";
+    label.textContent = sectionLabel;
+    section.appendChild(label);
 
-  const cinemaRow = document.createElement("div");
-  cinemaRow.style.cssText = "display:flex;gap:8px;margin-top:8px";
-  const cinemaBtns = [];
-  for (let i = 0; i < 6; i++) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = "C" + (i + 1);
-    btn.style.cssText = `
-      padding:8px 16px;border-radius:6px;border:1px solid var(--border);
-      cursor:pointer;font-family:var(--font);font-size:13px;font-weight:600;
-      background:${constellations[i] ? "var(--primary)" : "var(--surface)"};
-      color:${constellations[i] ? "#fff" : "var(--text)"};
-      transition:background 0.15s;
-    `;
-    btn.addEventListener("click", () => {
-      constellations[i] = !constellations[i];
-      btn.style.background = constellations[i] ? "var(--primary)" : "var(--surface)";
-      btn.style.color = constellations[i] ? "#fff" : "var(--text)";
-    });
-    cinemaRow.appendChild(btn);
-    cinemaBtns.push(btn);
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;gap:8px;margin-top:8px";
+    for (let i = 0; i < 6; i++) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = btnPrefix + (i + 1);
+      btn.style.cssText = `
+        padding:8px 16px;border-radius:6px;border:1px solid var(--border);
+        cursor:pointer;font-family:var(--font);font-size:13px;font-weight:600;
+        background:${stateArray[i] ? "var(--primary)" : "var(--surface)"};
+        color:${stateArray[i] ? "#fff" : "var(--text)"};
+        transition:background 0.15s;
+      `;
+      btn.addEventListener("click", () => {
+        const wasActive = stateArray[i];
+        if (!wasActive) {
+          // Enforce sequential: can only enable if all previous are enabled
+          if (i > 0 && !stateArray[i - 1]) return;
+        } else {
+          // Cascade disable: turn off this and all subsequent
+          for (let j = i; j < 6; j++) stateArray[j] = false;
+        }
+        if (!wasActive) stateArray[i] = true;
+        // Refresh button states
+        for (let k = 0; k < 6; k++) {
+          btnRefsArray[k].style.background = stateArray[k] ? "var(--primary)" : "var(--surface)";
+          btnRefsArray[k].style.color = stateArray[k] ? "#fff" : "var(--text)";
+        }
+      });
+      row.appendChild(btn);
+      btnRefsArray[i] = btn;
+    }
+    section.appendChild(row);
+    return section;
   }
-  cinemaSection.appendChild(cinemaRow);
-  fieldsWrapper.appendChild(cinemaSection);
 
-  // Section 4: Action dict tag input
+  const cinemaBtns = [];
+  fieldsWrapper.appendChild(createToggleSection(
+    t("editor.characters.sectionCinema"), constellations, "C", cinemaBtns
+  ));
+
+  // Section 4: Potential toggles (sequential)
+  const potentialBtns = [];
+  fieldsWrapper.appendChild(createToggleSection(
+    t("editor.characters.sectionPotential"), potentials, "P", potentialBtns
+  ));
+
+  // Section 5: Action dict tag input
   const actionSection = document.createElement("div");
   actionSection.style.marginTop = "16px";
 
@@ -456,6 +494,7 @@ async function showEditForm(charId, rootContainer) {
     }
 
     data.constellations = stringifyCinemas(constellations);
+    data.potentials = stringifyPotentials(potentials);
     data.action_dict = JSON.stringify(actionDict);
 
     try {
@@ -492,6 +531,7 @@ function getEmptyRecord() {
     anomaly_mastery: 0, anomaly_proficiency: 0,
     energy_regen: 0, energy_gen_rate: 0,
     constellations: "[]",
+    potentials: "[]",
     action_dict: "[]",
   };
 }
