@@ -1,52 +1,20 @@
 # Ralph Progress Log
-Started: Sat May  2 15:34:32     2026
+Started: 2026-05-05 21:33
+## Codebase Patterns
+- **JS form labels use `t()` at render time**: labels are frozen - no `data-i18n` on dynamic forms. To make them reactive, must re-render on `langchange`.
+- **Characters form is built manually in `createCharForm()`**: not using the generic `createForm()` component - uses inline `addField()` helper + manual event listeners.
+- **Number inputs in `addField()`**: use `step` param to control precision. Use `step: "any"` for unrestricted decimal input.
+- **`validate()` returns `null` on success, error string on failure**: do NOT negate the result with `!` when checking for errors in conditions.
+
+---
+## 2026-05-05 - US-001
+- 修复 3 个小缺陷于 `characters.js`:
+  1. char_id 验证取反逻辑错误：`!validate(...)` → `validate(...)` (validate() 返回 null=通过，取反后误报)
+  2. energy_regen / energy_gen_rate step 从 0.01 改为 "any" 支持任意精度小数
+  3. crit_dmg 标签从硬编码 "Crit DMG" 改为 `t("editor.characters.fieldExtraCritDmg")`
+- 3 种语言 locale 新增 `editor.characters.fieldExtraCritDmg` 翻译 (zh-CN: 额外暴击伤害 / en-US: Extra Crit DMG / ja-JP: 追加会心ダメージ)
+- **Learnings for future iterations:**
+  - ja-JP locale 使用与 zh-CN/en-US 不同的 key 命名风格 (e.g., `editor.characters.field.xxx` vs `editor.characters.fieldXxx`)，添加新 key 时需遵循各语言已有风格
+  - `validate()` 返回 `null` 表示通过，返回错误字符串表示失败 — 条件判断中直接使用返回值作 truthiness check，不要取反
 ---
 
-## 2026-05-02 - US-004
-- Implemented Character CRUD backend: get_characters, get_character, save_character, delete_character
-- Added characters.rs with full char_id validation (lowercase + digits + underscores only), numeric range validation for level/ascension/crit rates
-- 16 unit tests covering: empty list, single/multiple ordered, get with skills, save new, save update, validation errors (empty id, invalid format, level range, crit range), delete, delete not found, cascade delete
-- Tauri commands registered in lib.rs with DataDirState pattern matching existing commands
-- **Learnings for future iterations:**
-  - Use `cmd_` prefix for Tauri command wrappers that receive owned Strings, delegate to the core function that takes `&str`
-  - Always enable `PRAGMA foreign_keys = ON;` per connection — it's off by default in rusqlite
-  - The data_entry pattern: functions accept `&Connection`, Tauri commands accept `State<DataDirState>`, open connection, set pragma, then call the module function
----
-
-## 2026-05-02 - US-006
-- Implemented Equipment CRUD backend: three sub-types (W-Engine, Drive Disc, Disc Set) plus combined get_all_equipment
-- Added equipment.rs with WEngineRecord, DriveDiscRecord, DiscSetRecord, AllEquipment structs
-- Save/delete for each sub-type: save_w_engine, delete_w_engine, save_drive_disc, delete_drive_disc, save_disc_set, delete_disc_set
-- Drive disc slot validation (1-6 range check)
-- 13 unit tests covering: empty lists, save+get round-trip, delete, not-found error, invalid slot, combined query
-- Tauri commands registered in lib.rs: get_all_equipment, get_w_engines, save_w_engine, delete_w_engine, get_drive_discs, save_drive_disc, delete_drive_disc, get_disc_sets, save_disc_set, delete_disc_set
-- **Learnings for future iterations:**
-  - Equipment CRUD follows the same pattern as characters/skills: `&Connection` core functions + `cmd_` Tauri wrappers
-  - No cascade relationships between equipment sub-types — each is independent with its own table
-  - Drive disc uses fixed 4 sub-stat columns (sub_stat_1 through sub_stat_4) in the schema, matching the existing DB design
----
-
-## 2026-05-02 - US-007
-- Implemented Enemy CRUD backend: get_enemies (summary list), get_enemy (full detail), save_enemy (INSERT OR REPLACE), delete_enemy
-- Added enemies.rs with EnemySummary (for list) and EnemyRecord (for detail) structs
-- Resistances/weaknesses/anomaly_buildup stored as JSON TEXT columns
-- 7 unit tests covering: empty list, save+get round-trip, get full details, get not found, empty ID validation, delete, delete not found
-- Tauri commands registered in lib.rs: get_enemies, get_enemy, save_enemy, delete_enemy
-- **Learnings for future iterations:**
-  - Enemy CRUD uses two record types: EnemySummary (subset fields for listing) and EnemyRecord (all fields for detail view) — a pattern different from characters/equipment
-  - JSON TEXT fields (resistances/weaknesses/anomaly_buildup) are validated only at the serde level, no schema-level JSON validation
-  - Search queries use LIKE with `%pattern%` — ensure test data actually matches the search term
----
-
-## 2026-05-02 - US-008
-- Implemented data query commands: get_data_summary and search_data
-- Added queries.rs with DataSummary struct (7 table counts), SearchResult struct
-- get_data_summary: SELECT COUNT(*) for all 7 business tables, returns as JSON object
-- search_data: LIKE-based search across 5 data types (characters, skills, enemies, w_engines, disc_sets) with "all" option for cross-type search
-- 7 unit tests covering: empty summary, summary with data, character search, all-types search, no results, invalid type
-- Tauri commands registered in lib.rs: get_data_summary, search_data
-- **Learnings for future iterations:**
-  - search_data uses individual closures for each data type to avoid code duplication while maintaining type safety
-  - All search queries are parameterized (LIKE ?1 with `%query%` pattern) to prevent SQL injection
-  - The `fmt` approach for table names in COUNT queries is safe here since table names are hardcoded, not user input
----

@@ -1,254 +1,146 @@
 {
-  "project": "ZSim Data Entry Frontend",
-  "branchName": "ralph/data-entry-frontend",
-  "description": "为 ZSim 战斗模拟器构建独立的 Tauri 桌面数据录入界面，实现对角色、技能、装备、敌人等游戏数据的可视化增删改查（CRUD）。录入数据通过 SQLite 持久化存储，与现有模拟引擎解耦但数据结构兼容。",
+  "project": "ZSim",
+  "branchName": "ralph/editor-data-fixes",
+  "description": "修复 ZSim 数据编辑器的 7 个缺陷：表单 i18n 响应、潜能系统、数值精度、角色 ID 验证、驱动盘套装界面重构",
   "userStories": [
     {
       "id": "US-001",
-      "title": "SQLite 数据库 Schema 与初始化",
-      "description": "作为数据录入的基础，需要在 Tauri 项目中引入 rusqlite 依赖并创建完整的 SQLite Schema，包含 characters/skills/skill_multipliers/w_engines/drive_discs/disc_sets/enemies/apl 共 8 张业务表 + 1 张 schema_version 元数据表。",
+      "title": "修复角色编辑表单的小缺陷 (ID 验证、步进精度、Crit DMG 标签)",
+      "description": "批量修复 characters.js 中的 3 个小 Bug：1) char_id 验证条件取反错误导致填写后仍报错；2) energy_regen / energy_gen_rate 的 step 从 0.01 改为 \"any\" 以支持任意精度小数；3) Crit DMG 标签改为 \"Extra Crit DMG\" 并使用 i18n key。",
       "acceptanceCriteria": [
-        "src-tauri/Cargo.toml 添加 rusqlite = { version = \"0.31\", features = [\"bundled\"] }",
-        "创建 data_entry/db.rs 模块，使用 CREATE TABLE IF NOT EXISTS 初始化所有表",
-        "所有表包含正确的字段类型、默认值、外键约束和唯一约束",
-        "级联删除：删除角色 → 级联删除关联技能和倍率段",
-        "包含 schema_version 元数据表用于版本追踪",
-        "init_db 可重复调用（幂等）",
-        "unit tests 验证所有表创建、幂等性、级联删除"
+        "添加角色时填写合法的 char_id 后点击保存不再弹出 'Character ID is required' 错误",
+        "energy_regen 和 energy_gen_rate 字段的 <input> step 属性为 \"any\"",
+        "crit_dmg 字段使用 t('editor.characters.fieldExtraCritDmg') 作为标签",
+        "zh-CN / en-US / ja-JP 三个 locale 文件中新增 editor.characters.fieldExtraCritDmg 翻译",
+        "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "已实现。commit 04200db。包含 8 张业务表 + schema_version，完整外键约束和级联删除。5 个测试验证 schema、幂等性、级联删除。"
+      "notes": "已实现。commit 9583a34。修复char_id验证取反逻辑错误、energy_regen/energy_gen_rate step改为'any'、crit_dmg标签改为i18n key 'editor.characters.fieldExtraCritDmg'、3种语言locale新增翻译。"
     },
     {
       "id": "US-002",
-      "title": "JSON 导入模块",
-      "description": "作为旧数据迁移的桥梁，需要创建 import.rs 模块，支持从 data/ 目录 JSON 文件（characters/skills/equipment/enemies/apl）导入数据到 SQLite。",
+      "title": "新增 potentials 字段到 SQLite schema",
+      "description": "在 src-tauri/src/data_entry/db.rs 的 characters 表定义中新增 potentials 列 (TEXT NOT NULL DEFAULT '[false,false,false,false,false,false]')，并执行相应的 schema 迁移逻辑。",
       "acceptanceCriteria": [
-        "import_characters：读取 data/characters/*.json，展平 base_stats，星座和 action_dict 存为 JSON TEXT",
-        "import_skills：读取 data/skills/{char_id}.json，将技能和倍率段拆入两张表",
-        "import_equipment：读取 data/equipment/equipment.json，拆分至 w_engines/drive_discs/disc_sets",
-        "import_enemies：读取 data/enemies/*.json，抗性/弱点/异常积蓄存为 JSON TEXT",
-        "import_apl：读取 data/apl/*.json，tracks 存为 JSON TEXT",
-        "所有导入使用 INSERT OR REPLACE 实现幂等",
-        "使用 zsim-core 的实体 struct 进行 JSON 反序列化",
-        "11+ 个单元测试覆盖所有导入函数"
+        "characters 表包含 potentials TEXT 列，默认值为 6 个 false 的 JSON 数组",
+        "数据库初始化脚本包含该列定义",
+        "cargo check 通过"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "已实现。commit 1a36667。5 个 import 函数，11 个测试，使用 zsim-core 实体结构。"
+      "passes": false,
+      "notes": "涉及文件: src-tauri/src/data_entry/db.rs"
     },
     {
       "id": "US-003",
-      "title": "Tauri 数据库初始化与导入命令",
-      "description": "作为数据入口的 Tauri 层，需要注册 init_database / import_from_json / reimport_all 三个 Tauri 命令，通过 `tauri::State<DataDirState>` 共享数据目录配置。",
+      "title": "新增 potentials 字段到 Rust Character 结构体及 CRUD",
+      "description": "在 zsim-core 和 src-tauri 的 Character 结构体中新增 potentials: [bool; 6] 字段 (带 serde default)。更新 data_entry/characters.rs 中所有 CRUD 函数以读写该字段。",
       "acceptanceCriteria": [
-        "init_database 命令：打开/创建 zsim.db，初始化所有表，返回表名列表 JSON",
-        "import_from_json 命令：接受 data_type + 可选 data_path，调用对应 import 函数",
-        "reimport_all 命令：按 FK 安全顺序清空表，重新导入全部 JSON 数据",
-        "DataDirState 托管状态存储 data_dir 路径",
-        "所有命令使用参数化查询（防止 SQL 注入）",
-        "PRAGMA foreign_keys = ON 在每次连接后启用",
-        "17 个现有单元测试全部通过"
+        "zsim-core Character 结构体包含 potentials: [bool; 6] 字段",
+        "src-tauri CharacterRecord 包含 potentials: String 字段",
+        "saveCharacter / getCharacter / getCharacters 正确序列化和反序列化 potentials",
+        "cargo check 通过"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "已实现。commit 066eda5。3 个 Tauri 命令，DataDirState 托管状态。"
+      "passes": false,
+      "notes": "涉及文件: zsim-core/src/entities/character.rs, src-tauri/src/data_entry/characters.rs"
     },
     {
       "id": "US-004",
-      "title": "角色 CRUD Rust 后端命令",
-      "description": "作为 CRUD 的基础模块，需要创建 characters.rs 实现角色的增删改查（CRUD）Tauri 命令，包括获取列表、获取详情（含关联技能）、保存（创建/更新）、删除（级联）。",
+      "title": "更新导入导出以支持 potentials 字段",
+      "description": "更新 src-tauri 的导入和导出逻辑，使 potentials 字段能在 JSON 数据和 SQLite 之间正确转换。导入时从 JSON 读取 potentials 数组写入数据库，导出时从数据库读取写入 JSON。",
       "acceptanceCriteria": [
-        "get_characters 命令：返回所有角色列表（JSON 数组），按 char_id 排序",
-        "get_character 命令：返回单个角色详情（包含关联技能列表），JSON 格式 { character: {...}, skills: [...] }",
-        "save_character 命令：接受 JSON data 字符串，INSERT OR REPLACE 写入 characters 表",
-        "delete_character 命令：按 char_id 删除角色，级联删除关联技能和倍率段",
-        "所有命令使用参数化查询，验证必填字段",
-        "字符 ID 格式验证：仅允许小写字母、数字、下划线",
-        "data_entry/characters.rs 模块含完整的单元测试"
+        "导入角色 JSON 时 potentials 字段正确写入 SQLite",
+        "导出角色数据时 potentials 字段正确出现在 JSON 输出中",
+        "当 JSON 中无 potentials 字段时使用默认值 [false × 6]",
+        "cargo check 通过"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "已实现。commit 1ad6eca。characters.rs 含完整 CRUD（get_characters/get_character/save_character/delete_character），char_id 格式验证，16 个单元测试全部通过。Tauri 命令已注册。"
+      "passes": false,
+      "notes": "涉及文件: src-tauri/src/data_entry/import.rs, src-tauri/src/data_entry/export.rs"
     },
     {
       "id": "US-005",
-      "title": "技能 CRUD Rust 后端命令",
-      "description": "作为技能数据的管理入口，需要创建 skills.rs 实现技能的增删改查，包含倍率段（skill_multipliers）的行内管理。",
+      "title": "在角色编辑表单中添加潜能 P1-P6 顺序开关",
+      "description": "在 characters.js 的 createCharForm() 中新增潜能 (Potential) 章节，参照 Cinema 实现 P1-P6 六个顺序开关按钮。新增 parsePotentials / stringifyPotentials 辅助函数。getEmptyRecord() 增加 potentials 默认值。同时为 Cinema 和 Potential 两套开关实现顺序约束：点击开启时检查前一节点是否已亮，未亮则拒绝；点击关闭时级联关闭后续所有已亮节点。",
       "acceptanceCriteria": [
-        "get_skills 命令：返回指定角色的所有技能（含倍率段），JSON 数组",
-        "save_skill 命令：接受包含 skill 字段 + multipliers 数组的 JSON，事务性写入 skills 和 skill_multipliers 表",
-        "delete_skill 命令：按 skill_id 删除，级联删除关联倍率段",
-        "倍率段支持动态增删（先删后插，事务包装）",
-        "所有命令使用参数化查询"
+        "角色编辑表单中影画 C1-C6 下方出现潜能 P1-P6 六个开关按钮",
+        "点击 Pn 开启时，若 P(n-1) 未亮则操作被拒绝",
+        "点击已亮节点关闭时，后续所有已亮节点一并关闭（级联）",
+        "同样的顺序约束应用于 Cinema C1-C6 开关",
+        "保存角色时 potentials 正确序列化为 JSON 并传入后端 API",
+        "编辑已有角色时 potentials 状态从数据库正确恢复",
+        "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "已实现。skills.rs 含完整 CRUD（get_skills/save_skill/delete_skill），事务性技能+倍率段写入，9 个单元测试全部通过。Tauri 命令已注册。"
+      "passes": false,
+      "notes": "涉及文件: src/editor/pages/characters.js, src/locales/*.json (新增 editor.characters.sectionPotential, editor.characters.fieldPotential)"
     },
     {
       "id": "US-006",
-      "title": "装备 CRUD Rust 后端命令",
-      "description": "作为装备数据的管理入口，需要创建 equipment.rs 实现三个装备子类型的 CRUD：音擎（w_engines）、驱动盘（drive_discs）、套装（disc_sets）。",
+      "title": "修复角色编辑表单的 i18n 响应式更新",
+      "description": "当用户在角色管理界面切换语言时，已打开的 editor-form 中的字段标签、章节标题应跟随更新。在 createCharForm() 中监听 langchange 事件，保存当前编辑状态后重新渲染表单。",
       "acceptanceCriteria": [
-        "get_w_engines 命令：返回所有音擎列表",
-        "get_drive_discs 命令：返回所有驱动盘列表",
-        "get_disc_sets 命令：返回所有套装列表",
-        "get_all_equipment 命令：返回 { w_engines, drive_discs, disc_sets } 聚合",
-        "save_w_engine / delete_w_engine 命令：音擎增删",
-        "save_drive_disc / delete_drive_disc 命令：驱动盘增删",
-        "save_disc_set / delete_disc_set 命令：套装增删",
-        "所有命令使用参数化查询",
-        "驱动盘 slot 验证：1-6 范围检查"
+        "角色编辑表单打开时切换语言，所有字段标签即时更新为新语言",
+        "切换语言不影响表单中已填写的数值和选择状态",
+        "影画和潜能开关状态在语言切换后保持不变",
+        "动作列表 tag 在语言切换后保持不变",
+        "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "已实现。commit 8049c2a。equipment.rs 包含三个子类型完整 CRUD（W-Engine/Drive Disc/Disc Set）+ get_all_equipment 聚合，驱动盘 slot 1-6 验证，13 个单元测试全部通过。Tauri 命令已注册。"
+      "passes": false,
+      "notes": "涉及文件: src/editor/pages/characters.js, src/editor/app.js"
     },
     {
       "id": "US-007",
-      "title": "敌人 CRUD Rust 后端命令",
-      "description": "作为敌人数据的管理入口，需要创建 enemies.rs 实现敌人的增删改查 Tauri 命令，包含抗性/弱点的 JSON 字段管理。",
+      "title": "修复装备编辑表单的 i18n 响应式更新",
+      "description": "与 US-006 同理，在 equipment.js 的 showInlineForm() 中监听 langchange 事件，使音擎、驱动盘、驱动套装的编辑表单标签随语言切换更新。",
       "acceptanceCriteria": [
-        "get_enemies 命令：返回所有敌人列表",
-        "get_enemy 命令：返回单个敌人详情",
-        "save_enemy 命令：INSERT OR REPLACE 写入 enemies 表，resistances/weaknesses/anomaly_buildup 为 JSON TEXT",
-        "delete_enemy 命令：按 enemy_id 删除",
-        "所有命令使用参数化查询"
+        "音擎编辑表单打开时切换语言，字段标签即时更新",
+        "驱动盘编辑表单打开时切换语言，字段标签即时更新",
+        "驱动套装编辑表单打开时切换语言，字段标签即时更新",
+        "切换语言不影响已填写的表单数据",
+        "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "已实现。commit 368d007。enemies.rs 含完整 CRUD（get_enemies/get_enemy/save_enemy/delete_enemy），resistances/weaknesses/anomaly_buildup 为 JSON TEXT 字段，7 个单元测试全部通过。Tauri 命令已注册。"
+      "passes": false,
+      "notes": "涉及文件: src/editor/pages/equipment.js"
     },
     {
       "id": "US-008",
-      "title": "数据查询与概览命令",
-      "description": "作为数据辅助功能，需要实现数据概览统计和跨表搜索命令。",
+      "title": "重构驱动盘套装导航和列表页",
+      "description": "将侧边栏中独立的「驱动盘」入口移除，改为嵌套在「驱动盘套装」下。重构 #/disc-sets 页面为卡片列表视图，展示所有数据库中的驱动盘套装。每张卡片显示套装名称、二件套/四件套效果摘要、编辑和删除按钮。点击卡片跳转到 #/disc-sets/{set_id}。添加新套装按钮弹出表单（set_id、name、效果描述）。更新 app.js 路由以支持 /disc-sets/{set_id} 子路由。更新 sidebar.js 导航结构。",
       "acceptanceCriteria": [
-        "get_data_summary 命令：返回各表记录数 JSON",
-        "search_data 命令：按 query 字符串搜索角色/装备/敌人",
-        "使用参数化查询防止 SQL 注入"
+        "侧边栏装备管理下仅有「音擎」和「驱动盘套装」两个子项，「驱动盘」独立入口已移除",
+        "#/disc-sets 页面以卡片网格展示所有驱动盘套装，包含名称和效果描述",
+        "每张套装卡片有编辑和删除按钮",
+        "点击 [添加] 按钮可创建新套装（输入 set_id、name、效果描述）",
+        "点击套装卡片跳转到 #/disc-sets/{set_id}",
+        "所有卡片标签和按钮文字使用 i18n key",
+        "Typecheck passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "已实现。commit 368d007。queries.rs 含 get_data_summary（7 表统计）+ search_data（跨 5 种类型搜索），使用参数化 LIKE 查询，7 个单元测试全部通过。Tauri 命令已注册。"
+      "passes": false,
+      "notes": "涉及文件: src/editor/app.js, src/editor/components/sidebar.js, src/editor/pages/equipment.js, src/locales/*.json"
     },
     {
       "id": "US-009",
-      "title": "前端编辑器目录结构与导航",
-      "description": "作为数据录入界面的基础设施，需要在 src/editor/ 下创建完整的目录结构、侧边栏导航和路由系统。",
+      "title": "构建驱动盘套装槽位配置页",
+      "description": "实现 #/disc-sets/{set_id} 路由页面：显示返回按钮 + 套装名称标题；下方展示 6 个槽位 (Slot 1-6) 的行编辑区，每行包含主词条选择 (select) 和主词条值 (number input)。每个槽位可展开编辑 1-4 列副词条行。数据按 set_id 从 drive_discs 表查询已有记录并回填，空缺槽位显示空白可填写。新增按 set_id 查询驱动盘的 Rust 后端 API。",
       "acceptanceCriteria": [
-        "创建 src/editor/ 目录及子目录结构：components/, pages/, utils/",
-        "创建 editor/app.js 入口文件（路由/导航）",
-        "创建 editor/components/sidebar.js 侧边栏导航组件",
-        "创建 editor/components/datatable.js 通用数据表格组件",
-        "创建 editor/components/form.js 通用表单组件",
-        "创建 editor/components/confirm.js 确认弹窗组件",
-        "创建 editor/utils/api.js（invoke 封装）",
-        "创建 editor/utils/validation.js（表单验证）",
-        "创建 editor/utils/format.js（数值格式化）",
-        "创建 editor/styles.css 录入界面专属样式",
-        "index.html 顶部添加 [模拟分析] [数据录入] 导航 Tab",
-        "侧边栏包含：总览/角色/技能/装备(含子项)/敌人/导入 导航项"
+        "访问 #/disc-sets/{set_id} 显示该套装名称标题和返回按钮",
+        "页面包含 Slot 1-6 共 6 行编辑区域",
+        "每行可设置主词条名称 (select) 和主词条值 (number)",
+        "每个槽位行可点击展开，显示 1-4 副词条编辑行 (select + number)",
+        "已有驱动盘记录的数据正确回填到对应槽位",
+        "保存时所有 6 个槽位的驱动盘数据正确写入数据库",
+        "缺省槽位保存后创建新驱动盘记录",
+        "Rust 后端新增 get_drive_discs_by_set_id 命令",
+        "Typecheck passes"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "已实现。commit 5b95948。src/editor/ 完整目录结构（components/pages/utils）：app.js（hash 路由 + 懒加载页面）、components/sidebar.js（侧边栏导航含装备子项）、components/datatable.js（通用数据表格）、components/form.js（通用表单 + 6 种字段类型）、components/confirm.js（确认弹窗 Promise API）、utils/api.js（全部 20+ Tauri 命令封装）、utils/validation.js（字段验证函数）、utils/format.js（数值格式化）、styles.css（深色主题编辑器样式）。index.html 已添加 [模拟分析] [数据录入] Tab 切换。三种语言（zh-CN/en-US/ja-JP）30+ 编辑器命名空间 i18n 键。cargo check + vite build 均通过。"
-    },
-    {
-      "id": "US-010",
-      "title": "前端角色管理页面",
-      "description": "作为角色数据的前端界面，需要实现角色列表、筛选、编辑表单（含 12 个面板字段、影画和动作列表）。",
-      "acceptanceCriteria": [
-        "角色列表页：表格显示所有角色，支持按阵营/专精/属性筛选",
-        "角色编辑表单：弹出/面板形式，含全部 12 个面板数值字段",
-        "字段布局：基础信息区 + 基础面板（12 字段分两列）+ 影画（6 个开关）+ 动作列表",
-        "char_id 为只读（新建时可填，编辑时不可改）",
-        "所有数值字段支持正确输入和验证",
-        "保存/取消/删除按钮功能完整",
-        "删除有二次确认弹窗"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": "已实现。characters.js 含完整角色管理（列表/筛选/编辑/保存/删除），char_id 只读编辑，12 面板字段两列布局，6 影画开关，动作列表标签输入，保存验证。datatable.js 添加 i18n 支持，modal.js 模态框组件。所有 3 种语言 i18n 键覆盖。vite build 通过。"
-    },
-    {
-      "id": "US-011",
-      "title": "前端技能编辑器页面",
-      "description": "作为技能数据的前端界面，需要实现以角色为单位的技能列表和编辑表单，支持倍率段动态增删。",
-      "acceptanceCriteria": [
-        "顶部角色下拉选择器 → 加载该角色所有技能",
-        "技能列表：显示 action_id/类型/能量消耗/冷却帧/操作按钮",
-        "技能编辑表单：含基础参数（能量/分贝/HP消耗、冷却/动画帧、击晕倍率等）和 damage_multipliers 区域",
-        "倍率段动态增删行：段数/命中帧/倍率值/衰减系数",
-        "效果 ID 字段可自由输入并持久化",
-        "前置动作下拉选择（从已有技能中选择）",
-        "保存/取消/删除功能完整"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": "已实现。skills.js 包含完整技能编辑器：角色下拉选择器（从 API 加载角色列表）、技能表格（action_id/类型/能量/冷却/操作按钮）、内联编辑面板（全部基础参数字段 + 倍率段动态增删行 + 效果 ID + 前置动作下拉）、保存/取消/删除功能。已与 US-010 同时提交。vite build 通过。"
-    },
-    {
-      "id": "US-012",
-      "title": "前端装备管理页面",
-      "description": "作为装备数据的前端界面，需要实现三级 Tab 导航（音擎/驱动盘/套装）各自独立的列表和编辑表单。",
-      "acceptanceCriteria": [
-        "三级 Tab 切换：音擎 / 驱动盘 / 套装",
-        "音擎列表+编辑：ID/名称/等级/攻击/面板字段/被动效果 ID",
-        "驱动盘列表+编辑：槽位选择(1-6)/主词条/副词条(最多4条动态增删)/套装 ID",
-        "套装列表+编辑：二件套/四件套效果描述 + 效果 ID",
-        "所有 CRUD 操作通过 Tauri 命令完成"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "已实现。equipment.js 含完整装备管理：三级 Tab 切换（音擎/驱动盘/套装）。音擎：列表（ID/名称/等级/ATK/暴击率/暴击伤害）+ 编辑表单（所有面板字段 + 被动效果标签输入）。驱动盘：列表（ID/槽位/等级/套装/主词条）+ 编辑表单（槽位选择1-6/主词条/4副词条动态增删行/套装ID）。套装：列表（套装ID/名称/二件套/四件套）+ 编辑表单（二件套/四件套效果描述 + Buff ID）。完整 CRUD 通过 Tauri 命令完成。i18n keys 已添加至全部 3 种语言。vite build 通过。"
-    },
-    {
-      "id": "US-013",
-      "title": "前端敌人配置页面",
-      "description": "作为装备数据的前端界面，需要实现敌人列表和编辑表单，含抗性/弱点的动态增删行。",
-      "acceptanceCriteria": [
-        "敌人列表：ID/名称/类型/等级/HP/DEF 等关键字段",
-        "敌人编辑表单：基础信息（ID/名称/类型/等级/面板值）",
-        "抗性动态增删：属性+抗性值行，可添加/删除",
-        "弱点标签输入：添加/移除弱点标签",
-        "异常积蓄 JSON 字段支持",
-        "保存/取消/删除功能完整"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "已实现。enemies.js 包含完整敌人管理：敌人列表表格（ID/名称/类型/等级/HP/DEF/基础抗性）+ 内联编辑表单（基础面板字段 + 抗性动态增删行 + 弱点标签输入 + 异常积蓄字段）。保存/取消/删除功能完整，i18n 键已添加。vite build 通过。"
-    },
-    {
-      "id": "US-014",
-      "title": "前端数据总览与导入页面",
-      "description": "作为首页和批量导入入口，需要实现数据总览仪表盘和 JSON 导入页面。",
-      "acceptanceCriteria": [
-        "数据总览：卡片式显示各表记录数",
-        "快速搜索框（跨表搜索）",
-        "导入页面：扫描 data/ 目录 JSON 文件，显示文件清单",
-        "导入模式选择：覆盖/追加",
-        "导入进度反馈和结果展示"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "已实现。搜索框支持跨表搜索（角色/技能/敌人/装备/套装），结果可点击跳转至对应页面。导入页面含文件扫描、覆盖/追加模式选择、单类型导入和全部导入功能。"
-    },
-    {
-      "id": "US-015",
-      "title": "i18n 国际化（数据录入界面）",
-      "description": "作为多语言支持，需要为数据录入界面添加中/英/日三语翻译覆盖。",
-      "acceptanceCriteria": [
-        "扩展现有 i18n.js 支持录入界面翻译",
-        "zh-CN / en-US / ja-JP 翻译覆盖所有录入界面文本",
-        "录入界面组件使用 i18n.t() 进行翻译",
-        "侧边栏/表格/表单/弹窗等全部组件覆盖"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "已实现。datatable.js/confirm.js/form.js 中所有硬编码的英文字符串替换为 i18n t() 调用。en-US/zh-CN/ja-JP 三语言添加 editor.action.edit/delete/add/noData/actions/search、editor.confirm.cancel/delete、editor.form.add 等通用 i18n 键。ja-JP 补充 editor.action.actions/editor.confirm.*/editor.form.add 键。zh-CN 与 en-US 补齐之前缺失的 editor.action.* 通用键（相较于 ja-JP）。vite build 通过（29 modules, 0 errors）。"
+      "passes": false,
+      "notes": "涉及文件: src/editor/pages/equipment.js, src/editor/utils/api.js, src-tauri/src/data_entry/equipment.rs, src-tauri/src/lib.rs"
     }
   ]
 }
