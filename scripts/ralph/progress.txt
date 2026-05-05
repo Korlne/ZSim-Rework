@@ -5,9 +5,48 @@ Started: 2026-05-05 21:33
 - **Characters form is built manually in `createCharForm()`**: not using the generic `createForm()` component - uses inline `addField()` helper + manual event listeners.
 - **Number inputs in `addField()`**: use `step` param to control precision. Use `step: "any"` for unrestricted decimal input.
 - **`validate()` returns `null` on success, error string on failure**: do NOT negate the result with `!` when checking for errors in conditions.
+- **schema change propagation**: Adding a column requires updates to: db.rs (CREATE TABLE), zsim-core entity struct, src-tauri CharacterRecord struct, row mapper, all SELECT queries, all INSERT/UPSERT (columns + params), import.rs INSERT, export.rs SELECT+Character construction, loader.rs SELECT+Character construction, and optionally test data JSON strings.
+- **zsim-core entities**: Used by import.rs/export.rs/loader.rs for JSON deserialization. Changes to entity structs cascade to all these crates.
+- **Ralph for opencode**: prompt-opencode.md is the instruction file. CLI tool is `opencode` with `--agent build`. CLAUDE.md is read by opencode as context when navigating to the directory.
 
 ---
-## 2026-05-05 - US-001
+## 2026-05-05 - US-004
+- import.rs INSERT 查询新增 potentials 列和参数；JSON 反序列化缺字段默认 [false×6]
+- export.rs 已在 US-003 中同步更新
+
+---
+## 2026-05-05 - US-005
+- 新增 createToggleSection() 复用函数生成 C1-C6 影画 + P1-P6 潜能开关
+- 顺序约束：开启需前一节点已亮（i>0 && !state[i-1] → return），关闭级联关闭后续
+- parsePotentials / stringifyPotentials 辅助函数；getEmptyRecord 新增 potentials 字段
+- 3 种语言 locale 新增 editor.characters.sectionPotential
+
+---
+## 2026-05-05 - US-006, US-007
+- characters.js: showEditForm 中提取 buildFormContent()，langchange 事件触发重新渲染
+- equipment.js: showInlineForm 中提取 buildInlineFormContent()，同样监听 langchange
+- 表单状态（data/constellations/potentials/actionDict）通过闭包引用在重渲染间保留
+
+---
+## 2026-05-05 - US-008
+- sidebar.js 移除独立「驱动盘」子项
+- app.js 路由移除 drive-discs，disc-sets 解析子路由
+- equipment.js: renderDiscSets 改为卡片网格（hover 高亮边框、点击跳转子路由、编辑/删除按钮）
+- 新增 renderDiscSetDetail 占位页
+
+---
+## 2026-05-05 - US-009
+- Rust: get_drive_discs_by_set_id 按 set_id 过滤 + slot 排序查询
+- Tauri: cmd_get_drive_discs_by_set_id 命令 + lib.rs 注册
+- Frontend API: getDriveDiscsBySetId() invoke 封装
+- renderDiscSetDetail: Slot 1-6 编辑区（主词条 select + number、可展开 4 副词条行、每槽位独立保存按钮）
+- 缺省槽位自动创建默认记录（id=setId_slot, slot=N, level=15）
+
+---
+## All Stories Complete
+✅ 9/9 stories implemented across Rust backend + JS frontend
+- 68 unit tests pass
+- Vite build passes
 - 修复 3 个小缺陷于 `characters.js`:
   1. char_id 验证取反逻辑错误：`!validate(...)` → `validate(...)` (validate() 返回 null=通过，取反后误报)
   2. energy_regen / energy_gen_rate step 从 0.01 改为 "any" 支持任意精度小数
