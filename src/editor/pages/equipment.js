@@ -13,7 +13,6 @@ import { formatStat, formatFixed } from "../utils/format.js";
 
 const TAB_CONFIG = {
   "w-engines": { labelKey: "editor.nav.wEngines", icon: "⚙" },
-  "drive-discs": { labelKey: "editor.nav.driveDiscs", icon: "💿" },
   "disc-sets": { labelKey: "editor.nav.discSets", icon: "📦" },
 };
 
@@ -53,16 +52,22 @@ export function renderPage(route) {
   content.id = "equipment-content";
   container.appendChild(content);
 
+  // Parse sub-route for disc-sets/{set_id}
+  const hash = window.location.hash.replace(/^#\//, "");
+  const parts = hash.split("/");
+  const setSubRoute = parts.length > 2 ? parts[parts.length - 1] : null;
+
   // Render the appropriate tab
   switch (route) {
     case "w-engines":
       renderWEngines(content);
       break;
-    case "drive-discs":
-      renderDriveDiscs(content);
-      break;
     case "disc-sets":
-      renderDiscSets(content);
+      if (setSubRoute && TAB_CONFIG["disc-sets"] && parts.length > 2) {
+        renderDiscSetDetail(content, setSubRoute);
+      } else {
+        renderDiscSets(content);
+      }
       break;
     default:
       content.innerHTML = `<p class="text-muted">${t("editor.notFound")}</p>`;
@@ -239,7 +244,7 @@ async function renderDiscSets(container) {
   }
 
   const headerRow = document.createElement("div");
-  headerRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:12px";
+  headerRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:16px";
 
   const title = document.createElement("h2");
   title.style.margin = "0";
@@ -253,21 +258,84 @@ async function renderDiscSets(container) {
   headerRow.appendChild(addBtn);
   container.appendChild(headerRow);
 
-  const table = createDataTable(
-    [
-      { key: "set_id", label: t("editor.equipment.colSetId") },
-      { key: "name", label: t("editor.equipment.colName") },
-      { key: "two_piece_description", label: t("editor.equipment.col2pc"), format: (v) => v || "-" },
-      { key: "four_piece_description", label: t("editor.equipment.col4pc"), format: (v) => v || "-" },
-    ],
-    data,
-    {
-      onEdit: (row) => showDiscSetForm(row.set_id, container),
-      onDelete: (row) => handleDelete("disc-set", row.set_id, row.name, container, renderDiscSets),
-      emptyMessage: t("editor.equipment.empty"),
-    }
-  );
-  container.appendChild(table);
+  if (data.length === 0) {
+    container.innerHTML += `<p class="text-muted">${t("editor.equipment.empty")}</p>`;
+    return;
+  }
+
+  const grid = document.createElement("div");
+  grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px";
+
+  for (const set of data) {
+    const card = document.createElement("div");
+    card.className = "editor-card";
+    card.style.cssText = "background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s";
+    card.addEventListener("mouseenter", () => {
+      card.style.borderColor = "var(--primary)";
+      card.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+    });
+    card.addEventListener("mouseleave", () => {
+      card.style.borderColor = "var(--border)";
+      card.style.boxShadow = "none";
+    });
+    card.addEventListener("click", (e) => {
+      if (e.target.closest("button")) return;
+      window.location.hash = "#/disc-sets/" + set.set_id;
+    });
+
+    card.innerHTML = `
+      <div style="font-weight:700;font-size:15px;margin-bottom:4px;color:var(--text)">${set.name || set.set_id}</div>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">${set.set_id}</div>
+      <div style="font-size:12px;color:var(--text);margin-bottom:4px"><strong>${t("editor.equipment.col2pc")}:</strong> ${set.two_piece_description || "-"}</div>
+      <div style="font-size:12px;color:var(--text)"><strong>${t("editor.equipment.col4pc")}:</strong> ${set.four_piece_description || "-"}</div>
+    `;
+
+    const actions = document.createElement("div");
+    actions.style.cssText = "display:flex;gap:8px;margin-top:12px";
+    const editBtn = document.createElement("button");
+    editBtn.className = "btn btn-sm btn-secondary";
+    editBtn.textContent = t("editor.action.edit");
+    editBtn.addEventListener("click", (e) => { e.stopPropagation(); showDiscSetForm(set.set_id, container); });
+    actions.appendChild(editBtn);
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "btn btn-sm btn-danger";
+    delBtn.style.cssText = "background:var(--error);color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px";
+    delBtn.textContent = t("editor.action.delete");
+    delBtn.addEventListener("click", (e) => { e.stopPropagation(); handleDelete("disc-set", set.set_id, set.name, container, renderDiscSets); });
+    actions.appendChild(delBtn);
+
+    card.appendChild(actions);
+    grid.appendChild(card);
+  }
+  container.appendChild(grid);
+}
+
+// ── Disc Set Detail (drive discs for a set) ─────────────
+
+async function renderDiscSetDetail(container, setId) {
+  container.innerHTML = "";
+
+  const backBtn = document.createElement("button");
+  backBtn.className = "btn btn-secondary";
+  backBtn.style.marginBottom = "12px";
+  backBtn.textContent = "← " + t("editor.nav.discSets");
+  backBtn.addEventListener("click", () => {
+    window.location.hash = "#/disc-sets";
+  });
+  container.appendChild(backBtn);
+
+  const title = document.createElement("h2");
+  title.style.margin = "0 0 16px 0";
+  title.textContent = setId;
+  container.appendChild(title);
+
+  // Placeholder — full implementation in US-009
+  const placeholder = document.createElement("div");
+  placeholder.className = "editor-card";
+  placeholder.style.cssText = "background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;text-align:center";
+  placeholder.innerHTML = `<p>${t("editor.characters.sectionActions")} — ${setId}</p>`;
+  container.appendChild(placeholder);
 }
 
 function showDiscSetForm(setId, rootContainer) {
@@ -657,11 +725,20 @@ function getCurrentRoute() {
 
 function renderCurrentTab(container) {
   const route = getCurrentRoute();
+  const hash = window.location.hash.replace(/^#\//, "");
+  const parts = hash.split("/");
+  const setSubRoute = parts.length > 2 ? parts[parts.length - 1] : null;
+
   container.innerHTML = "";
   switch (route) {
     case "w-engines": renderWEngines(container); break;
-    case "drive-discs": renderDriveDiscs(container); break;
-    case "disc-sets": renderDiscSets(container); break;
+    case "disc-sets":
+      if (setSubRoute && parts.length > 2) {
+        renderDiscSetDetail(container, setSubRoute);
+      } else {
+        renderDiscSets(container);
+      }
+      break;
   }
 }
 

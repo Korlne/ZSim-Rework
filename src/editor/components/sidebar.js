@@ -17,7 +17,6 @@ export function createSidebar(activeRoute) {
       label: "editor.nav.equipment",
       children: [
         { id: "w-engines", label: "editor.nav.wEngines" },
-        { id: "drive-discs", label: "editor.nav.driveDiscs" },
         { id: "disc-sets", label: "editor.nav.discSets" },
       ],
     },
