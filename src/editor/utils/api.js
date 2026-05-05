@@ -85,6 +85,11 @@ export async function getDriveDiscs() {
   return JSON.parse(raw);
 }
 
+export async function getDriveDiscsBySetId(setId) {
+  const raw = await invoke("get_drive_discs_by_set_id", { setId });
+  return JSON.parse(raw);
+}
+
 export async function saveDriveDisc(data) {
   const raw = await invoke("save_drive_disc", { data: JSON.stringify(data) });
   return JSON.parse(raw);

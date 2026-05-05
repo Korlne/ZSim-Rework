@@ -193,6 +193,47 @@ pub fn get_drive_discs(conn: &Connection) -> Result<String, String> {
     serde_json::to_string(&items).map_err(|e| format!("Failed to serialize drive_discs: {e}"))
 }
 
+pub fn get_drive_discs_by_set_id(conn: &Connection, set_id: &str) -> Result<String, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, slot, level, set_id,
+                    main_stat_name, main_stat_value,
+                    sub_stat_1_name, sub_stat_1_value,
+                    sub_stat_2_name, sub_stat_2_value,
+                    sub_stat_3_name, sub_stat_3_value,
+                    sub_stat_4_name, sub_stat_4_value
+             FROM drive_discs WHERE set_id = ?1 ORDER BY slot",
+        )
+        .map_err(|e| format!("Failed to prepare drive_discs query: {e}"))?;
+
+    let rows = stmt
+        .query_map(params![set_id], |row| {
+            Ok(DriveDiscRecord {
+                id: row.get(0)?,
+                slot: row.get(1)?,
+                level: row.get(2)?,
+                set_id: row.get(3)?,
+                main_stat_name: row.get(4)?,
+                main_stat_value: row.get(5)?,
+                sub_stat_1_name: row.get(6)?,
+                sub_stat_1_value: row.get(7)?,
+                sub_stat_2_name: row.get(8)?,
+                sub_stat_2_value: row.get(9)?,
+                sub_stat_3_name: row.get(10)?,
+                sub_stat_3_value: row.get(11)?,
+                sub_stat_4_name: row.get(12)?,
+                sub_stat_4_value: row.get(13)?,
+            })
+        })
+        .map_err(|e| format!("Failed to query drive_discs: {e}"))?;
+
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(row.map_err(|e| format!("Failed to read drive_disc row: {e}"))?);
+    }
+    serde_json::to_string(&result).map_err(|e| format!("Failed to serialize: {e}"))
+}
+
 pub fn save_drive_disc(conn: &Connection, data: &str) -> Result<String, String> {
     let rec: DriveDiscRecord =
         serde_json::from_str(data).map_err(|e| format!("Invalid drive_disc JSON: {e}"))?;
@@ -362,6 +403,10 @@ pub fn cmd_delete_w_engine(conn: &Connection, id: String) -> Result<String, Stri
 
 pub fn cmd_get_drive_discs(conn: &Connection) -> Result<String, String> {
     get_drive_discs(conn)
+}
+
+pub fn cmd_get_drive_discs_by_set_id(conn: &Connection, set_id: String) -> Result<String, String> {
+    get_drive_discs_by_set_id(conn, &set_id)
 }
 
 pub fn cmd_save_drive_disc(conn: &Connection, data: String) -> Result<String, String> {

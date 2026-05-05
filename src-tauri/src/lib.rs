@@ -543,6 +543,17 @@ fn get_drive_discs(state: tauri::State<'_, DataDirState>) -> Result<String, Stri
     data_entry::equipment::cmd_get_drive_discs(&conn)
 }
 
+#[tauri::command]
+fn get_drive_discs_by_set_id(state: tauri::State<'_, DataDirState>, set_id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::equipment::cmd_get_drive_discs_by_set_id(&conn, set_id)
+}
+
 /// 创建或更新驱动盘。
 #[tauri::command]
 fn save_drive_disc(state: tauri::State<'_, DataDirState>, data: String) -> Result<String, String> {
@@ -810,6 +821,7 @@ pub fn run() {
             save_w_engine,
             delete_w_engine,
             get_drive_discs,
+            get_drive_discs_by_set_id,
             save_drive_disc,
             delete_drive_disc,
             get_disc_sets,

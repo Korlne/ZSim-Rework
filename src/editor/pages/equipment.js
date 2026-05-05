@@ -4,7 +4,7 @@ import { createForm } from "../components/form.js";
 import { confirm } from "../components/confirm.js";
 import {
   getWEngines, saveWEngine, deleteWEngine,
-  getDriveDiscs, saveDriveDisc, deleteDriveDisc,
+  getDriveDiscs, getDriveDiscsBySetId, saveDriveDisc, deleteDriveDisc,
   getDiscSets, saveDiscSet, deleteDiscSet,
 } from "../utils/api.js";
 import { formatStat, formatFixed } from "../utils/format.js";
@@ -330,12 +330,141 @@ async function renderDiscSetDetail(container, setId) {
   title.textContent = setId;
   container.appendChild(title);
 
-  // Placeholder — full implementation in US-009
-  const placeholder = document.createElement("div");
-  placeholder.className = "editor-card";
-  placeholder.style.cssText = "background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:24px;text-align:center";
-  placeholder.innerHTML = `<p>${t("editor.characters.sectionActions")} — ${setId}</p>`;
-  container.appendChild(placeholder);
+  let discs;
+  try {
+    discs = await getDriveDiscsBySetId(setId);
+  } catch (e) {
+    container.innerHTML += `<p class="error">${t("editor.loadError")}</p>`;
+    return;
+  }
+
+  const discBySlot = {};
+  for (const d of discs) discBySlot[d.slot] = d;
+
+  const statOptions = STAT_OPTIONS.map((s) => ({ value: s, label: s }));
+
+  for (let slot = 1; slot <= 6; slot++) {
+    const disc = discBySlot[slot] || {
+      id: setId + "_" + slot,
+      slot: slot,
+      level: 15,
+      set_id: setId,
+      main_stat_name: "ATK",
+      main_stat_value: 0,
+      sub_stat_1_name: null, sub_stat_1_value: null,
+      sub_stat_2_name: null, sub_stat_2_value: null,
+      sub_stat_3_name: null, sub_stat_3_value: null,
+      sub_stat_4_name: null, sub_stat_4_value: null,
+    };
+
+    const slotSection = document.createElement("div");
+    slotSection.style.cssText = "background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px";
+
+    const slotHeader = document.createElement("div");
+    slotHeader.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;cursor:pointer";
+    slotHeader.innerHTML = `<strong style="font-size:15px">Slot ${slot}</strong>`;
+    slotSection.appendChild(slotHeader);
+
+    // Main stat row
+    const mainRow = document.createElement("div");
+    mainRow.style.cssText = "display:flex;gap:8px;align-items:center;margin-bottom:8px";
+
+    const mainSelect = document.createElement("select");
+    mainSelect.className = "form-input form-select";
+    mainSelect.style.flex = "1";
+    for (const opt of statOptions) {
+      const el = document.createElement("option");
+      el.value = opt.value;
+      el.textContent = opt.label;
+      if (disc.main_stat_name === opt.value) el.selected = true;
+      mainSelect.appendChild(el);
+    }
+    mainSelect.addEventListener("change", () => { disc.main_stat_name = mainSelect.value; });
+    mainRow.appendChild(mainSelect);
+
+    const mainVal = document.createElement("input");
+    mainVal.type = "number";
+    mainVal.className = "form-input";
+    mainVal.style.width = "100px";
+    mainVal.step = "any";
+    mainVal.value = disc.main_stat_value;
+    mainVal.addEventListener("input", () => { disc.main_stat_value = parseFloat(mainVal.value) || 0; });
+    mainRow.appendChild(mainVal);
+
+    slotSection.appendChild(mainRow);
+
+    // Sub stats expandable
+    const subToggle = document.createElement("button");
+    subToggle.type = "button";
+    subToggle.className = "btn btn-sm btn-secondary";
+    subToggle.style.cssText = "font-size:11px;margin-bottom:8px";
+    subToggle.textContent = "Sub Stats ▾";
+    slotSection.appendChild(subToggle);
+
+    const subContainer = document.createElement("div");
+    subContainer.style.display = "none";
+    for (let si = 1; si <= 4; si++) {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:8px;margin-bottom:4px;align-items:center";
+
+      const nameSelect = document.createElement("select");
+      nameSelect.className = "form-input form-select";
+      nameSelect.style.flex = "1";
+      nameSelect.style.fontSize = "12px";
+      const blankOpt = document.createElement("option");
+      blankOpt.value = "";
+      blankOpt.textContent = "-";
+      nameSelect.appendChild(blankOpt);
+      for (const opt of statOptions) {
+        const el = document.createElement("option");
+        el.value = opt.value;
+        el.textContent = opt.label;
+        if (disc["sub_stat_" + si + "_name"] === opt.value) el.selected = true;
+        nameSelect.appendChild(el);
+      }
+      nameSelect.addEventListener("change", () => {
+        disc["sub_stat_" + si + "_name"] = nameSelect.value || null;
+      });
+      row.appendChild(nameSelect);
+
+      const valInput = document.createElement("input");
+      valInput.type = "number";
+      valInput.className = "form-input";
+      valInput.style.width = "90px";
+      valInput.style.fontSize = "12px";
+      valInput.step = "any";
+      valInput.placeholder = "0";
+      valInput.value = disc["sub_stat_" + si + "_value"] ?? "";
+      valInput.addEventListener("input", () => {
+        disc["sub_stat_" + si + "_value"] = valInput.value === "" ? null : parseFloat(valInput.value);
+      });
+      row.appendChild(valInput);
+
+      subContainer.appendChild(row);
+    }
+    subToggle.addEventListener("click", () => {
+      subContainer.style.display = subContainer.style.display === "none" ? "block" : "none";
+      subToggle.textContent = subContainer.style.display === "none" ? "Sub Stats ▾" : "Sub Stats ▴";
+    });
+    slotSection.appendChild(subContainer);
+
+    // Save button for this slot
+    const saveSlotBtn = document.createElement("button");
+    saveSlotBtn.className = "btn btn-primary btn-sm";
+    saveSlotBtn.style.cssText = "margin-top:8px;font-size:12px";
+    saveSlotBtn.textContent = t("editor.action.save") + " Slot " + slot;
+    saveSlotBtn.addEventListener("click", async () => {
+      try {
+        await saveDriveDisc(disc);
+        showNotification(t("editor.equipment.saved"), "success");
+      } catch (e) {
+        showNotification(t("editor.equipment.saveError") + ": " + e, "error");
+      }
+    });
+    slotSection.appendChild(saveSlotBtn);
+
+    container.appendChild(slotSection);
+  }
 }
 
 function showDiscSetForm(setId, rootContainer) {
