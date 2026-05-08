@@ -13,6 +13,7 @@
 - from_json_dir: embed schema + JSON import logic directly on DataLoader for self-contained bootstrap from flat files
 - Editor pattern: hash-based routing (#/route) with lazy-loaded page modules via dynamic import(), sidebar with active state tracking, shared components (datatable, form, confirm) in src/editor/ root
 - i18n system: t(key, params) in src/i18n.js, flat key-value JSON in src/locales/{lang}.json, data-i18n DOM attributes for static HTML, "langchange" custom event for dynamic re-render
+- i18n enum translation: use i18n-maps.js (FACTION_MAP, SPECIALTY_MAP, etc.) to map raw DB values → i18n keys; keys follow pattern `enum.<category>.<snake_case_value>`; usage: `t(MAP[rawValue])`
 - CSV import: calamine crate for XLSX parsing in src-tauri/src/data_entry/csv_import.rs, functions return Result<usize, String>
 - Tauri commands: #[tauri::command] in lib.rs, registered via generate_handler![], state managed via app.manage() with Mutex<T> for interior mutability
 - Simulation: run_simulation spawns std::thread with app.clone() to emit progress events, SimulationState with Arc<AtomicBool> for cancellation, config passed as JSON string
@@ -50,4 +51,23 @@
   - Enum translation keys follow pattern `enum.<category>.<snake_case_value>` (e.g., `enum.faction.belobog_industries`)
   - i18n-maps.js mapping objects map from the raw English enum value (as stored in DB) to the i18n key — usage: `t(MAP[rawValue])`
   - When adding new enum values, both the locale files AND i18n-maps.js need updating
+---
+
+## 2026-05-08 - US-104
+- What was implemented: Added i18n enum translation for faction, specialty, and element values in the character management page. Filter dropdowns, table cells, and edit form selects now display translated labels via `t(FACTION_MAP[value])`, `t(SPECIALTY_MAP[value])`, and `t(ELEMENT_MAP[value])`. Select dropdowns submit raw English values while displaying translated labels. Verified add button already uses `t('editor.characters.addBtn')`.
+- Files changed: `src/editor/pages/characters.js` (+13/-12 lines)
+- **Learnings for future iterations:**
+  - `createDataTable` supports a `format` function per column — use `format: (v) => t(MAP[v])` for enum translation in table cells
+  - `createFilterSelect` and `addField` accept an optional `mapObj` parameter for translating select option labels — keep it optional to maintain backward compatibility with un-translated selects
+  - The edit form's `langchange` event listener (`editContainer._langHandler`) re-renders the form when language changes, so translated select options update automatically on language switch
+  - The main page's filter bar does NOT have a langchange listener — filter dropdowns only reflect language changes on page re-navigation
+---
+
+## 2026-05-08 - US-105
+- What was implemented: Added i18n enum translation for action type values in the skill management page. The action_type table column now displays translated labels via `t(ACTION_TYPE_MAP[v])`. The edit form's action_type select dropdown shows translated option labels while submitting raw English values. The `addField` function in skills.js was updated to support an optional `mapObj` parameter (same pattern as characters.js). All pre-existing i18n keys in skills.js remain unchanged.
+- Files changed: `src/editor/pages/skills.js` (+4/-3 lines)
+- **Learnings for future iterations:**
+  - Each page has its own `addField` function — the `mapObj`/`labelMap` pattern must be applied independently to each page's form builder
+  - The skills page operates per-character (select character first, then manage skills) — unlike characters which shows all data at once
+  - `createDataTable` column `format` functions receive raw DB values, so translation works the same way across all pages
 ---
