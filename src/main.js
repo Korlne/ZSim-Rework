@@ -67,7 +67,9 @@ function getConfig() {
     data_dir: document.getElementById("data-dir").value,
     apl_file: document.getElementById("apl-file").value,
     output_path: document.getElementById("output-path").value,
-    sim_count: parseInt(document.getElementById("sim-count").value, 10) || 1,
+    sim_count: document.getElementById("sim-count-label").style.display === "none"
+      ? 1
+      : (parseInt(document.getElementById("sim-count").value, 10) || 1),
   };
 }
 
