@@ -99,8 +99,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Stat options translated in drive disc forms (main stat + sub stat dropdowns), table column, and disc set detail. ELEMENT_OPTIONS imported but no element dropdowns currently exist in equipment forms."
     },
     {
       "id": "US-107",

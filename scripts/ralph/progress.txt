@@ -71,3 +71,21 @@
   - The skills page operates per-character (select character first, then manage skills) — unlike characters which shows all data at once
   - `createDataTable` column `format` functions receive raw DB values, so translation works the same way across all pages
 ---
+
+## 2026-05-08 - US-105 (langchange improvement)
+- What was implemented: Wrapped the skill edit form building in a `buildForm()` function and added `langchange` event listener (`editContainer._langHandler`) so the form re-renders when the language changes.
+- Files changed: `src/editor/pages/skills.js` (refactored showEditForm)
+- **Learnings for future iterations:**
+  - All edit forms need the `_langHandler` + `langchange` pattern to support language switching while the form is open
+  - The form must be wrapped in a render function that calls `editContainer.innerHTML = ""` first, then rebuilds
+---
+
+## 2026-05-08 - US-106
+- What was implemented: Added i18n enum translation for stat type values in the equipment management page. Drive disc main stat and sub stat select dropdowns now display translated labels via `t(STAT_MAP[s])`. The drive disc table's `main_stat_name` column now uses `format: (v) => t(STAT_MAP[v])`. Updated all three statOptions sites: buildDriveDiscFields, buildDriveDiscForm, and renderDiscSetDetail. Imported ELEMENT_MAP for future use (no element dropdowns currently exist in equipment forms).
+- Files changed: `src/editor/pages/equipment.js` (+5/-4 lines)
+- **Learnings for future iterations:**
+  - Equipment forms use `createForm` with field definitions that specify `options` arrays — translate option labels at the source where `STAT_OPTIONS.map(...)` creates the options
+  - The equipment page has a more complex form architecture than characters or skills: generic `showInlineForm` dispatches to type-specific builders (buildWEngineForm, buildDriveDiscForm) — each builder constructs its own statOptions
+  - ELEMENT_OPTIONS is defined in equipment.js but not yet used in any form; element dropdowns will need to be added to drive disc or w-engine forms to complete the ELEMENT_MAP integration
+  - The drive disc detail view (renderDiscSetDetail) builds stat selects manually (not via createForm), so statOptions must be translated there independently
+---
