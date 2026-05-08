@@ -324,6 +324,12 @@
   "editor.import.resultErrors": "{type}: {count} errors",
   "editor.import.scanError": "Import failed",
   "editor.import.importAllDone": "All data imported successfully",
+  "editor.import.csvTitle": "CSV/XLSX Import:",
+  "editor.import.csvImportChars": "Import Characters",
+  "editor.import.csvImportDiscs": "Import Drive Discs",
+  "editor.import.csvImportWEngines": "Import W-Engines",
+  "editor.import.csvImportOk": "{count} {type} records imported",
+  "editor.import.csvImportError": "{type} import failed",
 
   "editor.save": "Save",
   "editor.cancel": "Cancel"

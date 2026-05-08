@@ -7,6 +7,11 @@ export async function initDatabase() {
   return JSON.parse(raw);
 }
 
+export async function importFromCsv(dataType, filePath) {
+  const raw = await invoke("import_from_csv", { dataType, filePath });
+  return JSON.parse(raw);
+}
+
 export async function importFromJson(dataType, dataPath) {
   const raw = await invoke("import_from_json", { dataType, dataPath: dataPath || null });
   return JSON.parse(raw);

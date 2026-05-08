@@ -1,4 +1,4 @@
-import { scanDataFiles, importFromJson, clearDataType, reimportAll } from "../utils/api.js";
+import { scanDataFiles, importFromJson, importFromCsv, clearDataType, reimportAll } from "../utils/api.js";
 import { t } from "../../i18n.js";
 
 let scanResults = null;
@@ -81,6 +81,34 @@ export function renderPage() {
     await importAllData(mode, fileListContainer, importAllBtn);
   });
   actionRow.appendChild(importAllBtn);
+
+  // CSV import row
+  const csvRow = document.createElement("div");
+  csvRow.style.cssText = "display:flex;gap:8px;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)";
+  const csvLabel = document.createElement("span");
+  csvLabel.style.cssText = "font-size:13px;font-weight:600;color:var(--text)";
+  csvLabel.textContent = t("editor.import.csvTitle");
+  csvRow.appendChild(csvLabel);
+
+  const csvBtnChars = document.createElement("button");
+  csvBtnChars.className = "btn btn-sm btn-secondary";
+  csvBtnChars.textContent = t("editor.import.csvImportChars");
+  csvBtnChars.addEventListener("click", () => importCsvType("characters", csvBtnChars));
+  csvRow.appendChild(csvBtnChars);
+
+  const csvBtnDiscs = document.createElement("button");
+  csvBtnDiscs.className = "btn btn-sm btn-secondary";
+  csvBtnDiscs.textContent = t("editor.import.csvImportDiscs");
+  csvBtnDiscs.addEventListener("click", () => importCsvType("drive_discs", csvBtnDiscs));
+  csvRow.appendChild(csvBtnDiscs);
+
+  const csvBtnWEngines = document.createElement("button");
+  csvBtnWEngines.className = "btn btn-sm btn-secondary";
+  csvBtnWEngines.textContent = t("editor.import.csvImportWEngines");
+  csvBtnWEngines.addEventListener("click", () => importCsvType("w_engines", csvBtnWEngines));
+  csvRow.appendChild(csvBtnWEngines);
+
+  container.appendChild(csvRow);
 
   container.appendChild(actionRow);
 
@@ -255,6 +283,24 @@ async function importAllData(mode, fileListContainer, btn) {
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
+  }
+}
+
+async function importCsvType(dataType, btn) {
+  const filePaths = {
+    characters: "data/characters/Charaters.csv",
+    drive_discs: "data/equipment/Drive_Disc.csv",
+    w_engines: "data/wengine/WEngine.csv",
+  };
+  const filePath = filePaths[dataType];
+  btn.disabled = true;
+  try {
+    const result = await importFromCsv(dataType, filePath);
+    showNotif(t("editor.import.csvImportOk", { count: result.count, type: dataType }), "success");
+  } catch (e) {
+    showNotif(t("editor.import.csvImportError", { type: dataType }) + ": " + e, "error");
+  } finally {
+    btn.disabled = false;
   }
 }
 

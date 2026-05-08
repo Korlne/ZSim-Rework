@@ -353,5 +353,11 @@
   "editor.import.resultSuccess": "{type}: {count} 件インポート完了",
   "editor.import.resultErrors": "{type}: {count} 件のエラー",
   "editor.import.scanError": "インポートに失敗しました",
-  "editor.import.importAllDone": "すべてのデータをインポートしました"
+  "editor.import.importAllDone": "すべてのデータをインポートしました",
+  "editor.import.csvTitle": "CSV/XLSX インポート:",
+  "editor.import.csvImportChars": "キャラクター",
+  "editor.import.csvImportDiscs": "ドライブディスク",
+  "editor.import.csvImportWEngines": "W-エンジン",
+  "editor.import.csvImportOk": "{count} 件の {type} をインポートしました",
+  "editor.import.csvImportError": "{type} のインポートに失敗しました"
 }
