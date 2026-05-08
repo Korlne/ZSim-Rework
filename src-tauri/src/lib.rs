@@ -393,6 +393,26 @@ fn reimport_all(state: tauri::State<'_, DataDirState>) -> Result<String, String>
     }).to_string())
 }
 
+/// Import data from a .xlsx (disguised as .csv) file.
+#[tauri::command]
+fn import_from_csv(state: tauri::State<'_, DataDirState>, data_type: String, file_path: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn = Connection::open(&db_path)
+        .map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    let path = std::path::Path::new(&file_path);
+    let count = match data_type.as_str() {
+        "characters" => data_entry::csv_import::import_characters_csv(&conn, path)?,
+        "drive_discs" => data_entry::csv_import::import_drive_disc_csv(&conn, path)?,
+        "w_engines" => data_entry::csv_import::import_w_engine_csv(&conn, path)?,
+        _ => return Err(format!("Unknown CSV data type: {data_type}")),
+    };
+
+    Ok(serde_json::json!({"status": "ok", "count": count}).to_string())
+}
+
 // --- 角色 CRUD 命令 ---
 
 /// 获取所有角色列表，返回 JSON 数组。
@@ -809,6 +829,7 @@ pub fn run() {
             init_database,
             import_from_json,
             reimport_all,
+            import_from_csv,
             get_characters,
             get_character,
             save_character,

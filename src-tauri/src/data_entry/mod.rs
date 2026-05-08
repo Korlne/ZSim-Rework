@@ -1,4 +1,5 @@
 pub mod characters;
+pub mod csv_import;
 pub mod db;
 pub mod enemies;
 pub mod equipment;
