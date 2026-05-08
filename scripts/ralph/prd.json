@@ -1,146 +1,103 @@
 {
   "project": "ZSim",
-  "branchName": "ralph/editor-data-fixes",
-  "description": "修复 ZSim 数据编辑器的 7 个缺陷：表单 i18n 响应、潜能系统、数值精度、角色 ID 验证、驱动盘套装界面重构",
+  "branchName": "ralph/i18n-sim-config-csv-import",
+  "description": "修复界面 i18n 覆盖不足、增强模拟配置（循环模式/多次模拟）、实现 CSV/XLSX 数据导入",
   "userStories": [
     {
-      "id": "US-001",
-      "title": "修复角色编辑表单的小缺陷 (ID 验证、步进精度、Crit DMG 标签)",
-      "description": "批量修复 characters.js 中的 3 个小 Bug：1) char_id 验证条件取反错误导致填写后仍报错；2) energy_regen / energy_gen_rate 的 step 从 0.01 改为 \"any\" 以支持任意精度小数；3) Crit DMG 标签改为 \"Extra Crit DMG\" 并使用 i18n key。",
+      "id": "US-101",
+      "title": "修复角色管理页面硬编码字符串（表头 + 表单字段标签 + 验证错误）",
+      "description": "将 characters.js 中的 ATK/HP/DEF 表头、10 个面板字段标签、验证错误消息全部替换为 t() 调用；新增对应 i18n key 到 3 种语言 locale 文件。",
       "acceptanceCriteria": [
-        "添加角色时填写合法的 char_id 后点击保存不再弹出 'Character ID is required' 错误",
-        "energy_regen 和 energy_gen_rate 字段的 <input> step 属性为 \"any\"",
-        "crit_dmg 字段使用 t('editor.characters.fieldExtraCritDmg') 作为标签",
-        "zh-CN / en-US / ja-JP 三个 locale 文件中新增 editor.characters.fieldExtraCritDmg 翻译",
-        "Typecheck passes"
+        "表格列 ATK/HP/DEF 使用 t('editor.characters.colAtk') 等 key",
+        "statFields 中 10 个硬编码标签全部改用 t('editor.characters.field.*')",
+        "验证错误消息全部改用 t('editor.characters.validation.*') 命名空间",
+        "zh-CN / en-US / ja-JP 新增 18+ 个翻译 key",
+        "Typecheck and build pass"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "已实现。commit 9583a34。修复char_id验证取反逻辑错误、energy_regen/energy_gen_rate step改为'any'、crit_dmg标签改为i18n key 'editor.characters.fieldExtraCritDmg'、3种语言locale新增翻译。"
+      "notes": "已实现。"
     },
     {
-      "id": "US-002",
-      "title": "新增 potentials 字段到 SQLite schema",
-      "description": "在 src-tauri/src/data_entry/db.rs 的 characters 表定义中新增 potentials 列 (TEXT NOT NULL DEFAULT '[false,false,false,false,false,false]')，并执行相应的 schema 迁移逻辑。",
+      "id": "US-102",
+      "title": "修复装备/技能/敌人编辑器硬编码字符串",
+      "description": "扫描 equipment.js、skills.js、enemies.js 中所有未使用 t() 的可见文本并替换；在 locale 文件中新增对应翻译 key。",
       "acceptanceCriteria": [
-        "characters 表包含 potentials TEXT 列，默认值为 6 个 false 的 JSON 数组",
-        "数据库初始化脚本包含该列定义",
-        "cargo check 通过"
+        "equipment.js 中所有标签/按钮/占位符文字使用 t() 或 data-i18n",
+        "skills.js 中所有标签/按钮文字使用 t()",
+        "enemies.js 中所有标签/按钮文字使用 t()",
+        "index.html 中 'Editor failed to load' 改为 t('editor.loadError')",
+        "3 种语言 locale 文件新增对应的 editor.* key",
+        "Typecheck and build pass"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "已实现。commit 6cbb294。characters 表新增 potentials TEXT 列，默认 JSON 数组 [false×6]。更新 test_characters_schema 测试验证 potentials 读写。全部 68 个测试通过。"
+      "notes": "已实现。"
     },
     {
-      "id": "US-003",
-      "title": "新增 potentials 字段到 Rust Character 结构体及 CRUD",
-      "description": "在 zsim-core 和 src-tauri 的 Character 结构体中新增 potentials: [bool; 6] 字段 (带 serde default)。更新 data_entry/characters.rs 中所有 CRUD 函数以读写该字段。",
+      "id": "US-103",
+      "title": "新增模拟运行模式选择（完整模式/循环模式）",
+      "description": "在 index.html 模拟配置面板中添加运行模式 radio 切换（完整模式/循环模式），循环模式时显示循环次数输入框；更新 main.js getConfig() 和 Tauri run_simulation 命令配置结构以传递 mode 和 loop_count；所有新增 UI 文案使用 i18n。",
       "acceptanceCriteria": [
-        "zsim-core Character 结构体包含 potentials: [bool; 6] 字段",
-        "src-tauri CharacterRecord 包含 potentials: String 字段",
-        "saveCharacter / getCharacter / getCharacters 正确序列化和反序列化 potentials",
-        "cargo check 通过"
+        "index.html 新增运行模式 radio 组（完整模式/循环模式）",
+        "循环模式选中时显示「循环次数」数字输入框",
+        "getConfig() 返回 { mode: 'full'|'loop', loop_count: N }",
+        "所有新增标签使用 data-i18n 属性",
+        "zh-CN/en-US/ja-JP 新增 panel.config.modeFull/panel.config.modeLoop/panel.config.loopCount 翻译",
+        "Typecheck and build pass"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "已实现。commit 3fade65。zsim-core Character 新增 potentials: [bool; 6]；src-tauri CharacterRecord 新增 potentials: String；所有 SELECT/INSERT/UPDATE 查询同步更新；loader.rs 和 export.rs 同步适配。全部 68 个测试通过。"
+      "notes": "已实现。"
     },
     {
-      "id": "US-004",
-      "title": "更新导入导出以支持 potentials 字段",
-      "description": "更新 src-tauri 的导入和导出逻辑，使 potentials 字段能在 JSON 数据和 SQLite 之间正确转换。导入时从 JSON 读取 potentials 数组写入数据库，导出时从数据库读取写入 JSON。",
+      "id": "US-104",
+      "title": "单次/多次模拟切换（默认隐藏 simCount）",
+      "description": "默认隐藏 simCount 输入框；新增「多次模拟」按钮点击后展开 simCount 字段；再次点击收起；全部 UI 文案使用 i18n。",
       "acceptanceCriteria": [
-        "导入角色 JSON 时 potentials 字段正确写入 SQLite",
-        "导出角色数据时 potentials 字段正确出现在 JSON 输出中",
-        "当 JSON 中无 potentials 字段时使用默认值 [false × 6]",
-        "cargo check 通过"
+        "simCount 输入框默认隐藏",
+        "「多次模拟」按钮点击后显示 simCount，按钮文字变为「收起」",
+        "再次点击收起 simCount 字段",
+        "按钮文字使用 i18n key",
+        "Typecheck and build pass"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "已实现。commit 72325b9。import.rs 的 INSERT 查询新增 potentials 列和参数；从 JSON 反序列化时若缺字段则默认 [false×6]。export.rs 已在 US-003 中一并更新。全部 68 个测试通过。"
+      "notes": "已实现。"
     },
     {
-      "id": "US-005",
-      "title": "在角色编辑表单中添加潜能 P1-P6 顺序开关",
-      "description": "在 characters.js 的 createCharForm() 中新增潜能 (Potential) 章节，参照 Cinema 实现 P1-P6 六个顺序开关按钮。新增 parsePotentials / stringifyPotentials 辅助函数。getEmptyRecord() 增加 potentials 默认值。同时为 Cinema 和 Potential 两套开关实现顺序约束：点击开启时检查前一节点是否已亮，未亮则拒绝；点击关闭时级联关闭后续所有已亮节点。",
+      "id": "US-105",
+      "title": "Rust 后端 CSV/XLSX 数据导入模块",
+      "description": "引入 calamine crate 读取 data/ 目录下的 Charaters.csv、Drive_Disc.csv、WEngine.csv（实际 OOXML .xlsx 格式）；解析 Excel 工作表内容；映射字段到 characters/drive_discs/w_engines 数据库表；实现 import_characters_csv、import_drive_disc_csv、import_w_engine_csv 函数；注册 Tauri 命令。",
       "acceptanceCriteria": [
-        "角色编辑表单中影画 C1-C6 下方出现潜能 P1-P6 六个开关按钮",
-        "点击 Pn 开启时，若 P(n-1) 未亮则操作被拒绝",
-        "点击已亮节点关闭时，后续所有已亮节点一并关闭（级联）",
-        "同样的顺序约束应用于 Cinema C1-C6 开关",
-        "保存角色时 potentials 正确序列化为 JSON 并传入后端 API",
-        "编辑已有角色时 potentials 状态从数据库正确恢复",
-        "Typecheck passes"
+        "Cargo.toml 新增 calamine = '0.26' 依赖",
+        "新建 csv_import.rs 模块，解析 .xlsx 文件内容",
+        "import_characters_csv 正确映射角色字段到 characters 表",
+        "import_drive_disc_csv 正确映射驱动盘字段到 drive_discs 表",
+        "import_w_engine_csv 正确映射音擎字段到 w_engines 表",
+        "Tauri 命令 import_from_csv 接收 data_type + file_path 参数",
+        "cargo test 全部通过"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "已实现。commit 00438ec。新增 createToggleSection() 复用函数生成 C1-C6 影画 + P1-P6 潜能开关。顺序约束：开启需前一节点已亮，关闭级联关闭后续节点。新增 parsePotentials/stringifyPotentials 辅助函数。getEmptyRecord 新增 potentials 字段。3 种语言 locale 新增 sectionPotential 翻译。"
+      "notes": "已实现。"
     },
     {
-      "id": "US-006",
-      "title": "修复角色编辑表单的 i18n 响应式更新",
-      "description": "当用户在角色管理界面切换语言时，已打开的 editor-form 中的字段标签、章节标题应跟随更新。在 createCharForm() 中监听 langchange 事件，保存当前编辑状态后重新渲染表单。",
+      "id": "US-106",
+      "title": "前端 CSV 导入页面集成",
+      "description": "在 import.js 中新增 CSV 导入选项：扫描 data/ 目录识别 .csv (.xlsx) 文件；显示文件清单；提供单文件导入和全部导入按钮；导入进度反馈。",
       "acceptanceCriteria": [
-        "角色编辑表单打开时切换语言，所有字段标签即时更新为新语言",
-        "切换语言不影响表单中已填写的数值和选择状态",
-        "影画和潜能开关状态在语言切换后保持不变",
-        "动作列表 tag 在语言切换后保持不变",
-        "Typecheck passes"
+        "import 页面新增 CSV 文件扫描功能",
+        "扫描结果显示 .csv 文件清单及其类型",
+        "单文件导入按钮调用 import_from_csv Tauri 命令",
+        "全部导入按钮批量导入所有 CSV 文件",
+        "导入成功后显示成功/失败统计通知",
+        "所有 UI 文案使用 i18n",
+        "Typecheck and build pass"
       ],
       "priority": 6,
       "passes": true,
-      "notes": "已实现。commit 4315d69。characters.js: showEditForm 中提取 buildFormContent()，监听 langchange 事件后重新渲染。equipment.js: showInlineForm 中提取 buildInlineFormContent()，同样监听 langchange。表单状态通过闭包引用保留。"
-    },
-    {
-      "id": "US-007",
-      "title": "修复装备编辑表单的 i18n 响应式更新",
-      "description": "与 US-006 同理，在 equipment.js 的 showInlineForm() 中监听 langchange 事件，使音擎、驱动盘、驱动套装的编辑表单标签随语言切换更新。",
-      "acceptanceCriteria": [
-        "音擎编辑表单打开时切换语言，字段标签即时更新",
-        "驱动盘编辑表单打开时切换语言，字段标签即时更新",
-        "驱动套装编辑表单打开时切换语言，字段标签即时更新",
-        "切换语言不影响已填写的表单数据",
-        "Typecheck passes"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "已实现。commit 4315d69。equipment.js: showInlineForm 中提取 buildInlineFormContent()，监听 langchange 事件重新渲染表单标签。"
-    },
-    {
-      "id": "US-008",
-      "title": "重构驱动盘套装导航和列表页",
-      "description": "将侧边栏中独立的「驱动盘」入口移除，改为嵌套在「驱动盘套装」下。重构 #/disc-sets 页面为卡片列表视图，展示所有数据库中的驱动盘套装。每张卡片显示套装名称、二件套/四件套效果摘要、编辑和删除按钮。点击卡片跳转到 #/disc-sets/{set_id}。添加新套装按钮弹出表单（set_id、name、效果描述）。更新 app.js 路由以支持 /disc-sets/{set_id} 子路由。更新 sidebar.js 导航结构。",
-      "acceptanceCriteria": [
-        "侧边栏装备管理下仅有「音擎」和「驱动盘套装」两个子项，「驱动盘」独立入口已移除",
-        "#/disc-sets 页面以卡片网格展示所有驱动盘套装，包含名称和效果描述",
-        "每张套装卡片有编辑和删除按钮",
-        "点击 [添加] 按钮可创建新套装（输入 set_id、name、效果描述）",
-        "点击套装卡片跳转到 #/disc-sets/{set_id}",
-        "所有卡片标签和按钮文字使用 i18n key",
-        "Typecheck passes"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": "已实现。commit c99d7eb。sidebar 移除独立「驱动盘」入口；disc-sets 页面改为卡片网格展示所有套装（名称、二件套/四件套效果、编辑/删除按钮）；点击卡片跳转 #/disc-sets/{set_id}；app.js 路由移除 drive-discs 子路由。"
-    },
-    {
-      "id": "US-009",
-      "title": "构建驱动盘套装槽位配置页",
-      "description": "实现 #/disc-sets/{set_id} 路由页面：显示返回按钮 + 套装名称标题；下方展示 6 个槽位 (Slot 1-6) 的行编辑区，每行包含主词条选择 (select) 和主词条值 (number input)。每个槽位可展开编辑 1-4 列副词条行。数据按 set_id 从 drive_discs 表查询已有记录并回填，空缺槽位显示空白可填写。新增按 set_id 查询驱动盘的 Rust 后端 API。",
-      "acceptanceCriteria": [
-        "访问 #/disc-sets/{set_id} 显示该套装名称标题和返回按钮",
-        "页面包含 Slot 1-6 共 6 行编辑区域",
-        "每行可设置主词条名称 (select) 和主词条值 (number)",
-        "每个槽位行可点击展开，显示 1-4 副词条编辑行 (select + number)",
-        "已有驱动盘记录的数据正确回填到对应槽位",
-        "保存时所有 6 个槽位的驱动盘数据正确写入数据库",
-        "缺省槽位保存后创建新驱动盘记录",
-        "Rust 后端新增 get_drive_discs_by_set_id 命令",
-        "Typecheck passes"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": "已实现。commit 1e17b98。Rust 后端新增 get_drive_discs_by_set_id 命令（按 set_id + slot 排序查询）；前端 API 新增 getDriveDiscsBySetId()；renderDiscSetDetail 页面显示 Slack 1-6 行编辑区（主词条 select + number，可展开 4 副词条行），缺省槽位自动创建默认记录，每槽位独立保存。"
+      "notes": "已实现。"
     }
   ]
 }
