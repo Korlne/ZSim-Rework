@@ -131,6 +131,7 @@ impl ParallelRunner {
                     max_tick,
                     seed,
                     mode: mode.clone(),
+                    loop_count: 1,
                     bangboo: (*bangboo).clone(),
                 };
 
@@ -379,6 +380,7 @@ mod tests {
             max_tick: 20,
             seed: 42,
             mode: SimMode::Single,
+            loop_count: 1,
             bangboo: None,
         });
 

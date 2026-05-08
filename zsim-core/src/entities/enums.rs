@@ -152,6 +152,10 @@ pub enum SimMode {
     Single,
     #[serde(rename = "Parallel")]
     Parallel,
+    #[serde(rename = "Full")]
+    Full,
+    #[serde(rename = "Loop")]
+    Loop,
 }
 
 #[cfg(test)]

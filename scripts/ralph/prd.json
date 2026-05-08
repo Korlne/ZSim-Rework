@@ -1,103 +1,211 @@
 {
-  "project": "ZSim",
+  "project": "ZSim i18n, Disc Sets & Sim Config",
   "branchName": "ralph/i18n-sim-config-csv-import",
-  "description": "修复界面 i18n 覆盖不足、增强模拟配置（循环模式/多次模拟）、实现 CSV/XLSX 数据导入",
+  "description": "ZSim Analyzer 五项改进：驱动盘套装层级界面完善、全界面 i18n 国际化补齐、模拟配置循环/完整双模式、模拟次数默认视图调整、CSV 数据首次自动导入生成数据库",
   "userStories": [
     {
       "id": "US-101",
-      "title": "修复角色管理页面硬编码字符串（表头 + 表单字段标签 + 验证错误）",
-      "description": "将 characters.js 中的 ATK/HP/DEF 表头、10 个面板字段标签、验证错误消息全部替换为 t() 调用；新增对应 i18n key 到 3 种语言 locale 文件。",
+      "title": "CSV/XLSX 数据首次自动导入 — 启动时生成 zsim.db",
+      "description": "As a new user, I want the app to auto-import CSV/XLSX data from the data/ directory on first startup so that zsim.db is generated without manual steps.",
       "acceptanceCriteria": [
-        "表格列 ATK/HP/DEF 使用 t('editor.characters.colAtk') 等 key",
-        "statFields 中 10 个硬编码标签全部改用 t('editor.characters.field.*')",
-        "验证错误消息全部改用 t('editor.characters.validation.*') 命名空间",
-        "zh-CN / en-US / ja-JP 新增 18+ 个翻译 key",
-        "Typecheck and build pass"
+        "In lib.rs setup hook, check if data/zsim.db exists",
+        "If not: call data_entry::db::init_db to create schema, then scan data/characters/, data/equipment/, data/wengine/ for .csv/.xlsx files",
+        "Import order: characters → drive discs → w-engines using existing csv_import.rs functions",
+        "If zsim.db already exists, skip auto-import entirely",
+        "Import errors are logged but do not block startup",
+        "After import, frontend Dashboard shows record counts",
+        "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "已实现。"
+      "notes": ""
     },
     {
       "id": "US-102",
-      "title": "修复装备/技能/敌人编辑器硬编码字符串",
-      "description": "扫描 equipment.js、skills.js、enemies.js 中所有未使用 t() 的可见文本并替换；在 locale 文件中新增对应翻译 key。",
+      "title": "模拟配置 — Rust 后端支持 mode 参数（full/loop）",
+      "description": "As a developer, I need the run_simulation Rust command to accept and handle mode (full vs loop) so the simulation terminates correctly based on user selection.",
       "acceptanceCriteria": [
-        "equipment.js 中所有标签/按钮/占位符文字使用 t() 或 data-i18n",
-        "skills.js 中所有标签/按钮文字使用 t()",
-        "enemies.js 中所有标签/按钮文字使用 t()",
-        "index.html 中 'Editor failed to load' 改为 t('editor.loadError')",
-        "3 种语言 locale 文件新增对应的 editor.* key",
-        "Typecheck and build pass"
+        "run_simulation command parses new `mode` field from config JSON: 'full' | 'loop'",
+        "full mode: simulation runs until action sequence naturally ends OR max_tick reached (whichever first)",
+        "loop mode: simulation repeats the action sequence loop_count times OR max_tick reached (whichever first)",
+        "loop_count defaults to 1 when mode is 'full' or not specified",
+        "Backward compatible: existing config without mode field defaults to 'full'",
+        "Typecheck passes"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "已实现。"
+      "notes": ""
     },
     {
       "id": "US-103",
-      "title": "新增模拟运行模式选择（完整模式/循环模式）",
-      "description": "在 index.html 模拟配置面板中添加运行模式 radio 切换（完整模式/循环模式），循环模式时显示循环次数输入框；更新 main.js getConfig() 和 Tauri run_simulation 命令配置结构以传递 mode 和 loop_count；所有新增 UI 文案使用 i18n。",
+      "title": "i18n 基础设施 — 添加枚举值翻译键到三个语言文件",
+      "description": "As a developer, I need translation keys for all enum values (factions, specialties, elements, action types, stat types, enemy types) across all three locale files so page-level i18n stories can use them.",
       "acceptanceCriteria": [
-        "index.html 新增运行模式 radio 组（完整模式/循环模式）",
-        "循环模式选中时显示「循环次数」数字输入框",
-        "getConfig() 返回 { mode: 'full'|'loop', loop_count: N }",
-        "所有新增标签使用 data-i18n 属性",
-        "zh-CN/en-US/ja-JP 新增 panel.config.modeFull/panel.config.modeLoop/panel.config.loopCount 翻译",
-        "Typecheck and build pass"
+        "Add faction translation keys to zh-CN.json, en-US.json, ja-JP.json (11 factions)",
+        "Add specialty translation keys: Attack/Stun/Support/Defense/Anomaly",
+        "Add element translation keys: Physical/Fire/Ice/Electric/Ether",
+        "Add action type translation keys: Normal/Special/Ultimate/Chain/Assist/Quick/Dodge/Parry/Evade",
+        "Add stat type translation keys: HP/ATK/DEF/Crit Rate/Crit DMG/PEN Ratio/PEN/Energy Regen/Anomaly Mastery/Anomaly Proficiency/Impact",
+        "Add enemy type translation keys: Normal/Elite/Boss",
+        "Create src/editor/utils/i18n-maps.js exporting mapping objects: FACTION_MAP, SPECIALTY_MAP, ELEMENT_MAP, ACTION_TYPE_MAP, STAT_MAP, ENEMY_TYPE_MAP (value → i18n_key)",
+        "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "已实现。"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-104",
-      "title": "单次/多次模拟切换（默认隐藏 simCount）",
-      "description": "默认隐藏 simCount 输入框；新增「多次模拟」按钮点击后展开 simCount 字段；再次点击收起；全部 UI 文案使用 i18n。",
+      "title": "i18n — 角色管理页面枚举值翻译",
+      "description": "As a multilingual user, I want faction, specialty, and element values in the character management page to display in my selected language.",
       "acceptanceCriteria": [
-        "simCount 输入框默认隐藏",
-        "「多次模拟」按钮点击后显示 simCount，按钮文字变为「收起」",
-        "再次点击收起 simCount 字段",
-        "按钮文字使用 i18n key",
-        "Typecheck and build pass"
+        "FACTION_OPTIONS displayed via t(FACTION_MAP[value]) in filter dropdowns and table cells",
+        "SPECIALTY_OPTIONS displayed via t(SPECIALTY_MAP[value]) in filter dropdowns and table cells",
+        "ELEMENT_OPTIONS displayed via t(ELEMENT_MAP[value]) in filter dropdowns and table cells",
+        "Edit form select dropdowns show translated option labels while submitting raw English values",
+        "Add character button already uses t('editor.characters.addBtn') — verify it works correctly",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "已实现。"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-105",
-      "title": "Rust 后端 CSV/XLSX 数据导入模块",
-      "description": "引入 calamine crate 读取 data/ 目录下的 Charaters.csv、Drive_Disc.csv、WEngine.csv（实际 OOXML .xlsx 格式）；解析 Excel 工作表内容；映射字段到 characters/drive_discs/w_engines 数据库表；实现 import_characters_csv、import_drive_disc_csv、import_w_engine_csv 函数；注册 Tauri 命令。",
+      "title": "i18n — 技能管理页面动作类型翻译",
+      "description": "As a multilingual user, I want action type values in the skill management page to display in my selected language.",
       "acceptanceCriteria": [
-        "Cargo.toml 新增 calamine = '0.26' 依赖",
-        "新建 csv_import.rs 模块，解析 .xlsx 文件内容",
-        "import_characters_csv 正确映射角色字段到 characters 表",
-        "import_drive_disc_csv 正确映射驱动盘字段到 drive_discs 表",
-        "import_w_engine_csv 正确映射音擎字段到 w_engines 表",
-        "Tauri 命令 import_from_csv 接收 data_type + file_path 参数",
-        "cargo test 全部通过"
+        "ACTION_TYPES displayed via t(ACTION_TYPE_MAP[value]) in skill table action_type column",
+        "Skill edit form action_type dropdown shows translated option labels while submitting raw English values",
+        "Verify all existing i18n keys in skills.js still work correctly",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "已实现。"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-106",
-      "title": "前端 CSV 导入页面集成",
-      "description": "在 import.js 中新增 CSV 导入选项：扫描 data/ 目录识别 .csv (.xlsx) 文件；显示文件清单；提供单文件导入和全部导入按钮；导入进度反馈。",
+      "title": "i18n — 装备管理页面属性类型与元素类型翻译",
+      "description": "As a multilingual user, I want stat type and element type values in the equipment management page to display in my selected language.",
       "acceptanceCriteria": [
-        "import 页面新增 CSV 文件扫描功能",
-        "扫描结果显示 .csv 文件清单及其类型",
-        "单文件导入按钮调用 import_from_csv Tauri 命令",
-        "全部导入按钮批量导入所有 CSV 文件",
-        "导入成功后显示成功/失败统计通知",
-        "所有 UI 文案使用 i18n",
-        "Typecheck and build pass"
+        "STAT_OPTIONS displayed via t(STAT_MAP[value]) in drive disc forms (main stat + sub stat dropdowns)",
+        "ELEMENT_OPTIONS displayed via t(ELEMENT_MAP[value]) in equipment forms",
+        "W-Engine passive effects and other stat displays use translated labels",
+        "Drive disc set_id references display correctly",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "已实现。"
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-107",
+      "title": "i18n — 敌人管理页面类型与元素翻译",
+      "description": "As a multilingual user, I want enemy type and element values in the enemy management page to display in my selected language.",
+      "acceptanceCriteria": [
+        "ENEMY_TYPES displayed via t(ENEMY_TYPE_MAP[value]) in enemy table and edit form dropdown",
+        "ELEMENTS displayed via t(ELEMENT_MAP[value]) in resistance/weakness tag displays",
+        "Resistance rows show translated element labels",
+        "Weakness tags show translated element labels",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-108",
+      "title": "i18n — 数据导入页面完整性检查与修复",
+      "description": "As a multilingual user, I want all text on the data import page to display in my selected language with no hardcoded strings.",
+      "acceptanceCriteria": [
+        "Audit import.js for any hardcoded non-i18n strings",
+        "Verify CSV import button labels use t() calls",
+        "Verify scan/import result messages use t() with parameter substitution",
+        "Verify import mode labels and descriptions use t() calls",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-109",
+      "title": "模拟次数默认视图 — 默认单次模拟，按钮展开多次",
+      "description": "As a simulation user, I want to see a single-simulation interface by default with an option to switch to batch mode.",
+      "acceptanceCriteria": [
+        "sim-count input (#sim-count-label) hidden by default",
+        "Batch Mode button (#btn-toggle-batch) toggles sim-count visibility",
+        "Button text switches between t('panel.config.batchMode') and t('panel.config.batchModeHide')",
+        "When hidden, sim_count sent to backend defaults to 1",
+        "When visible, sim_count value from input is sent to backend",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-110",
+      "title": "驱动盘套装列表界面 — 卡片网格展示所有套装",
+      "description": "As a data editor, I want to see all drive disc sets displayed as cards in a grid layout so I can browse and manage them.",
+      "acceptanceCriteria": [
+        "Navigate to #/disc-sets shows card grid of all disc_sets from database",
+        "Each card shows: set name (or set_id fallback), set_id, 2-piece description, 4-piece description",
+        "Each card has Edit and Delete action buttons",
+        "Empty state message shown when no disc sets exist",
+        "Cards use existing editor-card styling with hover effects",
+        "Clicking a card (not buttons) navigates to #/disc-sets/{set_id}",
+        "Back button on detail page returns to disc sets list",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Existing renderDiscSets() in equipment.js has partial implementation to build upon."
+    },
+    {
+      "id": "US-111",
+      "title": "驱动盘套装手动添加 — 创建新套装表单",
+      "description": "As a data editor, I want to manually add a new drive disc set with a custom name so I can enter data not available in CSV imports.",
+      "acceptanceCriteria": [
+        "Add button at top of disc sets list page",
+        "Clicking opens inline edit form with fields: set_id (text), name (text), two_piece_description (text), two_piece_buff_id (text), four_piece_description (text), four_piece_buff_id (text)",
+        "Form validates set_id is required and unique",
+        "Save calls saveDiscSet API and refreshes the card grid",
+        "Cancel button discards the form",
+        "Form styling consistent with existing inline edit panels",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-112",
+      "title": "驱动盘套装详情 — 1-6号位驱动盘编辑界面",
+      "description": "As a data editor, I want to click into a disc set and edit all 6 slot positions' drive discs in one unified view.",
+      "acceptanceCriteria": [
+        "Detail page (#/disc-sets/{set_id}) shows set name as title and back button to list",
+        "Displays 6 slot sections (slot 1-6), each showing current drive disc data or placeholder for empty slots",
+        "Each slot shows: main stat name dropdown (STAT_OPTIONS), main stat value input, up to 4 sub-stat rows (name dropdown + value input)",
+        "Empty slots show default values (main_stat_name='ATK', level=15, all sub_stats null)",
+        "Each slot has a Save button that calls saveDriveDisc API",
+        "Saving a slot refreshes that slot's display without page reload",
+        "Layout: vertical stack of 6 collapsible/scrollable slot sections",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Existing renderDiscSetDetail() in equipment.js has partial implementation to build upon."
     }
   ]
 }

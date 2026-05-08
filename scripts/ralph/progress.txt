@@ -1,78 +1,44 @@
-# Ralph Progress Log
-Started: 2026-05-05 21:33
 ## Codebase Patterns
-- **JS form labels use `t()` at render time**: labels are frozen - no `data-i18n` on dynamic forms. To make them reactive, must re-render on `langchange`.
-- **Characters form is built manually in `createCharForm()`**: not using the generic `createForm()` component - uses inline `addField()` helper + manual event listeners.
-- **Number inputs in `addField()`**: use `step` param to control precision. Use `step: "any"` for unrestricted decimal input.
-- **`validate()` returns `null` on success, error string on failure**: do NOT negate the result with `!` when checking for errors in conditions.
-- **schema change propagation**: Adding a column requires updates to: db.rs (CREATE TABLE), zsim-core entity struct, src-tauri CharacterRecord struct, row mapper, all SELECT queries, all INSERT/UPSERT (columns + params), import.rs INSERT, export.rs SELECT+Character construction, loader.rs SELECT+Character construction, and optionally test data JSON strings.
-- **zsim-core entities**: Used by import.rs/export.rs/loader.rs for JSON deserialization. Changes to entity structs cascade to all these crates.
-- **Ralph for opencode**: prompt-opencode.md is the instruction file. CLI tool is `opencode` with `--agent build`. CLAUDE.md is read by opencode as context when navigating to the directory.
+- Frontend pages: each page module exports `renderPage(route)` returning a DOM element; pages use inline edit panels (not modals) appended to the root container with `scrollIntoView`
+- Shared components: place reusable UI in `src/editor/components/`, utility functions in `src/editor/utils/`
+- Frontend validation: use `src/editor/utils/validation.js` (validateCharId, validateLevel, validateCritRate, validateNonNegative, validateForm)
+- Number formatting: use `src/editor/utils/format.js` (formatStat for table display, formatFixed for precision)
+- SQLite schema: use `CREATE TABLE IF NOT EXISTS` for idempotent init + `schema_version` table for migrations
+- rusqlite: always use `bundled` feature to avoid requiring system SQLite install
+- data_entry module: declare `mod data_entry;` in lib.rs, sub-modules in `data_entry/` directory
+- Cascade deletes: use `ON DELETE CASCADE` in FK definitions + `PRAGMA foreign_keys = ON;`
+- JSON in SQLite: store complex nested data as TEXT columns, parse with serde_json on read
+- DataLoader pattern: struct holds `rusqlite::Connection`, load methods take `&self`, complex entity reconstruction via JOINs
+- Enum serialization: store enums as serde-rename strings in TEXT columns, deserialize with `serde_json::from_str(&format!("\"{}\"", value))`
+- from_json_dir: embed schema + JSON import logic directly on DataLoader for self-contained bootstrap from flat files
+- Editor pattern: hash-based routing (#/route) with lazy-loaded page modules via dynamic import(), sidebar with active state tracking, shared components (datatable, form, confirm) in src/editor/ root
+- i18n system: t(key, params) in src/i18n.js, flat key-value JSON in src/locales/{lang}.json, data-i18n DOM attributes for static HTML, "langchange" custom event for dynamic re-render
+- CSV import: calamine crate for XLSX parsing in src-tauri/src/data_entry/csv_import.rs, functions return Result<usize, String>
+- Tauri commands: #[tauri::command] in lib.rs, registered via generate_handler![], state managed via app.manage() with Mutex<T> for interior mutability
+- Simulation: run_simulation spawns std::thread with app.clone() to emit progress events, SimulationState with Arc<AtomicBool> for cancellation, config passed as JSON string
+- Tauri setup hook: use `.setup(move |_app| { ... Ok(()) })` for startup tasks (auto-import, etc.); runs before any commands; clone PathBuf if you also need it for managed state
 
 ---
-## 2026-05-05 - US-004
-- import.rs INSERT 查询新增 potentials 列和参数；JSON 反序列化缺字段默认 [false×6]
-- export.rs 已在 US-003 中同步更新
+## 2026-05-08 - PRD created
+- Branch: ralph/i18n-sim-config-csv-import
+- 12 user stories (US-101 to US-112) covering: CSV auto-import, sim config mode, i18n enum translation (all pages), sim count default view, disc set hierarchy UI
 
----
-## 2026-05-05 - US-005
-- 新增 createToggleSection() 复用函数生成 C1-C6 影画 + P1-P6 潜能开关
-- 顺序约束：开启需前一节点已亮（i>0 && !state[i-1] → return），关闭级联关闭后续
-- parsePotentials / stringifyPotentials 辅助函数；getEmptyRecord 新增 potentials 字段
-- 3 种语言 locale 新增 editor.characters.sectionPotential
-
----
-## 2026-05-05 - US-006, US-007
-- characters.js: showEditForm 中提取 buildFormContent()，langchange 事件触发重新渲染
-- equipment.js: showInlineForm 中提取 buildInlineFormContent()，同样监听 langchange
-- 表单状态（data/constellations/potentials/actionDict）通过闭包引用在重渲染间保留
-
----
-## 2026-05-05 - US-008
-- sidebar.js 移除独立「驱动盘」子项
-- app.js 路由移除 drive-discs，disc-sets 解析子路由
-- equipment.js: renderDiscSets 改为卡片网格（hover 高亮边框、点击跳转子路由、编辑/删除按钮）
-- 新增 renderDiscSetDetail 占位页
-
----
-## 2026-05-05 - US-009
-- Rust: get_drive_discs_by_set_id 按 set_id 过滤 + slot 排序查询
-- Tauri: cmd_get_drive_discs_by_set_id 命令 + lib.rs 注册
-- Frontend API: getDriveDiscsBySetId() invoke 封装
-- renderDiscSetDetail: Slot 1-6 编辑区（主词条 select + number、可展开 4 副词条行、每槽位独立保存按钮）
-- 缺省槽位自动创建默认记录（id=setId_slot, slot=N, level=15）
-
----
-## All Stories Complete
-✅ 9/9 stories implemented across Rust backend + JS frontend
-- 68 unit tests pass
-- Vite build passes
-- 修复 3 个小缺陷于 `characters.js`:
-  1. char_id 验证取反逻辑错误：`!validate(...)` → `validate(...)` (validate() 返回 null=通过，取反后误报)
-  2. energy_regen / energy_gen_rate step 从 0.01 改为 "any" 支持任意精度小数
-  3. crit_dmg 标签从硬编码 "Crit DMG" 改为 `t("editor.characters.fieldExtraCritDmg")`
-- 3 种语言 locale 新增 `editor.characters.fieldExtraCritDmg` 翻译 (zh-CN: 额外暴击伤害 / en-US: Extra Crit DMG / ja-JP: 追加会心ダメージ)
+## 2026-05-08 - US-101
+- What was implemented: Added `auto_import_on_first_startup()` function and Tauri `.setup()` hook in lib.rs. On first startup, checks if `data/zsim.db` exists; if not, creates schema via `init_db`, then scans `data/characters/`, `data/equipment/`, `data/wengine/` for `.csv`/`.xlsx` files and imports them in order: characters → drive discs → w-engines. Errors logged with `eprintln!` and do not block startup.
+- Files changed: `src-tauri/src/lib.rs` (+78 lines)
 - **Learnings for future iterations:**
-  - ja-JP locale 使用与 zh-CN/en-US 不同的 key 命名风格 (e.g., `editor.characters.field.xxx` vs `editor.characters.fieldXxx`)，添加新 key 时需遵循各语言已有风格
-  - `validate()` 返回 `null` 表示通过，返回错误字符串表示失败 — 条件判断中直接使用返回值作 truthiness check，不要取反
-
+  - Tauri v2 `.setup()` hook takes `|app| Ok(())` closure and runs before any commands are invoked
+  - When using `move` closures with `setup()` and managed state, clone `PathBuf` first because the closure consumes it
+  - CSV/XLSX files are stored in subdirectories: characters/ → `data/characters/`, drive_discs → `data/equipment/`, w_engines → `data/wengine/`
+  - `calamine` crate used for XLSX parsing — opens both `.csv` and `.xlsx` files transparently
 ---
-## 2026-05-05 - US-002
-- 在 `db.rs` 的 characters 表 CREATE TABLE 语句中新增 `potentials TEXT NOT NULL DEFAULT '[false,false,false,false,false,false]'` 列
-- 更新 `test_characters_schema` 测试以 INSERT + SELECT potentials 字段并验证值
-- **Learnings for future iterations:**
-  - 修改 schema 后需同步更新所有引用该表的 INSERT 语句（测试和业务代码）
-  - `CREATE TABLE IF NOT EXISTS` 在新列添加时不会自动 ALTER 现有表，生产环境需注意 migration 策略
 
----
-## 2026-05-05 - US-003
-- zsim-core Character 结构体新增 `potentials: [bool; 6]`（serde default）
-- src-tauri CharacterRecord 新增 `potentials: String` 字段
-- 所有 SELECT/INSERT/ON CONFLICT UPDATE 查询同步更新（characters.rs、loader.rs、export.rs）
-- row_to_character 索引重排：constellations(19) → potentials(20) → action_dict(21)
-- 6 个测试 JSON 字符串新增 `"potentials"` 字段
+## 2026-05-08 - US-102
+- What was implemented: Updated `run_simulation` Tauri command to parse `mode` ("full"/"loop") and `loop_count` from config JSON. Full mode runs APL once (current behavior). Loop mode scales effective workload by `loop_count`. Added `Full` and `Loop` variants to `SimMode` enum in zsim-core with serde annotations. Added `loop_count: u64` field to `SimConfig` with default 1. Updated completion message to show loops in loop mode. Backward compatible: missing mode field defaults to "full".
+- Files changed: `src-tauri/src/lib.rs`, `zsim-core/src/entities/enums.rs`, `zsim-core/src/combat/runner.rs`, `zsim-core/src/combat/parallel.rs`
 - **Learnings for future iterations:**
-  - 新增字段到 schema 后必须同步更新所有引用该表的：zsim-core Character 构造、CharacterRecord 结构体、row_to_character 映射、所有 SELECT 查询的列名列表、所有 INSERT/UPSERT 的列和参数、loader.rs 和 export.rs 的 SQL 映射
-  - zsim-core loader.rs 使用 zsim-core Character struct 直接构造（非 CharacterRecord），需单独更新
-  - 修改 zsim-core entity 后，源树中所有直接构造该 struct 的代码都会编译失败（loader.rs + export.rs），不要遗漏
+  - Frontend already sends `mode` and `loop_count` in config JSON (main.js getConfig()) — the Rust side was the missing piece
+  - `SimMode` has two axes: execution type (Single/Parallel) and termination type (Full/Loop) — need to keep both
+  - When adding a field to a widely-used struct like `SimConfig`, grep for all construction sites including tests and parallel runner
+  - Pre-existing test failures in `data::loader` and `zsim-parquet` e2e tests due to `potentials` column mismatch — not related to sim config
 ---

@@ -36,6 +36,7 @@ pub struct SimConfig {
     pub max_tick: u64,
     pub seed: u64,
     pub mode: SimMode,
+    pub loop_count: u64,
     pub bangboo: Option<Character>,
 }
 
@@ -49,6 +50,7 @@ impl Default for SimConfig {
             max_tick: 18000,
             seed: 42,
             mode: SimMode::Single,
+            loop_count: 1,
             bangboo: None,
         }
     }

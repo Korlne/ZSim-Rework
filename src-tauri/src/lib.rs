@@ -52,7 +52,7 @@ struct SimulationComplete {
 /// 使用提供的 JSON 配置运行仿真。
 ///
 /// 这是仿真引擎的主要入口点。配置
-/// 字符串是一个 JSON 对象，包含字段：sim_count, max_tick, base_seed,
+/// 字符串是一个 JSON 对象，包含字段：mode, loop_count, sim_count, max_tick, base_seed,
 /// data_dir, apl_file, output_path。
 ///
 /// 生成一个后台线程，通过 Tauri 的事件系统（`simulation-progress`）
@@ -63,6 +63,15 @@ fn run_simulation(app: tauri::AppHandle, config: String) -> Result<String, Strin
     let cfg: serde_json::Value =
         serde_json::from_str(&config).map_err(|e| format!("Invalid config JSON: {e}"))?;
 
+    let mode = cfg
+        .get("mode")
+        .and_then(|v| v.as_str())
+        .unwrap_or("full")
+        .to_string();
+    let loop_count = cfg
+        .get("loop_count")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1);
     let sim_count = cfg
         .get("sim_count")
         .and_then(|v| v.as_u64())
@@ -78,6 +87,13 @@ fn run_simulation(app: tauri::AppHandle, config: String) -> Result<String, Strin
     // 为新运行重置取消标志
     cancel_flag.store(false, Ordering::SeqCst);
 
+    // loop 模式下，有效工作量乘以 loop_count
+    let effective_count = if mode == "loop" {
+        sim_count.saturating_mul(loop_count.max(1))
+    } else {
+        sim_count
+    };
+
     // 进度报告的总步数：我们以 1% 的增量模拟进度
     let total_steps = 100u64;
 
@@ -85,6 +101,7 @@ fn run_simulation(app: tauri::AppHandle, config: String) -> Result<String, Strin
     // 同时仿真在后台运行并发送进度事件。
     let app_clone = app.clone();
     let cfg_clone = cfg.clone();
+    let mode_clone = mode.clone();
 
     std::thread::spawn(move || {
         for step in 1..=total_steps {
@@ -112,19 +129,28 @@ fn run_simulation(app: tauri::AppHandle, config: String) -> Result<String, Strin
             );
 
             // 模拟工作：按工作负载比例休眠
-            let sleep_ms = (sim_count.saturating_mul(max_tick) / 10_000_000).clamp(10, 200);
+            let sleep_ms =
+                (effective_count.saturating_mul(max_tick) / 10_000_000).clamp(10, 200);
             std::thread::sleep(Duration::from_millis(sleep_ms));
         }
 
         // 发送完成事件
+        let message = if mode_clone == "loop" {
+            format!(
+                "Simulation completed: {} runs × {} loops × {} ticks",
+                sim_count, loop_count, max_tick
+            )
+        } else {
+            format!(
+                "Simulation completed: {} runs x {} ticks",
+                sim_count, max_tick
+            )
+        };
         let _ = app_clone.emit(
             "simulation-complete",
             SimulationComplete {
                 status: "completed".into(),
-                message: format!(
-                    "Simulation completed: {} runs x {} ticks",
-                    sim_count, max_tick
-                ),
+                message,
                 config: cfg_clone,
             },
         );
