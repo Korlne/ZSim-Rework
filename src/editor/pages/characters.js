@@ -176,9 +176,9 @@ function refreshTable(tableContainer, rootContainer) {
     { key: "specialty", label: t("editor.characters.colSpecialty") },
     { key: "element", label: t("editor.characters.colElement") },
     { key: "level", label: t("editor.characters.colLevel") },
-    { key: "atk", label: "ATK", format: formatStat },
-    { key: "hp", label: "HP", format: formatStat },
-    { key: "def", label: "DEF", format: formatStat },
+    { key: "atk", label: t("editor.characters.colAtk"), format: formatStat },
+    { key: "hp", label: t("editor.characters.colHp"), format: formatStat },
+    { key: "def", label: t("editor.characters.colDef"), format: formatStat },
   ];
 
   const table = createDataTable(columns, filtered, {
@@ -335,14 +335,18 @@ function buildFormContent(editContainer, data, charId, constellations, potential
   statGrid.style.marginTop = "16px";
 
   const statFields = [
-    ["hp", "HP", 1], ["atk", "ATK", 1], ["def", "DEF", 1],
-    ["impact", "Impact", 1],
-    ["crit_rate", "Crit Rate", 0.01], ["crit_dmg", t("editor.characters.fieldExtraCritDmg"), 0.01],
-    ["pen_ratio", "PEN Ratio", 0.01], ["pen_fixed", "PEN Fixed", 1],
-    ["anomaly_mastery", "Anomaly Mastery", 1],
-    ["anomaly_proficiency", "Anomaly Proficiency", 1],
-    ["energy_regen", "Energy Regen", "any"],
-    ["energy_gen_rate", "Energy Gen Rate", "any"],
+    ["hp", t("editor.characters.fieldHp"), 1],
+    ["atk", t("editor.characters.fieldAtk"), 1],
+    ["def", t("editor.characters.fieldDef"), 1],
+    ["impact", t("editor.characters.fieldImpact"), 1],
+    ["crit_rate", t("editor.characters.fieldCritRate"), 0.01],
+    ["crit_dmg", t("editor.characters.fieldExtraCritDmg"), 0.01],
+    ["pen_ratio", t("editor.characters.fieldPenRatio"), 0.01],
+    ["pen_fixed", t("editor.characters.fieldPenFixed"), 1],
+    ["anomaly_mastery", t("editor.characters.fieldAnomalyMastery"), 1],
+    ["anomaly_proficiency", t("editor.characters.fieldAnomalyProficiency"), 1],
+    ["energy_regen", t("editor.characters.fieldEnergyRegen"), "any"],
+    ["energy_gen_rate", t("editor.characters.fieldEnergyGenRate"), "any"],
   ];
   for (const [key, label, step] of statFields) {
     statGrid.appendChild(addField(key, label, "number", { step }));
@@ -472,28 +476,27 @@ function buildFormContent(editContainer, data, charId, constellations, potential
     // Validate required fields
     const errors = [];
     if (!charId && validate(data.char_id, [validateCharId])) {
-      errors.push("Character ID is required");
+      errors.push(t("editor.characters.validation.charIdRequired"));
     }
-    if (!data.name) errors.push("Name is required");
-    if (!data.faction) errors.push("Faction is required");
-    if (!data.specialty) errors.push("Specialty is required");
-    if (!data.element) errors.push("Element is required");
+    if (!data.name) errors.push(t("editor.characters.validation.nameRequired"));
+    if (!data.faction) errors.push(t("editor.characters.validation.factionRequired"));
+    if (!data.specialty) errors.push(t("editor.characters.validation.specialtyRequired"));
+    if (!data.element) errors.push(t("editor.characters.validation.elementRequired"));
 
-    // Validate numeric fields
     const lvlErr = validate(data.level, [validateLevel]);
-    if (lvlErr) errors.push("Level: " + lvlErr);
+    if (lvlErr) errors.push(t("editor.characters.fieldLevel") + ": " + lvlErr);
 
     const ascErr = validate(data.ascension, [validateAscension]);
-    if (ascErr) errors.push("Ascension: " + ascErr);
+    if (ascErr) errors.push(t("editor.characters.fieldAscension") + ": " + ascErr);
 
     const crErr = validate(data.crit_rate, [validateCritRate]);
-    if (crErr) errors.push("Crit Rate: " + crErr);
+    if (crErr) errors.push(t("editor.characters.fieldCritRate") + ": " + crErr);
 
     const cdErr = validate(data.crit_dmg, [validateCritRate]);
-    if (cdErr) errors.push("Crit DMG: " + cdErr);
+    if (cdErr) errors.push(t("editor.characters.fieldExtraCritDmg") + ": " + cdErr);
 
     const prErr = validate(data.pen_ratio, [validateCritRate]);
-    if (prErr) errors.push("PEN Ratio: " + prErr);
+    if (prErr) errors.push(t("editor.characters.fieldPenRatio") + ": " + prErr);
 
     for (const field of ["hp", "atk", "def", "impact", "pen_fixed", "anomaly_mastery", "anomaly_proficiency", "energy_regen", "energy_gen_rate"]) {
       const err = validate(data[field], [v => validateNonNegative(v, field)]);
