@@ -1,4 +1,5 @@
 import { t } from "../../i18n.js";
+import { FACTION_MAP, SPECIALTY_MAP, ELEMENT_MAP } from "../utils/i18n-maps.js";
 import { createDataTable } from "../components/datatable.js";
 import { confirm } from "../components/confirm.js";
 import {
@@ -114,13 +115,13 @@ export function renderPage() {
 
   const factionSelect = createFilterSelect(FACTION_OPTIONS, "editor.characters.filterFaction", (v) => {
     filterFaction = v; refreshTable(container);
-  });
+  }, FACTION_MAP);
   const specialtySelect = createFilterSelect(SPECIALTY_OPTIONS, "editor.characters.filterSpecialty", (v) => {
     filterSpecialty = v; refreshTable(container);
-  });
+  }, SPECIALTY_MAP);
   const elementSelect = createFilterSelect(ELEMENT_OPTIONS, "editor.characters.filterElement", (v) => {
     filterElement = v; refreshTable(container);
-  });
+  }, ELEMENT_MAP);
 
   filterBar.appendChild(factionSelect);
   filterBar.appendChild(specialtySelect);
@@ -136,7 +137,7 @@ export function renderPage() {
   return container;
 }
 
-function createFilterSelect(options, labelKey, onChange) {
+function createFilterSelect(options, labelKey, onChange, mapObj) {
   const select = document.createElement("select");
   const allOpt = document.createElement("option");
   allOpt.value = "";
@@ -145,7 +146,7 @@ function createFilterSelect(options, labelKey, onChange) {
   for (const opt of options) {
     const el = document.createElement("option");
     el.value = opt;
-    el.textContent = opt;
+    el.textContent = mapObj ? t(mapObj[opt]) : opt;
     select.appendChild(el);
   }
   select.addEventListener("change", () => onChange(select.value));
@@ -172,9 +173,9 @@ function refreshTable(tableContainer, rootContainer) {
   const columns = [
     { key: "char_id", label: t("editor.characters.colId") },
     { key: "name", label: t("editor.characters.colName") },
-    { key: "faction", label: t("editor.characters.colFaction") },
-    { key: "specialty", label: t("editor.characters.colSpecialty") },
-    { key: "element", label: t("editor.characters.colElement") },
+    { key: "faction", label: t("editor.characters.colFaction"), format: (v) => t(FACTION_MAP[v]) },
+    { key: "specialty", label: t("editor.characters.colSpecialty"), format: (v) => t(SPECIALTY_MAP[v]) },
+    { key: "element", label: t("editor.characters.colElement"), format: (v) => t(ELEMENT_MAP[v]) },
     { key: "level", label: t("editor.characters.colLevel") },
     { key: "atk", label: t("editor.characters.colAtk"), format: formatStat },
     { key: "hp", label: t("editor.characters.colHp"), format: formatStat },
@@ -279,7 +280,7 @@ function buildFormContent(editContainer, data, charId, constellations, potential
         for (const opt of extra.options) {
           const el = document.createElement("option");
           el.value = opt;
-          el.textContent = opt;
+          el.textContent = extra.mapObj ? t(extra.mapObj[opt]) : opt;
           if (opt === data[key] || opt === data[key]) el.selected = true;
           input.appendChild(el);
         }
@@ -321,9 +322,9 @@ function buildFormContent(editContainer, data, charId, constellations, potential
 
   basicGrid.appendChild(addField("char_id", t("editor.characters.fieldCharId"), "text", { readonly: !!charId }));
   basicGrid.appendChild(addField("name", t("editor.characters.fieldName"), "text"));
-  basicGrid.appendChild(addField("faction", t("editor.characters.fieldFaction"), "select", { options: FACTION_OPTIONS }));
-  basicGrid.appendChild(addField("specialty", t("editor.characters.fieldSpecialty"), "select", { options: SPECIALTY_OPTIONS }));
-  basicGrid.appendChild(addField("element", t("editor.characters.fieldElement"), "select", { options: ELEMENT_OPTIONS }));
+  basicGrid.appendChild(addField("faction", t("editor.characters.fieldFaction"), "select", { options: FACTION_OPTIONS, mapObj: FACTION_MAP }));
+  basicGrid.appendChild(addField("specialty", t("editor.characters.fieldSpecialty"), "select", { options: SPECIALTY_OPTIONS, mapObj: SPECIALTY_MAP }));
+  basicGrid.appendChild(addField("element", t("editor.characters.fieldElement"), "select", { options: ELEMENT_OPTIONS, mapObj: ELEMENT_MAP }));
   basicGrid.appendChild(addField("level", t("editor.characters.fieldLevel"), "number", { min: 1, max: 60 }));
   basicGrid.appendChild(addField("ascension", t("editor.characters.fieldAscension"), "number", { min: 0, max: 6 }));
 
