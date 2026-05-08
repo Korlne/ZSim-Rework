@@ -269,9 +269,20 @@ async function importAllData(mode, fileListContainer, btn) {
           const success = result.success || 0;
           const errors = result.errors || [];
           if (errors.length > 0) {
+            const typeLabel = {
+              characters: t("editor.import.typeCharacters"),
+              skills: t("editor.import.typeSkills"),
+              equipment: t("editor.import.typeEquipment"),
+              enemies: t("editor.import.typeEnemies"),
+              apl: t("editor.import.typeApl"),
+            }[dataType] || dataType;
             showNotif(
-              `${dataType}: ${success} ok, ${errors.length} errors`,
+              t("editor.import.resultSuccess", { type: typeLabel, count: success }),
               "warning"
+            );
+            showNotif(
+              t("editor.import.resultErrors", { type: typeLabel, count: errors.length }),
+              "error"
             );
           }
         }
