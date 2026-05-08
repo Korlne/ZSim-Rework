@@ -801,15 +801,93 @@ fn export_to_json(state: tauri::State<'_, DataDirState>) -> Result<String, Strin
     data_entry::export::export_all(&conn, &state.data_dir)
 }
 
+fn auto_import_on_first_startup(data_dir: &std::path::PathBuf) {
+    let db_path = data_dir.join("zsim.db");
+    if db_path.exists() {
+        return;
+    }
+
+    let conn = match Connection::open(&db_path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[auto-import] Failed to create database: {e}");
+            return;
+        }
+    };
+
+    let _ = conn.execute_batch("PRAGMA foreign_keys = ON;");
+
+    if let Err(e) = data_entry::db::init_db(&conn) {
+        eprintln!("[auto-import] Failed to init schema: {e}");
+        return;
+    }
+
+    let subdirs: &[(&str, &str)] = &[
+        ("characters", "characters"),
+        ("drive_discs", "equipment"),
+        ("w_engines", "wengine"),
+    ];
+
+    for (import_type, subdir) in subdirs {
+        let dir_path = data_dir.join(subdir);
+        if !dir_path.exists() || !dir_path.is_dir() {
+            continue;
+        }
+
+        let entries = match std::fs::read_dir(&dir_path) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        for entry in entries.flatten() {
+            let file_path = entry.path();
+            let ext = file_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("");
+            if ext != "csv" && ext != "xlsx" {
+                continue;
+            }
+
+            let result = match *import_type {
+                "characters" => data_entry::csv_import::import_characters_csv(&conn, &file_path),
+                "drive_discs" => data_entry::csv_import::import_drive_disc_csv(&conn, &file_path),
+                "w_engines" => data_entry::csv_import::import_w_engine_csv(&conn, &file_path),
+                _ => continue,
+            };
+
+            match result {
+                Ok(count) => println!(
+                    "[auto-import] Imported {} {} from {}",
+                    count,
+                    import_type,
+                    file_path.display()
+                ),
+                Err(e) => eprintln!(
+                    "[auto-import] Import error for {} in {}: {}",
+                    import_type,
+                    file_path.display(),
+                    e
+                ),
+            }
+        }
+    }
+}
+
 pub fn run() {
     // 数据目录：开发环境下为项目根目录下的 data/，生产环境使用应用资源目录
     let data_dir = std::env::current_dir()
         .unwrap_or_default()
         .join("data");
+    let data_dir_for_setup = data_dir.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .setup(move |_app| {
+            auto_import_on_first_startup(&data_dir_for_setup);
+            Ok(())
+        })
         .manage(SidecarState {
             child: Mutex::new(None),
             stdin: Mutex::new(None),
