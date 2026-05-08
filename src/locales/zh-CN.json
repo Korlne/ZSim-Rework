@@ -9,6 +9,10 @@
   "status.cancelled": "已取消",
 
   "panel.config.title": "模拟配置",
+  "panel.config.mode": "运行模式",
+  "panel.config.modeFull": "完整模式",
+  "panel.config.modeLoop": "循环模式",
+  "panel.config.loopCount": "循环次数",
   "panel.config.simCount": "模拟次数",
   "panel.config.maxTick": "最大 Tick",
   "panel.config.baseSeed": "基础种子",
@@ -17,6 +21,8 @@
   "panel.config.outputPath": "输出路径",
   "panel.config.runBtn": "开始模拟",
   "panel.config.stopBtn": "停止",
+  "panel.config.batchMode": "多次模拟",
+  "panel.config.batchModeHide": "收起",
 
   "panel.sidecar.title": "分析 Sidecar",
   "panel.sidecar.spawnBtn": "启动 Sidecar",

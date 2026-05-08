@@ -9,6 +9,10 @@
   "status.cancelled": "Cancelled",
 
   "panel.config.title": "Simulation Config",
+  "panel.config.mode": "Run Mode",
+  "panel.config.modeFull": "Full",
+  "panel.config.modeLoop": "Loop",
+  "panel.config.loopCount": "Loop Count",
   "panel.config.simCount": "Simulation Count",
   "panel.config.maxTick": "Max Tick",
   "panel.config.baseSeed": "Base Seed",
@@ -17,6 +21,8 @@
   "panel.config.outputPath": "Output Path",
   "panel.config.runBtn": "Run Simulation",
   "panel.config.stopBtn": "Stop",
+  "panel.config.batchMode": "Batch Mode",
+  "panel.config.batchModeHide": "Hide",
 
   "panel.sidecar.title": "Analysis Sidecar",
   "panel.sidecar.spawnBtn": "Spawn Sidecar",

@@ -9,6 +9,10 @@
   "status.cancelled": "キャンセル済み",
 
   "panel.config.title": "シミュレーション設定",
+  "panel.config.mode": "実行モード",
+  "panel.config.modeFull": "完全",
+  "panel.config.modeLoop": "ループ",
+  "panel.config.loopCount": "ループ回数",
   "panel.config.simCount": "シミュレーション回数",
   "panel.config.maxTick": "最大 Tick",
   "panel.config.baseSeed": "ベースシード",
@@ -17,6 +21,8 @@
   "panel.config.outputPath": "出力パス",
   "panel.config.runBtn": "シミュレーション開始",
   "panel.config.stopBtn": "停止",
+  "panel.config.batchMode": "複数回実行",
+  "panel.config.batchModeHide": "閉じる",
 
   "panel.sidecar.title": "分析 Sidecar",
   "panel.sidecar.spawnBtn": "Sidecar 起動",

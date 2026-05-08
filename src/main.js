@@ -58,13 +58,16 @@ function setStatus(key, variant = "idle") {
 }
 
 function getConfig() {
+  const modeRadio = document.querySelector("input[name='sim-mode']:checked");
   return {
-    sim_count: parseInt(document.getElementById("sim-count").value, 10),
+    mode: modeRadio ? modeRadio.value : "full",
+    loop_count: parseInt(document.getElementById("loop-count").value, 10) || 1,
     max_tick: parseInt(document.getElementById("max-tick").value, 10),
     base_seed: parseInt(document.getElementById("base-seed").value, 10),
     data_dir: document.getElementById("data-dir").value,
     apl_file: document.getElementById("apl-file").value,
     output_path: document.getElementById("output-path").value,
+    sim_count: parseInt(document.getElementById("sim-count").value, 10) || 1,
   };
 }
 
@@ -481,6 +484,25 @@ function resetChartPanels() {
     try { Plotly.purge(el); } catch (_) { /* ignore */ }
   });
 }
+
+// Sim mode toggle
+const modeRadios = document.querySelectorAll("input[name='sim-mode']");
+const loopCountLabel = document.getElementById("loop-count-label");
+modeRadios.forEach((r) => r.addEventListener("change", () => {
+  loopCountLabel.style.display = r.value === "loop" ? "" : "none";
+}));
+
+// Batch mode toggle
+const btnToggleBatch = document.getElementById("btn-toggle-batch");
+const simCountLabel = document.getElementById("sim-count-label");
+let batchVisible = false;
+btnToggleBatch.addEventListener("click", () => {
+  batchVisible = !batchVisible;
+  simCountLabel.style.display = batchVisible ? "" : "none";
+  btnToggleBatch.textContent = batchVisible
+    ? t("panel.config.batchModeHide")
+    : t("panel.config.batchMode");
+});
 
 // Run simulation
 btnRun.addEventListener("click", async () => {

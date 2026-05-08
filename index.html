@@ -40,8 +40,21 @@
           <h2 data-i18n="panel.config.title">Simulation Config</h2>
           <div class="form-grid">
             <label>
-              <span data-i18n="panel.config.simCount">Simulation Count</span>
-              <input type="number" id="sim-count" value="100000" min="1" max="1000000" />
+              <span data-i18n="panel.config.mode">Run Mode</span>
+              <div style="display:flex;gap:12px;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:4px">
+                  <input type="radio" name="sim-mode" value="full" checked />
+                  <span data-i18n="panel.config.modeFull">Full</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:4px">
+                  <input type="radio" name="sim-mode" value="loop" />
+                  <span data-i18n="panel.config.modeLoop">Loop</span>
+                </label>
+              </div>
+            </label>
+            <label id="loop-count-label" style="display:none">
+              <span data-i18n="panel.config.loopCount">Loop Count</span>
+              <input type="number" id="loop-count" value="10" min="1" max="10000" />
             </label>
             <label>
               <span data-i18n="panel.config.maxTick">Max Tick</span>
@@ -62,6 +75,13 @@
             <label>
               <span data-i18n="panel.config.outputPath">Output Path</span>
               <input type="text" id="output-path" value="results.parquet" />
+            </label>
+            <label>
+              <button type="button" id="btn-toggle-batch" class="btn btn-secondary" data-i18n="panel.config.batchMode">Batch Mode</button>
+            </label>
+            <label id="sim-count-label" style="display:none">
+              <span data-i18n="panel.config.simCount">Simulation Count</span>
+              <input type="number" id="sim-count" value="100000" min="1" max="1000000" />
             </label>
           </div>
           <div class="button-row">
