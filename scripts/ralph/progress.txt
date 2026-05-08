@@ -42,3 +42,12 @@
   - When adding a field to a widely-used struct like `SimConfig`, grep for all construction sites including tests and parallel runner
   - Pre-existing test failures in `data::loader` and `zsim-parquet` e2e tests due to `potentials` column mismatch — not related to sim config
 ---
+
+## 2026-05-08 - US-103
+- What was implemented: Added full enum translation keys for all 6 categories (11 factions, 5 specialties, 5 elements, 9 action types, 11 stat types, 3 enemy types) to zh-CN.json, en-US.json, and ja-JP.json. Created `src/editor/utils/i18n-maps.js` exporting FACTION_MAP, SPECIALTY_MAP, ELEMENT_MAP, ACTION_TYPE_MAP, STAT_MAP, and ENEMY_TYPE_MAP mapping objects (value → i18n_key).
+- Files changed: `src/locales/zh-CN.json`, `src/locales/en-US.json`, `src/locales/ja-JP.json`, `src/editor/utils/i18n-maps.js` (new)
+- **Learnings for future iterations:**
+  - Enum translation keys follow pattern `enum.<category>.<snake_case_value>` (e.g., `enum.faction.belobog_industries`)
+  - i18n-maps.js mapping objects map from the raw English enum value (as stored in DB) to the i18n key — usage: `t(MAP[rawValue])`
+  - When adding new enum values, both the locale files AND i18n-maps.js need updating
+---

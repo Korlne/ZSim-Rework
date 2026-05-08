@@ -34,7 +34,7 @@
       ],
       "priority": 2,
       "passes": true,
-      "notes": ""
+      "notes": "Parses mode (full|loop) and loop_count. Loop mode scales effective workload by loop_count."
     },
     {
       "id": "US-103",
@@ -51,8 +51,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added enum translation keys (factions, specialties, elements, action types, stats, enemy types) to all 3 locale files. Created i18n-maps.js utility."
     },
     {
       "id": "US-104",
