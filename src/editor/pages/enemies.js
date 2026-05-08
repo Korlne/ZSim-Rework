@@ -1,4 +1,5 @@
 import { t } from "../../i18n.js";
+import { ENEMY_TYPE_MAP, ELEMENT_MAP } from "../utils/i18n-maps.js";
 import { createDataTable } from "../components/datatable.js";
 import { createForm } from "../components/form.js";
 import { confirm } from "../components/confirm.js";
@@ -44,7 +45,7 @@ async function renderEnemyList(container) {
     [
       { key: "enemy_id", label: t("editor.enemies.colId") },
       { key: "name", label: t("editor.enemies.colName") },
-      { key: "enemy_type", label: t("editor.enemies.colType") },
+      { key: "enemy_type", label: t("editor.enemies.colType"), format: (v) => t(ENEMY_TYPE_MAP[v]) },
       { key: "level", label: t("editor.enemies.colLevel") },
       { key: "hp", label: t("editor.enemies.colHp"), format: formatStat },
       { key: "def", label: t("editor.enemies.colDef"), format: formatStat },
@@ -105,7 +106,7 @@ async function showEnemyForm(enemyId, rootContainer) {
   sectionTitle.style.marginBottom = "16px";
   formEl.appendChild(sectionTitle);
 
-  const typeOptions = ENEMY_TYPES.map((t) => ({ value: t, label: t }));
+  const typeOptions = ENEMY_TYPES.map((t) => ({ value: t, label: t(ENEMY_TYPE_MAP[t]) }));
   const fields = [
     { key: "enemy_id", label: t("editor.enemies.fieldEnemyId"), type: "text", readonly: isEdit },
     { key: "name", label: t("editor.enemies.fieldName"), type: "text" },
@@ -149,7 +150,7 @@ async function showEnemyForm(enemyId, rootContainer) {
       for (const el of ELEMENTS) {
         const opt = document.createElement("option");
         opt.value = el;
-        opt.textContent = el;
+        opt.textContent = t(ELEMENT_MAP[el]);
         if (el === currentElement) opt.selected = true;
         elemSelect.appendChild(opt);
       }
@@ -224,7 +225,7 @@ async function showEnemyForm(enemyId, rootContainer) {
     for (const tag of weaknesses) {
       const tagEl = document.createElement("span");
       tagEl.className = "tag-item";
-      tagEl.textContent = tag;
+      tagEl.textContent = ELEMENT_MAP[tag] ? t(ELEMENT_MAP[tag]) : tag;
       const removeBtn = document.createElement("button");
       removeBtn.type = "button";
       removeBtn.className = "tag-remove";
