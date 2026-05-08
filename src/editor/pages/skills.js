@@ -2,6 +2,7 @@ import { t } from "../../i18n.js";
 import { createDataTable } from "../components/datatable.js";
 import { confirm } from "../components/confirm.js";
 import { getCharacters, getSkills, saveSkill, deleteSkill } from "../utils/api.js";
+import { ACTION_TYPE_MAP } from "../utils/i18n-maps.js";
 
 // ── State ──────────────────────────────────────────────────
 
@@ -89,7 +90,7 @@ export function renderPage() {
 function refreshSkillTable(tableContainer, rootContainer) {
   const columns = [
     { key: "action_id", label: t("editor.skills.colActionId") },
-    { key: "action_type", label: t("editor.skills.colActionType") },
+    { key: "action_type", label: t("editor.skills.colActionType"), format: (v) => t(ACTION_TYPE_MAP[v]) },
     { key: "energy_cost", label: t("editor.skills.colEnergyCost") },
     { key: "cooldown_ticks", label: t("editor.skills.colCooldown") },
   ];
@@ -191,7 +192,7 @@ function showEditForm(actionId, rootContainer) {
         for (const opt of extra.options) {
           const el = document.createElement("option");
           el.value = opt;
-          el.textContent = opt;
+          el.textContent = extra.mapObj ? t(extra.mapObj[opt]) : opt;
           if (opt === data[key]) el.selected = true;
           input.appendChild(el);
         }
@@ -234,7 +235,7 @@ function showEditForm(actionId, rootContainer) {
   basicGrid.className = "form-fields";
 
   addField("action_id", t("editor.skills.fieldActionId"), "text", { readonly: !!actionId });
-  addField("action_type", t("editor.skills.fieldActionType"), "select", { options: ACTION_TYPES });
+  addField("action_type", t("editor.skills.fieldActionType"), "select", { options: ACTION_TYPES, mapObj: ACTION_TYPE_MAP });
   addField("energy_cost", t("editor.skills.fieldEnergyCost"), "number");
   addField("decibel_cost", t("editor.skills.fieldDecibelCost"), "number");
   addField("hp_cost", t("editor.skills.fieldHpCost"), "number");
