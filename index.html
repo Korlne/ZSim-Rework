@@ -181,7 +181,8 @@
                 init();
               } catch (err) {
                 console.error("Editor init failed:", err);
-                editorView.innerHTML = `<div class="page-error"><h2>Editor failed to load</h2><pre>${err.message}</pre></div>`;
+                const { t } = await import("/src/i18n.js");
+                editorView.innerHTML = `<div class="page-error"><h2>${t("editor.loadError")}</h2><pre>${err.message}</pre></div>`;
               }
             }
           }
