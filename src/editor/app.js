@@ -59,8 +59,10 @@ function getRoute() {
   const hash = window.location.hash.replace(/^#\//, "");
   if (!hash) return "dashboard";
 
-  // Support nested routes: #/equipment/w-engines -> "w-engines"
   const parts = hash.split("/");
+  // For disc-sets/{id}, return "disc-sets" so the page renders the detail
+  if (parts[0] === "disc-sets") return "disc-sets";
+  // Support nested routes: #/equipment/w-engines -> "w-engines"
   return parts[parts.length - 1];
 }
 

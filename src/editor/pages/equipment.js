@@ -56,7 +56,7 @@ export function renderPage(route) {
   // Parse sub-route for disc-sets/{set_id}
   const hash = window.location.hash.replace(/^#\//, "");
   const parts = hash.split("/");
-  const setSubRoute = parts.length > 2 ? parts[parts.length - 1] : null;
+  const setSubRoute = parts[0] === "disc-sets" && parts.length >= 2 ? parts[1] : null;
 
   // Render the appropriate tab
   switch (route) {
@@ -64,7 +64,7 @@ export function renderPage(route) {
       renderWEngines(content);
       break;
     case "disc-sets":
-      if (setSubRoute && TAB_CONFIG["disc-sets"] && parts.length > 2) {
+      if (setSubRoute) {
         renderDiscSetDetail(content, setSubRoute);
       } else {
         renderDiscSets(content);
@@ -849,7 +849,9 @@ function buildDriveDiscForm(values, editContainer, rootContainer, saveFn) {
 
 function getCurrentRoute() {
   const hash = window.location.hash.replace(/^#\//, "");
+  if (!hash) return "w-engines";
   const parts = hash.split("/");
+  if (parts[0] === "disc-sets") return "disc-sets";
   return parts[parts.length - 1] || "w-engines";
 }
 
@@ -857,13 +859,13 @@ function renderCurrentTab(container) {
   const route = getCurrentRoute();
   const hash = window.location.hash.replace(/^#\//, "");
   const parts = hash.split("/");
-  const setSubRoute = parts.length > 2 ? parts[parts.length - 1] : null;
+  const setSubRoute = parts[0] === "disc-sets" && parts.length >= 2 ? parts[1] : null;
 
   container.innerHTML = "";
   switch (route) {
     case "w-engines": renderWEngines(container); break;
     case "disc-sets":
-      if (setSubRoute && parts.length > 2) {
+      if (setSubRoute) {
         renderDiscSetDetail(container, setSubRoute);
       } else {
         renderDiscSets(container);
