@@ -332,5 +332,55 @@
   "editor.import.csvImportError": "{type} import failed",
 
   "editor.save": "Save",
-  "editor.cancel": "Cancel"
+  "editor.cancel": "Cancel",
+
+  "enum.faction.belobog_industries": "Belobog Industries",
+  "enum.faction.cunning_hares": "Cunning Hares",
+  "enum.faction.gentle_house": "Gentle House",
+  "enum.faction.section_6": "Section 6",
+  "enum.faction.neps": "NEPS",
+  "enum.faction.obol_squad": "Obol Squad",
+  "enum.faction.soldiers_11th": "Soldiers 11th",
+  "enum.faction.stars_of_lyra": "Stars of Lyra",
+  "enum.faction.mockingbird": "Mockingbird",
+  "enum.faction.criminal_investigation_special_response_team": "Criminal Investigation Special Response Team",
+  "enum.faction.sons_of_calydon": "Sons of Calydon",
+
+  "enum.specialty.attack": "Attack",
+  "enum.specialty.stun": "Stun",
+  "enum.specialty.support": "Support",
+  "enum.specialty.defense": "Defense",
+  "enum.specialty.anomaly": "Anomaly",
+
+  "enum.element.physical": "Physical",
+  "enum.element.fire": "Fire",
+  "enum.element.ice": "Ice",
+  "enum.element.electric": "Electric",
+  "enum.element.ether": "Ether",
+
+  "enum.action_type.normal": "Normal",
+  "enum.action_type.special": "Special",
+  "enum.action_type.ultimate": "Ultimate",
+  "enum.action_type.chain": "Chain",
+  "enum.action_type.assist": "Assist",
+  "enum.action_type.quick": "Quick",
+  "enum.action_type.dodge": "Dodge",
+  "enum.action_type.parry": "Parry",
+  "enum.action_type.evade": "Evade",
+
+  "enum.stat.hp": "HP",
+  "enum.stat.atk": "ATK",
+  "enum.stat.def": "DEF",
+  "enum.stat.crit_rate": "Crit Rate",
+  "enum.stat.crit_dmg": "Crit DMG",
+  "enum.stat.pen_ratio": "PEN Ratio",
+  "enum.stat.pen": "PEN",
+  "enum.stat.energy_regen": "Energy Regen",
+  "enum.stat.anomaly_mastery": "Anomaly Mastery",
+  "enum.stat.anomaly_proficiency": "Anomaly Proficiency",
+  "enum.stat.impact": "Impact",
+
+  "enum.enemy_type.normal": "Normal",
+  "enum.enemy_type.elite": "Elite",
+  "enum.enemy_type.boss": "Boss"
 }
