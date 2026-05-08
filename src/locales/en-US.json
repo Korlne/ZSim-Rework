@@ -333,6 +333,7 @@
 
   "editor.save": "Save",
   "editor.cancel": "Cancel",
+  "editor.validation.required": "{field} is required",
 
   "enum.faction.belobog_industries": "Belobog Industries",
   "enum.faction.cunning_hares": "Cunning Hares",

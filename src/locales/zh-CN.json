@@ -277,6 +277,7 @@
 
   "editor.save": "保存",
   "editor.cancel": "取消",
+  "editor.validation.required": "{field}为必填项",
 
   "editor.enemies.addBtn": "添加敌人",
   "editor.enemies.colId": "ID",

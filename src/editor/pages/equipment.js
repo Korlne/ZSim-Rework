@@ -260,7 +260,10 @@ async function renderDiscSets(container) {
   container.appendChild(headerRow);
 
   if (data.length === 0) {
-    container.innerHTML += `<p class="text-muted">${t("editor.equipment.empty")}</p>`;
+    const emptyMsg = document.createElement("p");
+    emptyMsg.className = "text-muted";
+    emptyMsg.textContent = t("editor.equipment.empty");
+    container.appendChild(emptyMsg);
     return;
   }
 
@@ -572,6 +575,10 @@ function buildInlineFormContent(editContainer, rootContainer, type, values, isEd
     saveLabel: t("editor.save"),
     cancelLabel: t("editor.cancel"),
     onSave: async (state) => {
+      if (!state.set_id || !state.set_id.trim()) {
+        showNotification(t("editor.validation.required", { field: t("editor.equipment.fieldSetId") }), "error");
+        return;
+      }
       try {
         await saveFn(state);
         editContainer.remove();

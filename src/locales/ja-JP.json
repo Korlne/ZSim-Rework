@@ -304,6 +304,7 @@
 
   "editor.save": "保存",
   "editor.cancel": "キャンセル",
+  "editor.validation.required": "{field}は必須です",
 
   "editor.enemies.addBtn": "敵追加",
   "editor.enemies.colId": "ID",
