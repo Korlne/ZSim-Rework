@@ -89,3 +89,37 @@
   - ELEMENT_OPTIONS is defined in equipment.js but not yet used in any form; element dropdowns will need to be added to drive disc or w-engine forms to complete the ELEMENT_MAP integration
   - The drive disc detail view (renderDiscSetDetail) builds stat selects manually (not via createForm), so statOptions must be translated there independently
 ---
+
+## 2026-05-08 - US-107
+- What was implemented: Added i18n enum translation for enemy type and element values in the enemy management page. Enemy type column in table now shows translated labels via `format: (v) => t(ENEMY_TYPE_MAP[v])`. Form type select dropdown shows translated option labels via `t(ENEMY_TYPE_MAP[t])`. Resistance row element selects display translated element labels via `t(ELEMENT_MAP[el])`. Weakness tags display translated element labels with fallback to raw value for non-element free-text tags via `ELEMENT_MAP[tag] ? t(ELEMENT_MAP[tag]) : tag`.
+- Files changed: `src/editor/pages/enemies.js` (+5/-4 lines)
+- **Learnings for future iterations:**
+  - Weakness tags are free-text input — not all values are guaranteed to be elements, so use `MAP[tag] ? t(MAP[tag]) : tag` fallback pattern
+  - Enemy resistance element selects and weakness tag displays both need element translation — two separate code paths in the same file
+  - The enemy edit form builds DOM inline rather than using a reusable render function wrapper, making langchange reactivity harder to add
+---
+
+## 2026-05-08 - US-108
+- What was implemented: Audited import.js for hardcoded non-i18n strings. Found one hardcoded English string in `importAllData` append mode: `` `${dataType}: ${success} ok, ${errors.length} errors` ``. Replaced with existing i18n keys (`editor.import.resultSuccess`, `editor.import.resultErrors`) using translated type labels, matching the pattern already used in `importDataType`. All other strings (button labels, mode descriptions, scan results, import notifications) already use t() calls correctly.
+- Files changed: `src/editor/pages/import.js` (+12/-1 lines)
+- **Learnings for future iterations:**
+  - The import page uses two separate code paths for JSON import: `importDataType` (single type) and `importAllData` (all types). Fixes to one path should be applied to the other to keep them consistent
+  - Append mode in `importAllData` loops through types individually, so each type's errors needed the same i18n treatment as the single-type path
+  - The `typeLabels` mapping is duplicated across `renderFileList` and `importDataType` (and now `importAllData` too) — extracting it to a shared constant would reduce duplication
+---
+
+## 2026-05-08 - US-109
+- What was implemented: Fixed `getConfig()` to return `sim_count: 1` when the batch sim-count view is hidden. Previously, the HTML already hid `#sim-count-label` by default and the batch toggle button worked correctly, but `getConfig()` always read the input's `value="100000"` regardless of visibility. Now checks `simCountLabel.style.display === "none"` and defaults to 1 when hidden.
+- Files changed: `src/main.js` (+3/-1 lines)
+- **Learnings for future iterations:**
+  - The sim-count HTML input has a default value of 100000, so `parseInt(...) || 1` alone isn't sufficient — need to explicitly check visibility state
+  - Checking `element.style.display === "none"` is more robust than a separate boolean variable since it reflects the actual DOM state
+  ---
+
+## 2026-05-08 - US-108 (error parameterization follow-up)
+- What was implemented: Updated error message display to use parameter substitution instead of string concatenation. Changed `t("editor.import.scanError") + ": " + err` to `t("editor.import.scanError", { error: err })` and `t("editor.import.csvImportError", { type }) + ": " + e` to `t("editor.import.csvImportError", { type, error: e })`. Added `{error}` parameter to both i18n keys in all 3 locale files.
+- Files changed: `src/editor/pages/import.js`, `src/locales/zh-CN.json`, `src/locales/en-US.json`, `src/locales/ja-JP.json`
+- **Learnings for future iterations:**
+  - When concatenating error messages with i18n keys, use parameter substitution instead — this keeps the entire message translatable including colon/punctuation formatting
+  - The import page has 3 independent error catch blocks — all must be checked when fixing i18n patterns
+---

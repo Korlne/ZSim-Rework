@@ -64,7 +64,7 @@ export function renderPage() {
       scanResults = typeof raw === "string" ? JSON.parse(raw) : raw;
       renderFileList(fileListContainer);
     } catch (err) {
-      showNotif(t("editor.import.scanError") + ": " + err, "error");
+      showNotif(t("editor.import.scanError", { error: err }), "error");
     } finally {
       scanBtn.disabled = false;
       scanBtn.textContent = t("editor.import.scanBtn");
@@ -232,7 +232,7 @@ async function importDataType(dataType, mode, btn) {
       showNotif(t("editor.import.resultErrors", { type: typeLabel, count: errors.length }), "error");
     }
   } catch (err) {
-    showNotif(t("editor.import.scanError") + ": " + err, "error");
+    showNotif(t("editor.import.scanError", { error: err }), "error");
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
@@ -290,7 +290,7 @@ async function importAllData(mode, fileListContainer, btn) {
       showNotif(t("editor.import.importAllDone"), "success");
     }
   } catch (err) {
-    showNotif(t("editor.import.scanError") + ": " + err, "error");
+    showNotif(t("editor.import.scanError", { error: err }), "error");
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
@@ -309,7 +309,7 @@ async function importCsvType(dataType, btn) {
     const result = await importFromCsv(dataType, filePath);
     showNotif(t("editor.import.csvImportOk", { count: result.count, type: dataType }), "success");
   } catch (e) {
-    showNotif(t("editor.import.csvImportError", { type: dataType }) + ": " + e, "error");
+    showNotif(t("editor.import.csvImportError", { type: dataType, error: e }), "error");
   } finally {
     btn.disabled = false;
   }
