@@ -274,6 +274,8 @@
   "editor.equipment.field2pcBuff": "2-Piece Buff ID",
   "editor.equipment.field4pcDesc": "4-Piece Description",
   "editor.equipment.field4pcBuff": "4-Piece Buff ID",
+  "editor.equipment.validation.setIdRequired": "Set ID is required",
+  "editor.equipment.validation.setIdDuplicate": "A disc set with this ID already exists",
 
   "editor.enemies.addBtn": "Add Enemy",
   "editor.enemies.colId": "ID",

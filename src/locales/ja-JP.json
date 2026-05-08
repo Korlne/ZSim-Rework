@@ -301,6 +301,8 @@
   "editor.equipment.deleted": "装備を削除しました",
   "editor.equipment.deleteError": "削除に失敗しました",
   "editor.equipment.confirmDelete": "{name} を削除しますか？",
+  "editor.equipment.validation.setIdRequired": "セット ID は必須です",
+  "editor.equipment.validation.setIdDuplicate": "このセット ID は既に存在します",
 
   "editor.save": "保存",
   "editor.cancel": "キャンセル",

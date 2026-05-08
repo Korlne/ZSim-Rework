@@ -115,7 +115,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -131,8 +131,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Audited import.js. Found one hardcoded string in importAllData append mode (line 273: raw dataType + counts). Replaced with existing i18n keys editor.import.resultSuccess and editor.import.resultErrors with translated type labels."
     },
     {
       "id": "US-109",
@@ -148,8 +148,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "HTML already had sim-count-label hidden by default and batch toggle working. Fixed getConfig() to return sim_count=1 when batch view is hidden (was always reading input value 100000)."
     },
     {
       "id": "US-110",
@@ -167,8 +167,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": "Existing renderDiscSets() in equipment.js has partial implementation to build upon."
+      "passes": true,
+      "notes": "Card grid already existed in renderDiscSets(). Fixed routing: getRoute() in app.js now returns 'disc-sets' for #/disc-sets/{id}, and renderPage/renderCurrentTab in equipment.js use parts[0] check instead of parts.length > 2 for sub-route detection."
     },
     {
       "id": "US-111",
@@ -185,8 +185,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Add form was already implemented with all 6 fields, save/cancel flow, and card grid refresh. Added client-side validation: set_id required check (pre-existing) and uniqueness check against existing disc sets. Added i18n validation keys (editor.equipment.validation.setIdRequired, editor.equipment.validation.setIdDuplicate) to all 3 locales. Fixed innerHTML += bug in empty state of renderDiscSets."
     },
     {
       "id": "US-112",
@@ -204,8 +204,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": "Existing renderDiscSetDetail() in equipment.js has partial implementation to build upon."
+      "passes": true,
+      "notes": "Detail view was largely implemented. Fixed title to look up set name from getDiscSets() (falling back to setId). Added slot refresh after save: reloads discs via getDriveDiscsBySetId and updates form values in-place. Back button, 6 slots, main stat dropdown, sub-stat rows, defaults, and save button were already implemented."
     }
   ]
 }

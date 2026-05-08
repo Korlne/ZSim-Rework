@@ -601,6 +601,15 @@ function buildInlineFormContent(editContainer, rootContainer, type, values, isEd
         showNotification(t("editor.validation.required", { field: t("editor.equipment.fieldSetId") }), "error");
         return;
       }
+      if (!isEdit) {
+        try {
+          const existing = await getDiscSets();
+          if (existing.some(s => s.set_id === state.set_id)) {
+            showNotification(t("editor.equipment.validation.setIdDuplicate"), "error");
+            return;
+          }
+        } catch (_) { /* let backend handle uniqueness if fetch fails */ }
+      }
       try {
         await saveFn(state);
         editContainer.remove();

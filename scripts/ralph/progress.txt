@@ -123,3 +123,54 @@
   - When concatenating error messages with i18n keys, use parameter substitution instead — this keeps the entire message translatable including colon/punctuation formatting
   - The import page has 3 independent error catch blocks — all must be checked when fixing i18n patterns
 ---
+
+## 2026-05-08 - US-110 (bug fix) & US-111 (validation enhancement)
+- What was implemented: Fixed empty state bug in renderDiscSets where `innerHTML +=` destroyed the headerRow DOM element — replaced with DOM element creation via `createElement` + `appendChild`. Added disc set ID uniqueness validation in the add-form save handler: before saving a new disc set, checks existing sets for duplicate set_id and shows a translated error if found. Added i18n validation keys (setIdRequired, setIdDuplicate) to all 3 locale files.
+- Files changed: `src/editor/pages/equipment.js`, `src/locales/en-US.json`, `src/locales/zh-CN.json`, `src/locales/ja-JP.json`
+- **Learnings for future iterations:**
+  - Never use `container.innerHTML +=` after `container.appendChild()` — it serializes and destroys all live DOM nodes; always use `createElement` + `appendChild` instead
+  - Disc set forms use the generic `showInlineForm` → `buildInlineFormContent` path with `createForm`, not custom form builders like w-engines and drive discs
+  - `getDiscSets()` is already imported and can be used for client-side uniqueness checks before save
+  - The `isEdit` parameter in `buildInlineFormContent` distinguishes new vs. edit forms — use it to conditionally run uniqueness validation
+  - When adding i18n keys for equipment pages, place them in the `editor.equipment.*` namespace near the existing equipment keys at the end of the equipment section
+---
+
+
+## 2026-05-08 - US-109
+- What was implemented: Fixed `getConfig()` to return `sim_count: 1` when the batch sim-count view is hidden. Previously, the HTML already hid `#sim-count-label` by default and the batch toggle button worked correctly, but `getConfig()` always read the input's `value="100000"` regardless of visibility. Now checks `simCountLabel.style.display === "none"` and defaults to 1 when hidden.
+- Files changed: `src/main.js` (+3/-1 lines)
+- **Learnings for future iterations:**
+  - The sim-count HTML input has a default value of 100000, so `parseInt(...) || 1` alone isn't sufficient — need to explicitly check visibility state
+  - Checking `element.style.display === "none"` is more robust than a separate boolean variable since it reflects the actual DOM state
+---
+
+## 2026-05-08 - US-110
+- What was implemented: Fixed routing to enable disc-set detail page navigation. `getRoute()` in app.js now returns "disc-sets" for `#/disc-sets/{id}` hashes (checking `parts[0] === "disc-sets"`). Updated `renderPage`, `renderCurrentTab`, and `getCurrentRoute` in equipment.js to use `parts[0] === "disc-sets" && parts.length >= 2` for sub-route detection instead of `parts.length > 2`. The card grid itself was already implemented — clicking a card now correctly navigates to and loads the detail page.
+- Files changed: `src/editor/app.js` (+3/-2 lines), `src/editor/pages/equipment.js` (+6/-3 lines)
+- **Learnings for future iterations:**
+  - The app uses hash-based routing where `getRoute()` extracts the route name from the last segment of the hash — for nested routes like `#/disc-sets/{id}`, the first segment must be checked explicitly
+  - Three separate functions had duplicated sub-route parsing logic: `renderPage()`, `renderCurrentTab()`, and `getCurrentRoute()` — all three needed the same fix
+  - The card grid (renderDiscSets) was already fully implemented with name, set_id, descriptions, edit/delete buttons, hover effects, and empty state — only the navigation plumbing between list and detail was broken
+---
+
+## 2026-05-08 - US-111
+- What was implemented: Added client-side validation for the disc set add form. The set_id field is now validated as required — empty or whitespace-only set_id is rejected with a translated error message. Added new `editor.validation.required` i18n key (`"{field} is required"` / `"{field}为必填项"` / `"{field}は必須です"`) to all 3 locale files. The add form itself (all 6 fields, save/cancel flow, card grid refresh) was already fully implemented.
+- Files changed: `src/editor/pages/equipment.js` (+4 lines), `src/locales/en-US.json` (+1), `src/locales/zh-CN.json` (+1), `src/locales/ja-JP.json` (+1)
+- **Learnings for future iterations:**
+  - The `createForm` component accepts `required: true` in field definitions but doesn't enforce it — client-side validation must be added in the `onSave` callback
+  - When adding a new i18n key used across the app, add it to all 3 locale files simultaneously
+---
+
+## 2026-05-08 - US-112
+- What was implemented: Fixed the disc set detail page title to show the actual set name (looked up from `getDiscSets()`) with set_id fallback. Added slot refresh after save: after `saveDriveDisc` succeeds, re-fetches discs via `getDriveDiscsBySetId` and updates the DOM input values for that slot in-place (no page reload). The 6-slot layout, main stat dropdown, sub-stat rows, defaults, and save button were already implemented.
+- Files changed: `src/editor/pages/equipment.js` (+23/-1 lines)
+- **Learnings for future iterations:**
+  - The disc set detail page builds DOM elements manually (not via `createForm`) — post-save refresh requires manual DOM updates
+  - When looking up a name by ID, fetch the full list and `find()` instead of adding a new API endpoint
+  - The `renderDiscSetDetail` function already had nearly complete slot editing UI — only the title display and save refresh were missing
+---
+
+## ALL STORIES COMPLETE
+- US-101 through US-112 all `passes: true`
+- Branch: ralph/i18n-sim-config-csv-import
+---

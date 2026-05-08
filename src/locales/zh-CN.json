@@ -274,6 +274,8 @@
   "editor.equipment.deleted": "装备已删除",
   "editor.equipment.deleteError": "删除失败",
   "editor.equipment.confirmDelete": "删除 {name}？",
+  "editor.equipment.validation.setIdRequired": "套装 ID 为必填项",
+  "editor.equipment.validation.setIdDuplicate": "该套装 ID 已存在",
 
   "editor.save": "保存",
   "editor.cancel": "取消",
