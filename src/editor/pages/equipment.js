@@ -329,9 +329,17 @@ async function renderDiscSetDetail(container, setId) {
   });
   container.appendChild(backBtn);
 
+  // Look up set name for the title
+  let setName = setId;
+  try {
+    const allSets = await getDiscSets();
+    const found = allSets.find((s) => s.set_id === setId);
+    if (found && found.name) setName = found.name;
+  } catch (_) { /* use setId as fallback */ }
+
   const title = document.createElement("h2");
   title.style.margin = "0 0 16px 0";
-  title.textContent = setId;
+  title.textContent = setName;
   container.appendChild(title);
 
   let discs;
@@ -461,6 +469,20 @@ async function renderDiscSetDetail(container, setId) {
       try {
         await saveDriveDisc(disc);
         showNotification(t("editor.equipment.saved"), "success");
+        // Refresh disc data from API
+        const updatedDiscs = await getDriveDiscsBySetId(setId);
+        const updated = updatedDiscs.find((d) => d.slot === slot);
+        if (updated) {
+          Object.assign(disc, updated);
+          mainSelect.value = disc.main_stat_name;
+          mainVal.value = disc.main_stat_value;
+          for (let si = 1; si <= 4; si++) {
+            const ns = slotSection.querySelectorAll("select")[si];
+            const vi = slotSection.querySelectorAll("input[type='number']")[si];
+            if (ns) ns.value = disc["sub_stat_" + si + "_name"] || "";
+            if (vi) vi.value = disc["sub_stat_" + si + "_value"] ?? "";
+          }
+        }
       } catch (e) {
         showNotification(t("editor.equipment.saveError") + ": " + e, "error");
       }
