@@ -1,4 +1,5 @@
 import { t } from "../../i18n.js";
+import { STAT_MAP, ELEMENT_MAP } from "../utils/i18n-maps.js";
 import { createDataTable } from "../components/datatable.js";
 import { createForm } from "../components/form.js";
 import { confirm } from "../components/confirm.js";
@@ -190,7 +191,7 @@ async function renderDriveDiscs(container) {
       { key: "slot", label: t("editor.equipment.colSlot") },
       { key: "level", label: t("editor.equipment.colLevel") },
       { key: "set_id", label: t("editor.equipment.colSetId") },
-      { key: "main_stat_name", label: t("editor.equipment.colMainStat") },
+      { key: "main_stat_name", label: t("editor.equipment.colMainStat"), format: (v) => t(STAT_MAP[v]) },
       { key: "main_stat_value", label: t("editor.equipment.colMainVal"), format: formatStat },
     ],
     data,
@@ -341,7 +342,7 @@ async function renderDiscSetDetail(container, setId) {
   const discBySlot = {};
   for (const d of discs) discBySlot[d.slot] = d;
 
-  const statOptions = STAT_OPTIONS.map((s) => ({ value: s, label: s }));
+  const statOptions = STAT_OPTIONS.map((s) => ({ value: s, label: t(STAT_MAP[s]) }));
 
   for (let slot = 1; slot <= 6; slot++) {
     const disc = discBySlot[slot] || {
@@ -605,7 +606,7 @@ function buildWEngineFields(values, isEdit) {
 
 function buildDriveDiscFields(values) {
   const slotOptions = SLOTS.map((s) => ({ value: String(s), label: `Slot ${s}` }));
-  const statOptions = STAT_OPTIONS.map((s) => ({ value: s, label: s }));
+  const statOptions = STAT_OPTIONS.map((s) => ({ value: s, label: t(STAT_MAP[s]) }));
   return [
     { key: "id", label: t("editor.equipment.fieldId"), type: "text" },
     { key: "slot", label: t("editor.equipment.fieldSlot"), type: "select", options: slotOptions },
@@ -769,7 +770,7 @@ function buildDriveDiscForm(values, editContainer, rootContainer, saveFn) {
   subTitle.textContent = t("editor.equipment.fieldSubStats");
   subSection.appendChild(subTitle);
 
-  const statOptions = STAT_OPTIONS.map((s) => ({ value: s, label: s }));
+  const statOptions = STAT_OPTIONS.map((s) => ({ value: s, label: t(STAT_MAP[s]) }));
 
   for (let i = 1; i <= 4; i++) {
     const row = document.createElement("div");
