@@ -1,91 +1,17 @@
-# Ralph Progress Log
-Started: Wed May 13 21:38:42     2026
-
 ## Codebase Patterns
-- Frontend pages: each page module exports `renderPage(route)` returning a DOM element; pages use inline edit panels (not modals) appended to the root container with `scrollIntoView`
-- Locale files (src/locales/{lang}.json) use flat key-value JSON with dot notation keys like `editor.<page>.<camelCaseKey>`
-- Tauri v2 `.setup()` hook takes `|app| Ok(())` closure and runs before any commands
-- rusqlite: always use `bundled` feature to avoid requiring system SQLite install
-- Always use `PRAGMA foreign_keys = ON;` after opening each rusqlite Connection
-- SQLite schema: use `CREATE TABLE IF NOT EXISTS` for idempotent init + `schema_version` table for migrations
-- data_entry module: declare `mod data_entry;` in lib.rs, sub-modules in `data_entry/` directory
-- Tauri commands: `#[tauri::command]` in lib.rs, registered via `generate_handler![]`, state via `app.manage()` with `Mutex<T>`
-- CSV import: calamine crate for XLSX parsing in src-tauri/src/data_entry/csv_import.rs
-- Auto-import on first startup: scans data/characters/, data/equipment/, data/wengine/ for .csv/.xlsx files in order: characters → drive discs → w-engines
-- i18n system: t(key, params) in src/i18n.js, flat key-value JSON in src/locales/{lang}.json, data-i18n DOM attributes for static HTML, "langchange" custom event for dynamic re-render
-- When modifying lib.rs, always run `cargo check` from the repo root (Cargo.toml location)
+- Tauri v2: Use `#[tauri::command]` in lib.rs, `State<'_, DataDirState>` for data dir, open fresh `rusqlite::Connection` per command
+- SQLite: `CREATE TABLE IF NOT EXISTS`, `INSERT OR IGNORE` for seed data, `PRAGMA foreign_keys = ON`
+- Frontend: Vanilla JS hash routing `#/route`, lazy-loaded page modules via `import()`, `t(key, params)` for i18n
+- API layer: `invoke("command_name", { args })` in api.js wrappers, JSON.parse the string result
+- Character stats: `CharacterRecord` has hp, atk, def, crit_rate, crit_dmg, pen_ratio, anomaly_mastery, anomaly_proficiency, energy_regen, impact
+- WEngine stats: `WEngineRecord` has atk, crit_rate, crit_dmg, pen_ratio, energy_regen, impact, anomaly_mastery
+
 ---
+Started: Wed May 13 23:25:28     2026
 
-## 2026-05-13 22:00 - US-001
-- What was implemented: Added `std::fs::create_dir_all(db_path.parent())` before `Connection::open()` in `auto_import_on_first_startup()` to ensure the data/ directory exists before creating zsim.db. Also canonicalized the CWD in `run()` for consistent path resolution.
-- Files changed: `src-tauri/src/lib.rs` (+11/-1 lines)
-- **Learnings for future iterations:**
-  - rusqlite `Connection::open()` fails if the parent directory of the database file doesn't exist — must call `create_dir_all` first
-  - Canonicalizing `current_dir()` in `run()` ensures all subsequent path joins produce correct absolute paths
-  - The `data_dir` PathBuf is cloned: one for the setup hook closure, one for `DataDirState` managed state
-  - `canonicalize()` can fail if the path doesn't exist, so use `.unwrap_or_else(|_| std::env::current_dir().unwrap_or_default())` as fallback
----
-
-## 2026-05-13 22:20 - US-002
-- What was implemented: Added disabled hidden `<option value=''>` placeholder to all select dropdowns in the addField() function (characters.js). When data[key] is empty (new character), the placeholder is selected, so choosing a real option triggers the change event and updates form data. Added i18n key `editor.characters.selectPlaceholder` to zh-CN, en-US, ja-JP locales.
-- Files changed: `src/editor/pages/characters.js` (+7/-1), `src/locales/zh-CN.json`, `src/locales/en-US.json`, `src/locales/ja-JP.json` (+1 each), `src/editor/AGENTS.md` (new)
-- **Learnings for future iterations:**
-  - Select dropdowns in editor forms must have a disabled hidden placeholder `<option value=''>` so the change event fires correctly when picking a real value. Without this, the browser auto-selects the first option without triggering the event, and form data stays stale.
-  - i18n key naming convention: `editor.<page>.<camelCaseKey>` (e.g. `editor.characters.selectPlaceholder`)
-  - Editor module conventions (saved in `src/editor/AGENTS.md`): each page exports `renderPage()`, inline edit panels append to root container with `scrollIntoView`
----
-
-## 2026-05-13 22:40 - US-003
-- What was implemented: Changed `reapplyEditorText()` in app.js to call `navigate()` instead of only replacing the sidebar. `navigate()` already handles sidebar rebuild AND re-renders the current page via `renderPage()`, so all editor pages now update their text immediately on language switch.
-- Files changed: `src/editor/app.js` (+1/-6 lines)
-- **Learnings for future iterations:**
-  - The `_langHandler` pattern (used in characters.js, skills.js, equipment.js) attaches a langchange listener to re-render edit forms in-place. These fire after `reapplyEditorText`'s `navigate()` call, so forms are destroyed during language switch — this is intentional and preserves the clean re-render approach.
-  - `navigate()` is async (dynamic imports) but its sync portions handle sidebar + loading state immediately.
-  - `ensureLayout()` creates the editor-layout/view-panel structure if missing; `navigate()` always calls it first.
----
-
-## 2026-05-13 23:00 - US-004
-- What was implemented: Changed `createToggleSection()` enable logic from "block if previous is off" to "cascade-enable all from 0 to i". Clicking C6 now enables C1-C6, clicking C3 with C1,C2 on enables only C3. Disable logic unchanged (cascade-disables from i to 5).
-- Files changed: `src/editor/pages/characters.js` (+2/-3 lines)
-- **Learnings for future iterations:**
-  - `createToggleSection()` in characters.js is used for both Cinema (C1-C6) and Potential (P1-P6) toggles — any change affects both immediately
-  - US-009 (Edited Deployed Config) may need to reuse this cascade-enable pattern for its own cinema/potential toggles
----
-
-## 2026-05-13 23:20 - US-005
-- What was implemented: Added ` (%)` suffix to `editor.characters.fieldCritRate` and `editor.characters.fieldExtraCritDmg` translation values in all three locale files (zh-CN, en-US, ja-JP). No code logic changes — translation value changes only.
-- Files changed: `src/locales/zh-CN.json`, `src/locales/en-US.json`, `src/locales/ja-JP.json` (+3/-3 lines each)
-- **Learnings for future iterations:**
-  - When adding unit hints like `(%)`, suffix the translation value directly (e.g. `"暴击率 (%)"`) rather than modifying the code that displays it — this keeps labels consistent across all uses (table headers, form fields, error messages)
-  - The same i18n key is reused in multiple places (e.g. `editor.characters.fieldCritRate` appears in form headers, table columns, and validation error messages) so a single translation change covers all display contexts
----
-
-
-## 2026-05-13 23:40 - US-006
-- What was implemented: Added `deployed_configs` table to `init_db()` in db.rs with foreign keys to characters (ON DELETE CASCADE) and w_engines (ON DELETE SET NULL). Enabled `PRAGMA foreign_keys = ON` at the top of init_db(). Added 2 cascade behavior tests + table existence assertion to existing test suite.
-- Files changed: `src-tauri/src/data_entry/db.rs` (+44/-1 lines)
-- **Learnings for future iterations:**
-  - `init_db()` now enables `PRAGMA foreign_keys = ON` at the top — this ensures FK constraints are enforced for all DDL and DML operations within the same connection
-  - `deployed_configs` table uses JSON TEXT columns for cinemas, potentials, and disc_configs — consistent with the existing pattern (constellations, resistances, tracks)
-  - FK cascade tests require `PRAGMA foreign_keys = ON` to have been set on the connection — the in-memory test connection gets it from init_db() now
----
-
-## 2026-05-13 23:50 - US-007
-- What was implemented: Created `src-tauri/src/data_entry/deployed.rs` with full CRUD for deployed_configs table: list_deployed_configs, get_deployed_config, save_deployed_config, delete_deployed_config, duplicate_deployed_config. save_deployed_config auto-generates config_id via timestamp. duplicate_deployed_config appends "(Copy)" to name. Registered `pub mod deployed;` in data_entry/mod.rs. Added 5 Tauri commands in lib.rs (list_deployed_configs, get_deployed_config, save_deployed_config, delete_deployed_config, duplicate_deployed_config) and registered them in generate_handler![].
-- Files changed: `src-tauri/src/data_entry/deployed.rs` (new, +296 lines), `src-tauri/src/data_entry/mod.rs` (+1), `src-tauri/src/lib.rs` (+77)
-- **Learnings for future iterations:**
-  - Patterns discovered: Deployed configs CRUD follows the exact same flat-struct + per-command Connection pattern as characters/equipment/enemies modules. Each function deserializes JSON → validates → uses parameterized SQL with ON CONFLICT DO UPDATE. Tauri command wrappers follow the consistent state/call pattern: get DataDirState → open Connection → set PRAGMA foreign_keys → delegate to cmd_* function.
-  - Gotchas encountered: The duplicated config must have `created_at` set to `None` so SQLite's DEFAULT (datetime('now')) kicks in. NULL integer columns in SQLite require `Option<i32>` in Rust structs. The generate_config_id uses `SystemTime::now().duration_since(UNIX_EPOCH).as_millis()` for uniqueness.
-  - Useful context: The deployed_configs table schema was already created by US-006. The FK constraints (ON DELETE CASCADE to characters, ON DELETE SET NULL to w_engines) are already tested in db.rs tests. 13 unit tests cover empty list, get not found, save new (auto-id), save update, validation, delete, delete not found, duplicate, and duplicate not found.
----
-
-## 2026-05-13 23:55 - US-008
-- What was implemented: Completed the Deployed Configs frontend infrastructure — API wrapper functions in api.js (getDeployedConfigs, getDeployedConfig, saveDeployedConfig, deleteDeployedConfig, duplicateDeployedConfig), route registration in app.js (deployed → pages/deployed.js), sidebar nav item with deployed icon, and the full list page renderer. The list page features a responsive card grid showing config name, character name, wengine name, level/ascension/cinema stats summary, and created date. Each card has Edit (navigates to edit form), Duplicate (calls duplicate API), and Delete (with confirmation dialog) action buttons. The '+ New Config' button auto-creates a default config with the first available character and navigates to the edit form. Empty state message shown when no configs exist. All i18n keys added to zh-CN, en-US, ja-JP locale files. CSS grid + card styles for deployed cards.
-- Files changed: `src/editor/pages/deployed.js` (new, +298 lines), `src/editor/utils/api.js` (already had API wrappers from US-007), `src/editor/app.js` (route + routeTitle already added), `src/editor/components/sidebar.js` (nav item already added), `src/editor/styles.css` (card styles already added), `src/locales/zh-CN.json`, `src/locales/en-US.json`, `src/locales/ja-JP.json` (already had deployed keys)
-- **Learnings for future iterations:**
-  - The `getWEngines()` API returns items with `id` field (not `wengine_id`) — the card renderer handles both `w.id || w.wengine_id`
-  - `saveDeployedConfig` auto-generates `config_id` when passed `""` — the new config flow relies on this to get the ID back from the API response
-  - Deployed configs page uses hash routing: `#/deployed` for list, `#/deployed/{configId}` for edit — the renderPage function parses `window.location.hash` to decide mode
-  - Card actions use event delegation via `querySelectorAll` + `addEventListener` on individual buttons (not one global listener on the grid)
-  - Notification helper (`showNotification`) and confirmation dialog (`showConfirmDialog`) are defined locally in deployed.js — not shared utilities yet, so US-009 and US-011 should reuse/extract them
+## 2026-05-14 - US-010, US-011, US-012 (completed manually)
+- US-010: disc_stat_templates table DDL in db.rs, seed_disc_stat_templates() with 24 main stats + 10 sub stats, Rust CRUD (list/save/delete), 3 Tauri commands in lib.rs, 3 API wrappers in api.js
+- US-011: buildDiscSection() in deployed.js with 6 collapsible slot panels, disc set select, main stat select filtered by slot with auto-filled value, 4 sub-stat rows per slot with name/rolls/value, refreshSubStatValidation() for inline errors
+- US-012: buildStatSummary() + refreshStatSummary() + statNameToField() in deployed.js, reactive stat summation from character + wengine + discs, 22 i18n keys in en-US/zh-CN/ja-JP
+- Files changed: src-tauri/src/data_entry/db.rs, src-tauri/src/data_entry/deployed.rs, src-tauri/src/lib.rs, src/editor/utils/api.js, src/editor/pages/deployed.js, src/locales/en-US.json, src/locales/zh-CN.json, src/locales/ja-JP.json
 ---

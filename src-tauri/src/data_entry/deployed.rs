@@ -234,6 +234,188 @@ pub fn cmd_duplicate_deployed_config(conn: &Connection, config_id: String) -> Re
     duplicate_deployed_config(conn, &config_id)
 }
 
+// ── Disc Stat Templates ────────────────────────────────────
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DiscStatTemplateRecord {
+    pub id: Option<i64>,
+    pub slot: Option<i32>,
+    pub stat_type: String,
+    pub stat_name: String,
+    pub max_value: Option<f64>,
+    pub per_roll_value: Option<f64>,
+    pub max_rolls: Option<i32>,
+}
+
+fn row_to_disc_stat_template(row: &rusqlite::Row) -> rusqlite::Result<DiscStatTemplateRecord> {
+    Ok(DiscStatTemplateRecord {
+        id: row.get(0)?,
+        slot: row.get(1)?,
+        stat_type: row.get(2)?,
+        stat_name: row.get(3)?,
+        max_value: row.get(4)?,
+        per_roll_value: row.get(5)?,
+        max_rolls: row.get(6)?,
+    })
+}
+
+/// Seed the disc_stat_templates table with game data. Uses INSERT OR IGNORE for idempotency.
+pub fn seed_disc_stat_templates(conn: &Connection) -> Result<(), String> {
+    // Main stat templates: (slot, stat_name, max_value)
+    let main_stats: Vec<(i32, &str, f64)> = vec![
+        (1, "HP", 2200.0),
+        (2, "ATK", 316.0),
+        (3, "DEF", 184.0),
+        (4, "ATK%", 30.0),
+        (4, "HP%", 30.0),
+        (4, "DEF%", 48.0),
+        (4, "Crit DMG", 48.0),
+        (4, "Crit Rate", 24.0),
+        (4, "Anomaly Proficiency", 92.0),
+        (5, "ATK%", 30.0),
+        (5, "HP%", 30.0),
+        (5, "DEF%", 48.0),
+        (5, "PEN Ratio", 24.0),
+        (5, "Physical DMG", 30.0),
+        (5, "Fire DMG", 30.0),
+        (5, "Ice DMG", 30.0),
+        (5, "Electric DMG", 30.0),
+        (5, "Ether DMG", 30.0),
+        (6, "ATK%", 30.0),
+        (6, "HP%", 30.0),
+        (6, "DEF%", 48.0),
+        (6, "Anomaly Mastery", 30.0),
+        (6, "Impact", 18.0),
+        (6, "Energy Regen", 60.0),
+    ];
+
+    for (slot, name, value) in &main_stats {
+        conn.execute(
+            "INSERT OR IGNORE INTO disc_stat_templates (slot, stat_type, stat_name, max_value)
+             VALUES (?1, 'main', ?2, ?3)",
+            params![slot, name, value],
+        )
+        .map_err(|e| format!("Failed to seed main stat ({}, {}): {}", slot, name, e))?;
+    }
+
+    // Sub stat templates: (stat_name, per_roll_value, max_rolls)
+    let sub_stats: Vec<(&str, f64, i32)> = vec![
+        ("HP", 112.0, 6),
+        ("HP%", 3.0, 6),
+        ("ATK", 19.0, 6),
+        ("ATK%", 3.0, 6),
+        ("DEF", 15.0, 6),
+        ("DEF%", 4.8, 6),
+        ("PEN", 9.0, 6),
+        ("Crit Rate", 2.4, 6),
+        ("Crit DMG", 4.8, 6),
+        ("Anomaly Proficiency", 9.0, 6),
+    ];
+
+    for (name, per_roll, max_rolls) in &sub_stats {
+        conn.execute(
+            "INSERT OR IGNORE INTO disc_stat_templates (slot, stat_type, stat_name, per_roll_value, max_rolls)
+             VALUES (NULL, 'sub', ?1, ?2, ?3)",
+            params![name, per_roll, max_rolls],
+        )
+        .map_err(|e| format!("Failed to seed sub stat ({}): {}", name, e))?;
+    }
+
+    Ok(())
+}
+
+/// List disc stat templates, optionally filtered by slot and/or stat_type.
+pub fn list_disc_stat_templates(conn: &Connection, slot: Option<i32>, stat_type: Option<String>) -> Result<String, String> {
+    let mut sql = String::from(
+        "SELECT id, slot, stat_type, stat_name, max_value, per_roll_value, max_rolls
+         FROM disc_stat_templates WHERE 1=1"
+    );
+    let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+    if let Some(s) = slot {
+        sql.push_str(" AND slot = ?");
+        param_values.push(Box::new(s));
+    }
+    if let Some(ref t) = stat_type {
+        sql.push_str(" AND stat_type = ?");
+        param_values.push(Box::new(t.clone()));
+    }
+    sql.push_str(" ORDER BY slot NULLS LAST, stat_type, stat_name");
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| format!("Failed to prepare query: {e}"))?;
+
+    let rows = stmt
+        .query_map(
+            rusqlite::params_from_iter(param_values.iter().map(|p| p.as_ref())),
+            row_to_disc_stat_template,
+        )
+        .map_err(|e| format!("Failed to query disc stat templates: {e}"))?;
+
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(row.map_err(|e| format!("Failed to read disc stat template row: {e}"))?);
+    }
+    serde_json::to_string(&result).map_err(|e| format!("Failed to serialize: {e}"))
+}
+
+/// Create or update a disc stat template. Accepts a JSON string.
+pub fn save_disc_stat_template(conn: &Connection, data: &str) -> Result<String, String> {
+    let rec: DiscStatTemplateRecord =
+        serde_json::from_str(data).map_err(|e| format!("Invalid disc stat template JSON: {e}"))?;
+
+    if rec.stat_type.is_empty() {
+        return Err("stat_type is required".to_string());
+    }
+    if rec.stat_name.is_empty() {
+        return Err("stat_name is required".to_string());
+    }
+
+    if let Some(id) = rec.id {
+        conn.execute(
+            "UPDATE disc_stat_templates SET slot=?1, stat_type=?2, stat_name=?3, max_value=?4, per_roll_value=?5, max_rolls=?6
+             WHERE id=?7",
+            params![rec.slot, rec.stat_type, rec.stat_name, rec.max_value, rec.per_roll_value, rec.max_rolls, id],
+        )
+        .map_err(|e| format!("Failed to update disc stat template: {e}"))?;
+        Ok(serde_json::json!({"status": "ok", "id": id}).to_string())
+    } else {
+        conn.execute(
+            "INSERT INTO disc_stat_templates (slot, stat_type, stat_name, max_value, per_roll_value, max_rolls)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![rec.slot, rec.stat_type, rec.stat_name, rec.max_value, rec.per_roll_value, rec.max_rolls],
+        )
+        .map_err(|e| format!("Failed to insert disc stat template: {e}"))?;
+        let new_id = conn.last_insert_rowid();
+        Ok(serde_json::json!({"status": "ok", "id": new_id}).to_string())
+    }
+}
+
+/// Delete a disc stat template by id.
+pub fn delete_disc_stat_template(conn: &Connection, id: i64) -> Result<String, String> {
+    let affected = conn
+        .execute("DELETE FROM disc_stat_templates WHERE id = ?1", params![id])
+        .map_err(|e| format!("Failed to delete disc stat template: {e}"))?;
+
+    if affected == 0 {
+        return Err(format!("Disc stat template {} not found", id));
+    }
+    Ok(serde_json::json!({"status": "ok", "id": id}).to_string())
+}
+
+// ── Tauri command wrappers for disc stat templates ─────────
+
+pub fn cmd_list_disc_stat_templates(conn: &Connection, slot: Option<i32>, stat_type: Option<String>) -> Result<String, String> {
+    list_disc_stat_templates(conn, slot, stat_type)
+}
+
+pub fn cmd_save_disc_stat_template(conn: &Connection, data: String) -> Result<String, String> {
+    save_disc_stat_template(conn, &data)
+}
+
+pub fn cmd_delete_disc_stat_template(conn: &Connection, id: i64) -> Result<String, String> {
+    delete_disc_stat_template(conn, id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

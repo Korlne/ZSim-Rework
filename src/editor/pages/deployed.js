@@ -1,4 +1,4 @@
-import { getDeployedConfigs, getDeployedConfig, deleteDeployedConfig, duplicateDeployedConfig, saveDeployedConfig, getCharacters, getWEngines } from "../utils/api.js";
+import { getDeployedConfigs, getDeployedConfig, deleteDeployedConfig, duplicateDeployedConfig, saveDeployedConfig, getCharacters, getWEngines, getDiscSets, getDiscStatTemplates } from "../utils/api.js";
 import { t } from "../../i18n.js";
 
 export function renderPage(route) {
@@ -281,17 +281,23 @@ async function renderEditForm(configId) {
   let configData = null;
   let characters = [];
   let wengines = [];
+  let discSets = [];
+  let mainStatTemplates = []; // {slot, stat_name, max_value}
+  let subStatTemplates = []; // {stat_name, per_roll_value, max_rolls}
 
   try {
-    const promises = [getCharacters(), getWEngines()];
+    const promises = [getCharacters(), getWEngines(), getDiscSets(), getDiscStatTemplates(null, "main"), getDiscStatTemplates(null, "sub")];
     if (configId !== "new") {
       promises.push(getDeployedConfig(configId));
     }
     const results = await Promise.all(promises);
     characters = Array.isArray(results[0]) ? results[0] : [];
     wengines = Array.isArray(results[1]) ? results[1] : [];
+    discSets = Array.isArray(results[2]) ? results[2] : [];
+    mainStatTemplates = Array.isArray(results[3]) ? results[3] : [];
+    subStatTemplates = Array.isArray(results[4]) ? results[4] : [];
     if (configId !== "new") {
-      configData = results[2];
+      configData = results[5];
     }
   } catch (err) {
     container.innerHTML = `<div class="page-error"><p>${t("editor.deployed.loadError")}: ${err.message || err}</p></div>`;
@@ -320,6 +326,7 @@ async function renderEditForm(configId) {
 
   const cinemas = parseBoolArray(formData.cinemas);
   const potentials = parseBoolArray(formData.potentials);
+  const discConfigs = parseDiscConfigs(formData.disc_configs);
 
   container.innerHTML = "";
 
@@ -553,6 +560,25 @@ async function renderEditForm(configId) {
 
   formEl.appendChild(wengineSection);
 
+  // ── Drive Discs Section ──────────────────────────────
+  const discSection = buildDiscSection(discConfigs, discSets, mainStatTemplates, subStatTemplates);
+  formEl.appendChild(discSection);
+
+  // ── Stat Summary ─────────────────────────────────────
+  const summarySection = buildStatSummary(characters, wengines);
+  formEl.appendChild(summarySection);
+
+  // Reactive refresh: any select/input change in the form updates the summary
+  formEl.addEventListener("change", () => {
+    refreshStatSummary(formData, discConfigs, characters, wengines);
+  });
+  formEl.addEventListener("input", () => {
+    refreshStatSummary(formData, discConfigs, characters, wengines);
+  });
+
+  // Initial calculation
+  refreshStatSummary(formData, discConfigs, characters, wengines);
+
   // ── Buttons ──────────────────────────────────────────
   const btnRow = document.createElement("div");
   btnRow.className = "form-buttons";
@@ -567,6 +593,7 @@ async function renderEditForm(configId) {
         ...formData,
         cinemas: JSON.stringify(cinemas),
         potentials: JSON.stringify(potentials),
+        disc_configs: JSON.stringify(discConfigs),
       };
       const result = await saveDeployedConfig(payload);
       // Update config_id if new
@@ -596,6 +623,418 @@ async function renderEditForm(configId) {
   container.appendChild(formEl);
 
   return container;
+}
+
+// ── Disc Config Helpers ──────────────────────────────────
+
+function parseDiscConfigs(raw) {
+  if (!raw) return createEmptyDiscConfigs();
+  try {
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr) || arr.length === 0) return createEmptyDiscConfigs();
+    // Ensure all 6 slots exist
+    const configs = createEmptyDiscConfigs();
+    for (const saved of arr) {
+      const slot = saved.slot;
+      if (slot >= 1 && slot <= 6) {
+        configs[slot - 1] = {
+          slot,
+          set_id: saved.set_id || "",
+          main_stat_name: saved.main_stat_name || "",
+          main_stat_value: saved.main_stat_value || 0,
+          sub_stats: Array.isArray(saved.sub_stats) ? saved.sub_stats.map(s => ({
+            name: s.name || "",
+            rolls: s.rolls || 0,
+            value: s.value || 0,
+          })) : [{name:"",rolls:0,value:0},{name:"",rolls:0,value:0},{name:"",rolls:0,value:0},{name:"",rolls:0,value:0}],
+        };
+      }
+    }
+    return configs;
+  } catch {
+    return createEmptyDiscConfigs();
+  }
+}
+
+function createEmptyDiscConfigs() {
+  const configs = [];
+  for (let slot = 1; slot <= 6; slot++) {
+    configs.push({
+      slot,
+      set_id: "",
+      main_stat_name: "",
+      main_stat_value: 0,
+      sub_stats: [
+        { name: "", rolls: 0, value: 0 },
+        { name: "", rolls: 0, value: 0 },
+        { name: "", rolls: 0, value: 0 },
+        { name: "", rolls: 0, value: 0 },
+      ],
+    });
+  }
+  return configs;
+}
+
+function buildDiscSection(discConfigs, discSets, mainStatTemplates, subStatTemplates) {
+  const section = document.createElement("div");
+  section.className = "form-section";
+
+  const title = document.createElement("div");
+  title.className = "section-title";
+  title.textContent = t("editor.deployed.sectionDiscs");
+  section.appendChild(title);
+
+  // Build map: set_id → set name
+  const setMap = {};
+  for (const s of discSets) {
+    setMap[s.set_id] = s.name || s.set_id;
+  }
+
+  // Filter main stats by slot
+  function getMainStatsForSlot(slot) {
+    return mainStatTemplates.filter(t => t.slot === slot);
+  }
+
+  for (let slotIdx = 0; slotIdx < 6; slotIdx++) {
+    const slot = slotIdx + 1;
+    const cfg = discConfigs[slotIdx];
+    const mainOptions = getMainStatsForSlot(slot);
+
+    const panel = document.createElement("div");
+    panel.className = "disc-slot-panel";
+    panel.style.cssText = "border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px;";
+
+    // Slot header (collapsible)
+    const header = document.createElement("div");
+    header.style.cssText = "display:flex;align-items:center;justify-content:space-between;cursor:pointer;";
+    header.innerHTML = `<strong style="font-size:14px;">${t("editor.deployed.slotLabel", { n: String(slot) })}</strong>`;
+    const toggleIcon = document.createElement("span");
+    toggleIcon.textContent = "▼";
+    toggleIcon.style.fontSize = "12px";
+    header.appendChild(toggleIcon);
+
+    const body = document.createElement("div");
+    body.style.marginTop = "8px";
+
+    header.addEventListener("click", () => {
+      body.style.display = body.style.display === "none" ? "" : "none";
+      toggleIcon.textContent = body.style.display === "none" ? "▶" : "▼";
+    });
+
+    // Disc set dropdown
+    const setGroup = document.createElement("div");
+    setGroup.className = "form-field";
+    const setLabel = document.createElement("label");
+    setLabel.className = "form-label";
+    setLabel.textContent = t("editor.deployed.discSet");
+    setGroup.appendChild(setLabel);
+    const setSelect = document.createElement("select");
+    setSelect.className = "form-input form-select";
+    const setPlaceholder = document.createElement("option");
+    setPlaceholder.value = "";
+    setPlaceholder.disabled = true;
+    setPlaceholder.hidden = true;
+    setPlaceholder.textContent = t("editor.deployed.selectDiscSet");
+    setSelect.appendChild(setPlaceholder);
+    for (const s of discSets) {
+      const opt = document.createElement("option");
+      opt.value = s.set_id;
+      opt.textContent = s.name || s.set_id;
+      if (s.set_id === cfg.set_id) opt.selected = true;
+      setSelect.appendChild(opt);
+    }
+    setSelect.addEventListener("change", () => {
+      cfg.set_id = setSelect.value;
+    });
+    setGroup.appendChild(setSelect);
+    body.appendChild(setGroup);
+
+    // Main stat dropdown (filtered by slot)
+    const mainGroup = document.createElement("div");
+    mainGroup.className = "form-field";
+    const mainLabel = document.createElement("label");
+    mainLabel.className = "form-label";
+    mainLabel.textContent = t("editor.deployed.mainStat");
+    mainGroup.appendChild(mainLabel);
+
+    const mainSelect = document.createElement("select");
+    mainSelect.className = "form-input form-select";
+    const mainPlaceholder = document.createElement("option");
+    mainPlaceholder.value = "";
+    mainPlaceholder.disabled = true;
+    mainPlaceholder.hidden = true;
+    mainPlaceholder.textContent = t("editor.deployed.selectMainStat");
+    mainSelect.appendChild(mainPlaceholder);
+    for (const tpl of mainOptions) {
+      const opt = document.createElement("option");
+      opt.value = tpl.stat_name;
+      opt.textContent = `${tpl.stat_name} (${tpl.max_value}${tpl.stat_name.includes("%") || tpl.stat_name.includes("DMG") || tpl.stat_name.includes("Rate") || tpl.stat_name.includes("Regen") || tpl.stat_name.includes("Mastery") ? "%" : ""})`;
+      if (tpl.stat_name === cfg.main_stat_name) opt.selected = true;
+      opt.dataset.maxValue = tpl.max_value;
+      mainSelect.appendChild(opt);
+    }
+    mainSelect.addEventListener("change", () => {
+      cfg.main_stat_name = mainSelect.value;
+      const selOpt = mainSelect.selectedOptions[0];
+      cfg.main_stat_value = selOpt ? parseFloat(selOpt.dataset.maxValue || 0) : 0;
+      mainValueDisplay.textContent = cfg.main_stat_value;
+      // Refresh sub stat validation
+      refreshSubStatValidation(subRows, cfg, subStatTemplates);
+    });
+    mainGroup.appendChild(mainSelect);
+
+    const mainValueDisplay = document.createElement("span");
+    mainValueDisplay.style.cssText = "margin-left:8px;color:var(--text);font-weight:600;";
+    mainValueDisplay.textContent = cfg.main_stat_value || "";
+    mainGroup.appendChild(mainValueDisplay);
+    body.appendChild(mainGroup);
+
+    // Sub-stat rows
+    const subRows = [];
+    const subsContainer = document.createElement("div");
+    subsContainer.style.marginTop = "8px";
+
+    const subsLabel = document.createElement("div");
+    subsLabel.className = "form-label";
+    subsLabel.textContent = t("editor.deployed.subStats");
+    subsContainer.appendChild(subsLabel);
+
+    for (let si = 0; si < 4; si++) {
+      const sub = cfg.sub_stats[si];
+      const subRow = document.createElement("div");
+      subRow.className = "sub-stat-row";
+      subRow.style.cssText = "display:flex;align-items:center;gap:6px;margin-top:6px;";
+
+      // Sub stat name dropdown
+      const nameSelect = document.createElement("select");
+      nameSelect.className = "form-input form-select";
+      nameSelect.style.flex = "2";
+      const subPlaceholder = document.createElement("option");
+      subPlaceholder.value = "";
+      subPlaceholder.textContent = `-- ${t("editor.deployed.subStat")} ${si + 1} --`;
+      nameSelect.appendChild(subPlaceholder);
+      for (const tpl of subStatTemplates) {
+        const opt = document.createElement("option");
+        opt.value = tpl.stat_name;
+        opt.textContent = tpl.stat_name;
+        if (tpl.stat_name === sub.name) opt.selected = true;
+        nameSelect.appendChild(opt);
+      }
+      nameSelect.addEventListener("change", () => {
+        sub.name = nameSelect.value;
+        // Recalculate value if rolls > 0
+        if (sub.rolls > 0) {
+          const tpl = subStatTemplates.find(t => t.stat_name === sub.name);
+          sub.value = tpl ? tpl.per_roll_value * sub.rolls : 0;
+          rollValueDisplay.textContent = sub.value;
+        }
+        refreshSubStatValidation(subRows, cfg, subStatTemplates);
+      });
+
+      // Roll count selector (0-6)
+      const rollSelect = document.createElement("select");
+      rollSelect.className = "form-input form-select";
+      rollSelect.style.flex = "1";
+      for (let r = 0; r <= 6; r++) {
+        const opt = document.createElement("option");
+        opt.value = r;
+        opt.textContent = r === 0 ? `0 ${t("editor.deployed.rolls")}` : `+${r} ${t("editor.deployed.rolls")}`;
+        if (r === sub.rolls) opt.selected = true;
+        rollSelect.appendChild(opt);
+      }
+      rollSelect.addEventListener("change", () => {
+        sub.rolls = parseInt(rollSelect.value, 10);
+        if (sub.rolls > 0 && sub.name) {
+          const tpl = subStatTemplates.find(t => t.stat_name === sub.name);
+          sub.value = tpl ? tpl.per_roll_value * sub.rolls : 0;
+        } else {
+          sub.value = 0;
+        }
+        rollValueDisplay.textContent = sub.value;
+        refreshSubStatValidation(subRows, cfg, subStatTemplates);
+      });
+
+      // Calculated value display
+      const rollValueDisplay = document.createElement("span");
+      rollValueDisplay.style.cssText = "min-width:50px;text-align:right;color:var(--text);font-size:13px;";
+      rollValueDisplay.textContent = sub.value || "";
+
+      subRow.appendChild(nameSelect);
+      subRow.appendChild(rollSelect);
+      subRow.appendChild(rollValueDisplay);
+      subsContainer.appendChild(subRow);
+
+      subRows.push({ row: subRow, nameSelect, rollSelect, rollValueDisplay });
+    }
+
+    // Validation message area
+    const validationMsg = document.createElement("div");
+    validationMsg.className = "disc-validation-msg";
+    validationMsg.style.cssText = "color:var(--danger);font-size:12px;margin-top:6px;min-height:18px;";
+    subsContainer.appendChild(validationMsg);
+
+    // Initial validation
+    refreshSubStatValidation(subRows, cfg, subStatTemplates);
+
+    body.appendChild(subsContainer);
+    panel.appendChild(header);
+    panel.appendChild(body);
+    section.appendChild(panel);
+  }
+
+  return section;
+}
+
+function refreshSubStatValidation(subRows, cfg, subStatTemplates) {
+  const errors = [];
+  const selectedNames = [];
+
+  for (let si = 0; si < subRows.length; si++) {
+    const sub = cfg.sub_stats[si];
+    const { nameSelect, rollSelect } = subRows[si];
+
+    // Reset styling
+    nameSelect.style.borderColor = "";
+    rollSelect.style.borderColor = "";
+
+    if (sub.name && sub.rolls > 0) {
+      selectedNames.push(sub.name);
+
+      // Check: sub stat cannot equal main stat
+      if (sub.name === cfg.main_stat_name) {
+        errors.push(t("editor.deployed.validation.subStatSameAsMain", { name: sub.name }));
+        nameSelect.style.borderColor = "var(--danger)";
+      }
+
+      // Check: sub stat name uniqueness
+      if (selectedNames.filter(n => n === sub.name).length > 1) {
+        errors.push(t("editor.deployed.validation.subStatDuplicate", { name: sub.name }));
+        nameSelect.style.borderColor = "var(--danger)";
+      }
+    }
+  }
+
+  // Check: total rolls ≤ 9
+  const totalRolls = cfg.sub_stats.reduce((sum, s) => sum + (s.rolls || 0), 0);
+  if (totalRolls > 9) {
+    errors.push(t("editor.deployed.validation.rollsExceeded", { total: String(totalRolls), max: "9" }));
+    for (const sr of subRows) {
+      sr.rollSelect.style.borderColor = "var(--danger)";
+    }
+  }
+
+  // Find the validation msg element (last child)
+  const subsContainer = subRows[0].row.parentElement;
+  const msgEl = subsContainer.querySelector(".disc-validation-msg");
+  if (msgEl) {
+    msgEl.textContent = errors.join("; ");
+  }
+}
+
+// ── Stat Summary ──────────────────────────────────────────
+
+function statNameToField(name) {
+  const m = {
+    "HP": "hp", "HP%": "hp",
+    "ATK": "atk", "ATK%": "atk",
+    "DEF": "def", "DEF%": "def",
+    "Crit Rate": "crit_rate", "Crit DMG": "crit_dmg",
+    "PEN": "pen_ratio", "PEN Ratio": "pen_ratio",
+    "Anomaly Mastery": "anomaly_mastery",
+    "Anomaly Proficiency": "anomaly_proficiency",
+    "Energy Regen": "energy_regen",
+    "Impact": "impact",
+  };
+  return m[name] || "";
+}
+
+function buildStatSummary(characters, wengines) {
+  const section = document.createElement("div");
+  section.className = "form-section";
+  section.id = "stat-summary-section";
+
+  const title = document.createElement("div");
+  title.className = "section-title";
+  title.textContent = t("editor.deployed.sectionSummary");
+  section.appendChild(title);
+
+  const grid = document.createElement("div");
+  grid.className = "stat-summary-grid";
+  grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px;margin-top:8px;";
+  section.appendChild(grid);
+
+  const statDefs = [
+    { key: "summaryAtk", field: "atk" },
+    { key: "summaryHp", field: "hp" },
+    { key: "summaryDef", field: "def" },
+    { key: "summaryCritRate", field: "crit_rate" },
+    { key: "summaryCritDmg", field: "crit_dmg" },
+    { key: "summaryPenRatio", field: "pen_ratio" },
+    { key: "summaryAnomalyMastery", field: "anomaly_mastery" },
+    { key: "summaryAnomalyProficiency", field: "anomaly_proficiency" },
+    { key: "summaryEnergyRegen", field: "energy_regen" },
+    { key: "summaryImpact", field: "impact" },
+  ];
+
+  for (const s of statDefs) {
+    const card = document.createElement("div");
+    card.style.cssText = "padding:8px 12px;border:1px solid var(--border);border-radius:6px;display:flex;justify-content:space-between;align-items:center;";
+
+    const label = document.createElement("span");
+    label.textContent = t("editor.deployed." + s.key);
+    label.style.fontSize = "13px";
+
+    const value = document.createElement("span");
+    value.className = "stat-value stat-" + s.field;
+    value.style.fontWeight = "600";
+    value.style.fontSize = "14px";
+    value.textContent = "0";
+
+    card.appendChild(label);
+    card.appendChild(value);
+    grid.appendChild(card);
+  }
+
+  return section;
+}
+
+function refreshStatSummary(formData, discConfigs, characters, wengines) {
+  const char = characters.find(c => c.char_id === formData.char_id);
+  const wengineIdField = (w) => w.id || w.wengine_id;
+  const wengine = formData.wengine_id
+    ? wengines.find(w => wengineIdField(w) === formData.wengine_id)
+    : null;
+
+  const discTotals = {};
+  for (const cfg of discConfigs) {
+    if (cfg.main_stat_name && cfg.main_stat_value) {
+      const f = statNameToField(cfg.main_stat_name);
+      if (f) discTotals[f] = (discTotals[f] || 0) + (cfg.main_stat_value || 0);
+    }
+    for (const sub of cfg.sub_stats) {
+      if (sub.name && sub.value) {
+        const f = statNameToField(sub.name);
+        if (f) discTotals[f] = (discTotals[f] || 0) + (sub.value || 0);
+      }
+    }
+  }
+
+  const isPct = (f) => f.includes("rate") || f.includes("dmg") || f.includes("ratio") || f.includes("mastery") || f.includes("proficiency") || f.includes("regen");
+
+  const fields = ["atk", "hp", "def", "crit_rate", "crit_dmg", "pen_ratio", "anomaly_mastery", "anomaly_proficiency", "energy_regen", "impact"];
+  for (const f of fields) {
+    let total = 0;
+    if (char) total += char[f] || 0;
+    if (wengine) total += wengine[f] || 0;
+    total += discTotals[f] || 0;
+
+    const el = document.querySelector(".stat-" + f);
+    if (el) {
+      el.textContent = isPct(f)
+        ? Number(total).toFixed(1) + "%"
+        : Math.round(total);
+    }
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────

@@ -320,6 +320,10 @@ fn init_database(state: tauri::State<'_, DataDirState>) -> Result<String, String
     data_entry::db::init_db(&conn)
         .map_err(|e| format!("Failed to initialize schema: {e}"))?;
 
+    // Seed disc stat templates (idempotent)
+    data_entry::deployed::seed_disc_stat_templates(&conn)
+        .map_err(|e| format!("Failed to seed disc stat templates: {e}"))?;
+
     let tables: Vec<String> = conn
         .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
         .map_err(|e| format!("Failed to query tables: {e}"))?
@@ -887,6 +891,36 @@ fn duplicate_deployed_config(state: tauri::State<'_, DataDirState>, config_id: S
     data_entry::deployed::cmd_duplicate_deployed_config(&conn, config_id)
 }
 
+#[tauri::command]
+fn list_disc_stat_templates(state: tauri::State<'_, DataDirState>, slot: Option<i32>, stat_type: Option<String>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+    data_entry::deployed::cmd_list_disc_stat_templates(&conn, slot, stat_type)
+}
+
+#[tauri::command]
+fn save_disc_stat_template(state: tauri::State<'_, DataDirState>, data: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+    data_entry::deployed::cmd_save_disc_stat_template(&conn, data)
+}
+
+#[tauri::command]
+fn delete_disc_stat_template(state: tauri::State<'_, DataDirState>, id: i64) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+    data_entry::deployed::cmd_delete_disc_stat_template(&conn, id)
+}
+
 fn auto_import_on_first_startup(data_dir: &std::path::PathBuf) {
     let db_path = data_dir.join("zsim.db");
     if db_path.exists() {
@@ -914,6 +948,11 @@ fn auto_import_on_first_startup(data_dir: &std::path::PathBuf) {
     if let Err(e) = data_entry::db::init_db(&conn) {
         eprintln!("[auto-import] Failed to init schema: {e}");
         return;
+    }
+
+    // Seed disc stat templates with game data
+    if let Err(e) = data_entry::deployed::seed_disc_stat_templates(&conn) {
+        eprintln!("[auto-import] Failed to seed disc stat templates: {e}");
     }
 
     let subdirs: &[(&str, &str)] = &[
@@ -1036,6 +1075,9 @@ pub fn run() {
             save_deployed_config,
             delete_deployed_config,
             duplicate_deployed_config,
+            list_disc_stat_templates,
+            save_disc_stat_template,
+            delete_disc_stat_template,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

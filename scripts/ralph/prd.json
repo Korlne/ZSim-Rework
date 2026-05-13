@@ -1,202 +1,66 @@
 {
-  "project": "ZSim Bug Fixes & Deployed Config Panel",
+  "project": "ZSim Deployed Config Panel — Drive Disc & Stat Summary",
   "branchName": "ralph/zsim-config-panel-fixes",
-  "description": "ZSim Analyzer 六项缺陷修复与功能增强：zsim.db 首次初始化修复、角色表单下拉选择 Bug 修复、i18n 语言切换实时更新、影画/潜能快捷点亮、暴击率/暴伤单位标注、上场角色配置面板（新建）",
+  "description": "上场角色配置面板剩余工作：驱动盘词条定义表(disc_stat_templates) Schema+种子数据+CRUD、驱动盘6槽位配置编辑表单、面板属性汇总+保存完善+i18n",
   "userStories": [
     {
-      "id": "US-001",
-      "title": "修复 zsim.db 首次初始化 — 确保父目录存在",
-      "description": "As a new user, I want the app to successfully create zsim.db on first startup by ensuring the parent directory exists before opening the database connection.",
-      "acceptanceCriteria": [
-        "In auto_import_on_first_startup() in lib.rs, call std::fs::create_dir_all(db_path.parent()) before Connection::open()",
-        "Use canonicalized or correctly resolved data_dir path to avoid relative path issues at runtime",
-        "Auto-import scans data/characters/, data/equipment/, data/wengine/ for .csv/.xlsx files",
-        "Import order: characters → drive discs → w-engines",
-        "Import errors logged via eprintln! and do not block startup",
-        "Typecheck passes"
-      ],
-      "priority": 1,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-002",
-      "title": "修复角色表单下拉选择 Bug — 添加空占位选项",
-      "description": "As a data editor, I want the faction/specialty/element select dropdowns to have a disabled placeholder option so that selecting a value always triggers the change event and updates the form data correctly.",
-      "acceptanceCriteria": [
-        "In addField() select branch in characters.js, prepend a disabled hidden <option value=''> placeholder to every select",
-        "Placeholder text uses t('editor.characters.selectPlaceholder') — '请选择' / 'Select' / '選択'",
-        "Add i18n key editor.characters.selectPlaceholder to all 3 locale files",
-        "When data[key] is empty string, no option is pre-selected (placeholder shown)",
-        "Selecting any valid option triggers change event → data[key] = input.value",
-        "Saving a new character with newly selected faction/specialty/element no longer fails validation",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 2,
-      "passes": true,
-      "notes": "2026-05-13: Added disabled hidden placeholder option to faction/specialty/element selects in addField(), plus i18n keys to all 3 locales."
-    },
-    {
-      "id": "US-003",
-      "title": "修复 i18n 语言切换 — 编辑器页面实时重渲染",
-      "description": "As a multilingual user, I want all editor pages to immediately update their text when I switch the language, without needing to navigate away and back.",
-      "acceptanceCriteria": [
-        "Modify reapplyEditorText() in app.js to call navigate() which re-renders the current page via renderPage()",
-        "Remove the sidebar-only replacement logic; navigate() already handles sidebar rebuild",
-        "Edit forms that have _langHandler + langchange listeners (characters.js, skills.js) continue to preserve in-progress form state",
-        "Verify switching language on characters page updates table headers, filter labels, and button text immediately",
-        "Verify switching language on equipment, skills, enemies, import, dashboard pages updates all visible text",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "2026-05-13: Changed reapplyEditorText() to call navigate() instead of only replacing the sidebar. navigate() already handles sidebar rebuild and page re-render."
-    },
-    {
-      "id": "US-004",
-      "title": "影画/潜能快捷点亮 — 点击后级联启用前序所有节点",
-      "description": "As a data editor, I want clicking C6 to automatically enable C1-C5 so I can set a character to full cinema with a single click.",
-      "acceptanceCriteria": [
-        "In createToggleSection() in characters.js, change enable logic from 'block if previous is off' to 'cascade-enable all from 0 to i'",
-        "Disable logic unchanged: clicking an active button still cascade-disables from i to 5",
-        "Clicking C6 enables C1,C2,C3,C4,C5,C6",
-        "Clicking C3 when C1,C2 are already on enables only C3",
-        "Clicking C2 when C1-C6 are all on disables C2,C3,C4,C5,C6 (C1 stays on)",
-        "Same behavior applies to P1-P6",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 4,
-      "passes": true,
-      "notes": "2026-05-13: Changed createToggleSection() enable logic from 'block if previous is off' to 'cascade-enable all from 0 to i'. Disable logic unchanged."
-    },
-    {
-      "id": "US-005",
-      "title": "暴击率/额外暴击伤害标签添加百分比单位括号标注",
-      "description": "As a data editor, I want crit_rate and crit_dmg field labels to show (%) so I know these are percentage values, not raw numbers.",
-      "acceptanceCriteria": [
-        "Update editor.characters.fieldCritRate translation value in zh-CN.json to include ' (%)' suffix",
-        "Update editor.characters.fieldExtraCritDmg translation value in zh-CN.json to include ' (%)' suffix",
-        "Apply same (%) suffix updates to en-US.json and ja-JP.json",
-        "Verify field labels in character edit form show the unit hint",
-        "Verify table column headers and any other display of these labels also show the hint",
-        "No code logic changes — translation value changes only",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 5,
-      "passes": true,
-      "notes": "2026-05-13: Added (%) suffix to editor.characters.fieldCritRate and editor.characters.fieldExtraCritDmg in all 3 locale files."
-    },
-    {
-      "id": "US-006",
-      "title": "上场角色配置 — 数据库 Schema 新增 deployed_configs 表",
-      "description": "As a developer, I need a new deployed_configs table in zsim.db to store user-created character simulation loadout configurations.",
-      "acceptanceCriteria": [
-        "Add CREATE TABLE IF NOT EXISTS deployed_configs DDL to db.rs init_db()",
-        "Columns: config_id (TEXT PK), name (TEXT NOT NULL), char_id (TEXT NOT NULL FK→characters), char_level (INTEGER), char_ascension (INTEGER), cinemas (TEXT JSON), potentials (TEXT JSON), wengine_id (TEXT FK→w_engines nullable), wengine_level (INTEGER), wengine_ascension (INTEGER), disc_configs (TEXT JSON), created_at (TEXT), updated_at (TEXT)",
-        "Foreign keys: char_id ON DELETE CASCADE, wengine_id ON DELETE SET NULL",
-        "PRAGMA foreign_keys = ON enabled before DDL",
-        "Typecheck passes"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "2026-05-13: Added deployed_configs TABLE IF NOT EXISTS to init_db() with FK→characters ON DELETE CASCADE, FK→w_engines ON DELETE SET NULL. Enabled PRAGMA foreign_keys = ON. Added 2 cascade tests + 1 table existence assertion."
-    },
-    {
-      "id": "US-007",
-      "title": "上场角色配置 — Rust 后端 CRUD 与 Tauri 命令",
-      "description": "As a developer, I need Rust CRUD functions and Tauri commands for deployed configs so the frontend can create, read, update, delete, and list them.",
-      "acceptanceCriteria": [
-        "Create src-tauri/src/data_entry/deployed.rs with functions: list_deployed_configs, get_deployed_config, save_deployed_config, delete_deployed_config, duplicate_deployed_config",
-        "Each function opens a fresh rusqlite Connection with PRAGMA foreign_keys = ON",
-        "save_deployed_config uses INSERT OR REPLACE; auto-generates config_id if new (e.g. 'config_' + timestamp)",
-        "delete_deployed_config deletes by config_id",
-        "duplicate_deployed_config copies an existing config with a new config_id and '(Copy)' suffix on name",
-        "Register data_entry::deployed in mod.rs",
-        "Register 5 Tauri commands in lib.rs: list_deployed_configs, get_deployed_config, save_deployed_config, delete_deployed_config, duplicate_deployed_config",
-        "Typecheck passes"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "2026-05-13: Created deployed.rs with CRUD functions, 13 unit tests, registered in mod.rs and Tauri generate_handler."
-    },
-    {
-      "id": "US-008",
-      "title": "上场角色配置 — 前端基础设施：API 封装、路由、侧边栏导航、列表页",
-      "description": "As a user, I want to navigate to a new 'Deployed Configs' page from the sidebar, see a list of my saved loadout configurations, and create/delete them.",
-      "acceptanceCriteria": [
-        "Add API wrapper functions in src/editor/utils/api.js: getDeployedConfigs, getDeployedConfig, saveDeployedConfig, deleteDeployedConfig, duplicateDeployedConfig",
-        "Register route 'deployed' in app.js route map and routeTitles, pointing to new pages/deployed.js",
-        "Add 'Deployed Configs' nav item to sidebar.js (below Characters or Equipment section)",
-        "Create src/editor/pages/deployed.js with renderPage() that shows a card-grid list of saved configs",
-        "Each card shows: config name, character name, wengine name, created date, key stats summary",
-        "List page has '+ New Config' button that creates an empty config and navigates to edit form",
-        "Each card has Edit, Duplicate, and Delete action buttons with confirmation for delete",
-        "Empty state message when no configs exist",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": "2026-05-13: Added API wrappers in api.js, route in app.js, sidebar nav item, deployed.js with card-grid list page, + New Config button, Edit/Duplicate/Delete actions with confirmation, empty state, i18n keys in all 3 locales, and CSS styles."
-    },
-    {
-      "id": "US-009",
-      "title": "上场角色配置 — 编辑表单：角色与音擎选择区",
-      "description": "As a user, I want to select a character and w-engine for my loadout, with their base stats loaded from zsim.db, and configure level/ascension/cinema/potential.",
-      "acceptanceCriteria": [
-        "Edit form in deployed.js: config name text input at top",
-        "Character section: dropdown to select from all characters in zsim.db (loaded via getCharacters API)",
-        "On character select: auto-load base stats, populate level (1-60) and ascension (0-6) number inputs",
-        "Cinema toggles (C1-C6) and Potential toggles (P1-P6) with cascade-enable behavior (reuse pattern from US-004)",
-        "Wengine section: dropdown to select from all w-engines in zsim.db (loaded via API), with 'Unequip' option",
-        "On wengine select: auto-load base stats, populate level (1-60) and ascension (0-6) number inputs",
-        "Form has Back button returning to list page and Save button (save logic in later story)",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 9,
-      "passes": false,
-      "notes": ""
-    },
-    {
       "id": "US-010",
-      "title": "上场角色配置 — 编辑表单：驱动盘 6 槽位配置区",
-      "description": "As a user, I want to configure 6 drive disc slots for my loadout, each with a disc set selection, main stat, and up to 4 sub-stats with name and value.",
+      "title": "驱动盘词条定义 — disc_stat_templates 表 Schema、种子数据与 Rust CRUD",
+      "description": "As a developer, I need a disc_stat_templates table to store drive disc main/sub stat definitions per slot, seeded with game data, so the deployed config form can use them for stat dropdowns and value calculation.",
       "acceptanceCriteria": [
-        "Drive disc section with 6 vertically stacked slot panels (Slot 1-6)",
-        "Each slot: disc set dropdown (loaded from getDiscSets API), main stat name dropdown (STAT_OPTIONS), main stat value number input",
-        "Each slot: up to 4 sub-stat rows, each with a stat name dropdown and value number input",
-        "Disc set dropdown shows set name; changing set updates the displayed 2pc/4pc effect hints",
-        "Empty slots show default placeholder values",
-        "Slot panels are collapsible/expandable to reduce scrolling",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Add CREATE TABLE IF NOT EXISTS disc_stat_templates DDL to db.rs init_db(): id INTEGER PK AUTOINCREMENT, slot INTEGER (1-6 for main, NULL for sub), stat_type TEXT ('main'|'sub'), stat_name TEXT, max_value REAL (main only), per_roll_value REAL (sub only), max_rolls INTEGER DEFAULT 6 (sub only), UNIQUE(slot, stat_type, stat_name)",
+        "Add seed_disc_stat_templates() function in deployed.rs that inserts the game data: 1号位 HP 2200, 2号位 ATK 316, 3号位 DEF 184, 4号位 6 options (ATK%/HP%/DEF%/Crit DMG/Crit Rate/Anomaly Proficiency), 5号位 9 options (ATK%/HP%/4 element DMG%/DEF%/PEN Ratio), 6号位 6 options (ATK%/HP%/Anomaly Mastery/DEF%/Impact/Energy Regen), 10 sub stats with per_roll_value and max_rolls=6",
+        "Seed uses INSERT OR IGNORE to be idempotent — running init_db multiple times does not duplicate data",
+        "Add Rust CRUD functions in deployed.rs: list_disc_stat_templates (filter by slot and/or stat_type), save_disc_stat_template (INSERT OR REPLACE), delete_disc_stat_template",
+        "Register 3 Tauri commands in lib.rs: list_disc_stat_templates, save_disc_stat_template, delete_disc_stat_template",
+        "Register data_entry::deployed module functions in mod.rs (already exists, just verify)",
+        "Typecheck passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
       "id": "US-011",
-      "title": "上场角色配置 — 编辑表单：面板属性汇总、保存流程与 i18n",
-      "description": "As a user, I want to see a real-time summary of my total panel stats, save my loadout configuration, and load saved configs later. As a multilingual user, I want all deployed config UI text in my language.",
+      "title": "上场角色配置 — 编辑表单：驱动盘 6 槽位配置区（基于词条模板）",
+      "description": "As a user, I want to configure 6 drive disc slots using stat templates from the database, each with a disc set, main stat (filtered by slot), and up to 4 sub-stats with roll counts and auto-calculated values.",
       "acceptanceCriteria": [
-        "Stat summary panel at bottom of edit form: displays summed ATK, HP, DEF, Crit Rate, Crit DMG, PEN Ratio, Anomaly Mastery, Anomaly Proficiency, Energy Regen",
-        "Summary values update reactively when character/wengine/disc fields change (recalculate on input event)",
-        "Save button serializes all form data to deployed_config record and calls saveDeployedConfig API",
-        "Save shows success notification with t() message; errors show error notification",
-        "Loading an existing config (edit mode) populates all form fields from the saved record",
-        "Add all needed i18n keys to zh-CN.json, en-US.json, ja-JP.json (page title, section labels, button text, field labels, stat labels, notification messages — estimated ~25-35 keys)",
+        "Drive disc section with 6 vertically stacked collapsible slot panels (Slot 1-6) in the deployed config edit form",
+        "Each slot: disc set dropdown (loaded from getDiscSets API), main stat dropdown (options fetched from list_disc_stat_templates filtered by stat_type='main' AND slot=N)",
+        "Main stat value auto-filled from template max_value when main stat is selected, displayed as read-only",
+        "Each slot: up to 4 sub-stat rows, each with: stat name dropdown (from list_disc_stat_templates stat_type='sub', excluding the selected main stat name), roll count selector (integer 0-6, 0 means inactive), auto-calculated value (= per_roll_value × roll_count, displayed read-only)",
+        "Validation rules enforced in real-time: sub-stat name cannot equal main stat name, sub-stat names must be unique within the slot, sum of all sub-stat roll counts ≤ 9",
+        "Validation errors shown inline (red border + tooltip on the violating field)",
+        "Disc set dropdown shows set name; 2pc/4pc effect hints displayed below the dropdown",
+        "Default state: main stat shows placeholder 'Select...', sub-stat rows default to roll count 0 (inactive)",
+        "When editing an existing config (configId !== 'new'), all disc fields are populated from saved disc_configs JSON",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Drive disc 6-slot configuration section with disc sets, main/sub stat dropdowns, roll counts, auto-calculated values, and inline validation"
+    },
+    {
+      "id": "US-012",
+      "title": "上场角色配置 — 面板属性汇总、保存/加载完整流程与 i18n",
+      "description": "As a user, I want to see a real-time summary of my total panel stats across character + wengine + 6 discs, save my complete configuration, and load it later with all fields restored. All text in the deployed config UI should be translated.",
+      "acceptanceCriteria": [
+        "Stat summary panel at bottom of edit form showing summed values for: ATK, HP, DEF, Crit Rate, Crit DMG, PEN Ratio, Anomaly Mastery, Anomaly Proficiency, Energy Regen, Impact",
+        "Summary values recalculate reactively whenever any character/wengine/disc field changes (attach input/change listeners)",
+        "Calculation formula: sum character base stats + wengine stats (if equipped) + sum of all 6 disc main stat values + sum of all disc sub stat values",
+        "Save button serializes complete form state (name, char_id, char_level, char_ascension, cinemas, potentials, wengine_id, wengine_level, wengine_ascension, disc_configs JSON with slot/set_id/main_stat_name/main_stat_value/sub_stats[{name,rolls,value}]) and calls saveDeployedConfig API",
+        "On successful save: show success notification, redirect to list page",
+        "On save error: show error notification with details",
+        "Load existing config: all fields restored including character selection, wengine selection, cinema/potential toggles, all 6 disc slot configurations",
+        "'Back to List' button returns to deployed config list page",
+        "Add all remaining i18n keys to zh-CN.json, en-US.json, ja-JP.json: disc slot labels (Slot 1-6), main stat, sub stat, roll count, validation messages (duplicate stat, roll sum exceeded, stat same as main), summary section title, summary stat labels",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "Stat summary panel with reactive refresh, character/wengine/disc stat summation, save/load complete workflow, 22 i18n keys in 3 locales"
     }
   ]
 }

@@ -198,6 +198,20 @@ pub fn init_db(conn: &Connection) -> Result<()> {
         );",
     )?;
 
+    // ---- disc_stat_templates ----
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS disc_stat_templates (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            slot            INTEGER,
+            stat_type       TEXT NOT NULL CHECK(stat_type IN ('main', 'sub')),
+            stat_name       TEXT NOT NULL,
+            max_value       REAL,
+            per_roll_value  REAL,
+            max_rolls       INTEGER DEFAULT 6,
+            UNIQUE(slot, stat_type, stat_name)
+        );",
+    )?;
+
     Ok(())
 }
 
@@ -228,6 +242,7 @@ mod tests {
         assert!(tables.contains(&"enemies".to_string()), "enemies table");
         assert!(tables.contains(&"apl".to_string()), "apl table");
         assert!(tables.contains(&"deployed_configs".to_string()), "deployed_configs table");
+        assert!(tables.contains(&"disc_stat_templates".to_string()), "disc_stat_templates table");
         assert!(tables.contains(&"schema_version".to_string()), "schema_version table");
     }
 

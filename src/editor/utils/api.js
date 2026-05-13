@@ -188,6 +188,23 @@ export async function duplicateDeployedConfig(configId) {
   return JSON.parse(raw);
 }
 
+// ── Disc Stat Templates ───────────────────────────────────
+
+export async function getDiscStatTemplates(slot, statType) {
+  const raw = await invoke("list_disc_stat_templates", { slot: slot || null, statType: statType || null });
+  return JSON.parse(raw);
+}
+
+export async function saveDiscStatTemplate(data) {
+  const raw = await invoke("save_disc_stat_template", { data: JSON.stringify(data) });
+  return JSON.parse(raw);
+}
+
+export async function deleteDiscStatTemplate(id) {
+  const raw = await invoke("delete_disc_stat_template", { id });
+  return JSON.parse(raw);
+}
+
 // ── Data Queries ───────────────────────────────────────
 
 export async function getDataSummary() {
