@@ -1,19 +1,18 @@
 {
-  "project": "ZSim i18n, Disc Sets & Sim Config",
-  "branchName": "ralph/i18n-sim-config-csv-import",
-  "description": "ZSim Analyzer 五项改进：驱动盘套装层级界面完善、全界面 i18n 国际化补齐、模拟配置循环/完整双模式、模拟次数默认视图调整、CSV 数据首次自动导入生成数据库",
+  "project": "ZSim Bug Fixes & Deployed Config Panel",
+  "branchName": "ralph/zsim-config-panel-fixes",
+  "description": "ZSim Analyzer 六项缺陷修复与功能增强：zsim.db 首次初始化修复、角色表单下拉选择 Bug 修复、i18n 语言切换实时更新、影画/潜能快捷点亮、暴击率/暴伤单位标注、上场角色配置面板（新建）",
   "userStories": [
     {
-      "id": "US-101",
-      "title": "CSV/XLSX 数据首次自动导入 — 启动时生成 zsim.db",
-      "description": "As a new user, I want the app to auto-import CSV/XLSX data from the data/ directory on first startup so that zsim.db is generated without manual steps.",
+      "id": "US-001",
+      "title": "修复 zsim.db 首次初始化 — 确保父目录存在",
+      "description": "As a new user, I want the app to successfully create zsim.db on first startup by ensuring the parent directory exists before opening the database connection.",
       "acceptanceCriteria": [
-        "In lib.rs setup hook, check if data/zsim.db exists",
-        "If not: call data_entry::db::init_db to create schema, then scan data/characters/, data/equipment/, data/wengine/ for .csv/.xlsx files",
-        "Import order: characters → drive discs → w-engines using existing csv_import.rs functions",
-        "If zsim.db already exists, skip auto-import entirely",
-        "Import errors are logged but do not block startup",
-        "After import, frontend Dashboard shows record counts",
+        "In auto_import_on_first_startup() in lib.rs, call std::fs::create_dir_all(db_path.parent()) before Connection::open()",
+        "Use canonicalized or correctly resolved data_dir path to avoid relative path issues at runtime",
+        "Auto-import scans data/characters/, data/equipment/, data/wengine/ for .csv/.xlsx files",
+        "Import order: characters → drive discs → w-engines",
+        "Import errors logged via eprintln! and do not block startup",
         "Typecheck passes"
       ],
       "priority": 1,
@@ -21,191 +20,183 @@
       "notes": ""
     },
     {
-      "id": "US-102",
-      "title": "模拟配置 — Rust 后端支持 mode 参数（full/loop）",
-      "description": "As a developer, I need the run_simulation Rust command to accept and handle mode (full vs loop) so the simulation terminates correctly based on user selection.",
+      "id": "US-002",
+      "title": "修复角色表单下拉选择 Bug — 添加空占位选项",
+      "description": "As a data editor, I want the faction/specialty/element select dropdowns to have a disabled placeholder option so that selecting a value always triggers the change event and updates the form data correctly.",
       "acceptanceCriteria": [
-        "run_simulation command parses new `mode` field from config JSON: 'full' | 'loop'",
-        "full mode: simulation runs until action sequence naturally ends OR max_tick reached (whichever first)",
-        "loop mode: simulation repeats the action sequence loop_count times OR max_tick reached (whichever first)",
-        "loop_count defaults to 1 when mode is 'full' or not specified",
-        "Backward compatible: existing config without mode field defaults to 'full'",
-        "Typecheck passes"
+        "In addField() select branch in characters.js, prepend a disabled hidden <option value=''> placeholder to every select",
+        "Placeholder text uses t('editor.characters.selectPlaceholder') — '请选择' / 'Select' / '選択'",
+        "Add i18n key editor.characters.selectPlaceholder to all 3 locale files",
+        "When data[key] is empty string, no option is pre-selected (placeholder shown)",
+        "Selecting any valid option triggers change event → data[key] = input.value",
+        "Saving a new character with newly selected faction/specialty/element no longer fails validation",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Parses mode (full|loop) and loop_count. Loop mode scales effective workload by loop_count."
+      "notes": "2026-05-13: Added disabled hidden placeholder option to faction/specialty/element selects in addField(), plus i18n keys to all 3 locales."
     },
     {
-      "id": "US-103",
-      "title": "i18n 基础设施 — 添加枚举值翻译键到三个语言文件",
-      "description": "As a developer, I need translation keys for all enum values (factions, specialties, elements, action types, stat types, enemy types) across all three locale files so page-level i18n stories can use them.",
+      "id": "US-003",
+      "title": "修复 i18n 语言切换 — 编辑器页面实时重渲染",
+      "description": "As a multilingual user, I want all editor pages to immediately update their text when I switch the language, without needing to navigate away and back.",
       "acceptanceCriteria": [
-        "Add faction translation keys to zh-CN.json, en-US.json, ja-JP.json (11 factions)",
-        "Add specialty translation keys: Attack/Stun/Support/Defense/Anomaly",
-        "Add element translation keys: Physical/Fire/Ice/Electric/Ether",
-        "Add action type translation keys: Normal/Special/Ultimate/Chain/Assist/Quick/Dodge/Parry/Evade",
-        "Add stat type translation keys: HP/ATK/DEF/Crit Rate/Crit DMG/PEN Ratio/PEN/Energy Regen/Anomaly Mastery/Anomaly Proficiency/Impact",
-        "Add enemy type translation keys: Normal/Elite/Boss",
-        "Create src/editor/utils/i18n-maps.js exporting mapping objects: FACTION_MAP, SPECIALTY_MAP, ELEMENT_MAP, ACTION_TYPE_MAP, STAT_MAP, ENEMY_TYPE_MAP (value → i18n_key)",
-        "Typecheck passes"
+        "Modify reapplyEditorText() in app.js to call navigate() which re-renders the current page via renderPage()",
+        "Remove the sidebar-only replacement logic; navigate() already handles sidebar rebuild",
+        "Edit forms that have _langHandler + langchange listeners (characters.js, skills.js) continue to preserve in-progress form state",
+        "Verify switching language on characters page updates table headers, filter labels, and button text immediately",
+        "Verify switching language on equipment, skills, enemies, import, dashboard pages updates all visible text",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Added enum translation keys (factions, specialties, elements, action types, stats, enemy types) to all 3 locale files. Created i18n-maps.js utility."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-104",
-      "title": "i18n — 角色管理页面枚举值翻译",
-      "description": "As a multilingual user, I want faction, specialty, and element values in the character management page to display in my selected language.",
+      "id": "US-004",
+      "title": "影画/潜能快捷点亮 — 点击后级联启用前序所有节点",
+      "description": "As a data editor, I want clicking C6 to automatically enable C1-C5 so I can set a character to full cinema with a single click.",
       "acceptanceCriteria": [
-        "FACTION_OPTIONS displayed via t(FACTION_MAP[value]) in filter dropdowns and table cells",
-        "SPECIALTY_OPTIONS displayed via t(SPECIALTY_MAP[value]) in filter dropdowns and table cells",
-        "ELEMENT_OPTIONS displayed via t(ELEMENT_MAP[value]) in filter dropdowns and table cells",
-        "Edit form select dropdowns show translated option labels while submitting raw English values",
-        "Add character button already uses t('editor.characters.addBtn') — verify it works correctly",
+        "In createToggleSection() in characters.js, change enable logic from 'block if previous is off' to 'cascade-enable all from 0 to i'",
+        "Disable logic unchanged: clicking an active button still cascade-disables from i to 5",
+        "Clicking C6 enables C1,C2,C3,C4,C5,C6",
+        "Clicking C3 when C1,C2 are already on enables only C3",
+        "Clicking C2 when C1-C6 are all on disables C2,C3,C4,C5,C6 (C1 stays on)",
+        "Same behavior applies to P1-P6",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-105",
-      "title": "i18n — 技能管理页面动作类型翻译",
-      "description": "As a multilingual user, I want action type values in the skill management page to display in my selected language.",
+      "id": "US-005",
+      "title": "暴击率/额外暴击伤害标签添加百分比单位括号标注",
+      "description": "As a data editor, I want crit_rate and crit_dmg field labels to show (%) so I know these are percentage values, not raw numbers.",
       "acceptanceCriteria": [
-        "ACTION_TYPES displayed via t(ACTION_TYPE_MAP[value]) in skill table action_type column",
-        "Skill edit form action_type dropdown shows translated option labels while submitting raw English values",
-        "Verify all existing i18n keys in skills.js still work correctly",
+        "Update editor.characters.fieldCritRate translation value in zh-CN.json to include ' (%)' suffix",
+        "Update editor.characters.fieldExtraCritDmg translation value in zh-CN.json to include ' (%)' suffix",
+        "Apply same (%) suffix updates to en-US.json and ja-JP.json",
+        "Verify field labels in character edit form show the unit hint",
+        "Verify table column headers and any other display of these labels also show the hint",
+        "No code logic changes — translation value changes only",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-106",
-      "title": "i18n — 装备管理页面属性类型与元素类型翻译",
-      "description": "As a multilingual user, I want stat type and element type values in the equipment management page to display in my selected language.",
+      "id": "US-006",
+      "title": "上场角色配置 — 数据库 Schema 新增 deployed_configs 表",
+      "description": "As a developer, I need a new deployed_configs table in zsim.db to store user-created character simulation loadout configurations.",
       "acceptanceCriteria": [
-        "STAT_OPTIONS displayed via t(STAT_MAP[value]) in drive disc forms (main stat + sub stat dropdowns)",
-        "ELEMENT_OPTIONS displayed via t(ELEMENT_MAP[value]) in equipment forms",
-        "W-Engine passive effects and other stat displays use translated labels",
-        "Drive disc set_id references display correctly",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Add CREATE TABLE IF NOT EXISTS deployed_configs DDL to db.rs init_db()",
+        "Columns: config_id (TEXT PK), name (TEXT NOT NULL), char_id (TEXT NOT NULL FK→characters), char_level (INTEGER), char_ascension (INTEGER), cinemas (TEXT JSON), potentials (TEXT JSON), wengine_id (TEXT FK→w_engines nullable), wengine_level (INTEGER), wengine_ascension (INTEGER), disc_configs (TEXT JSON), created_at (TEXT), updated_at (TEXT)",
+        "Foreign keys: char_id ON DELETE CASCADE, wengine_id ON DELETE SET NULL",
+        "PRAGMA foreign_keys = ON enabled before DDL",
+        "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Stat options translated in drive disc forms (main stat + sub stat dropdowns), table column, and disc set detail. ELEMENT_OPTIONS imported but no element dropdowns currently exist in equipment forms."
-    },
-    {
-      "id": "US-107",
-      "title": "i18n — 敌人管理页面类型与元素翻译",
-      "description": "As a multilingual user, I want enemy type and element values in the enemy management page to display in my selected language.",
-      "acceptanceCriteria": [
-        "ENEMY_TYPES displayed via t(ENEMY_TYPE_MAP[value]) in enemy table and edit form dropdown",
-        "ELEMENTS displayed via t(ELEMENT_MAP[value]) in resistance/weakness tag displays",
-        "Resistance rows show translated element labels",
-        "Weakness tags show translated element labels",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 7,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
-      "id": "US-108",
-      "title": "i18n — 数据导入页面完整性检查与修复",
-      "description": "As a multilingual user, I want all text on the data import page to display in my selected language with no hardcoded strings.",
+      "id": "US-007",
+      "title": "上场角色配置 — Rust 后端 CRUD 与 Tauri 命令",
+      "description": "As a developer, I need Rust CRUD functions and Tauri commands for deployed configs so the frontend can create, read, update, delete, and list them.",
       "acceptanceCriteria": [
-        "Audit import.js for any hardcoded non-i18n strings",
-        "Verify CSV import button labels use t() calls",
-        "Verify scan/import result messages use t() with parameter substitution",
-        "Verify import mode labels and descriptions use t() calls",
+        "Create src-tauri/src/data_entry/deployed.rs with functions: list_deployed_configs, get_deployed_config, save_deployed_config, delete_deployed_config, duplicate_deployed_config",
+        "Each function opens a fresh rusqlite Connection with PRAGMA foreign_keys = ON",
+        "save_deployed_config uses INSERT OR REPLACE; auto-generates config_id if new (e.g. 'config_' + timestamp)",
+        "delete_deployed_config deletes by config_id",
+        "duplicate_deployed_config copies an existing config with a new config_id and '(Copy)' suffix on name",
+        "Register data_entry::deployed in mod.rs",
+        "Register 5 Tauri commands in lib.rs: list_deployed_configs, get_deployed_config, save_deployed_config, delete_deployed_config, duplicate_deployed_config",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "上场角色配置 — 前端基础设施：API 封装、路由、侧边栏导航、列表页",
+      "description": "As a user, I want to navigate to a new 'Deployed Configs' page from the sidebar, see a list of my saved loadout configurations, and create/delete them.",
+      "acceptanceCriteria": [
+        "Add API wrapper functions in src/editor/utils/api.js: getDeployedConfigs, getDeployedConfig, saveDeployedConfig, deleteDeployedConfig, duplicateDeployedConfig",
+        "Register route 'deployed' in app.js route map and routeTitles, pointing to new pages/deployed.js",
+        "Add 'Deployed Configs' nav item to sidebar.js (below Characters or Equipment section)",
+        "Create src/editor/pages/deployed.js with renderPage() that shows a card-grid list of saved configs",
+        "Each card shows: config name, character name, wengine name, created date, key stats summary",
+        "List page has '+ New Config' button that creates an empty config and navigates to edit form",
+        "Each card has Edit, Duplicate, and Delete action buttons with confirmation for delete",
+        "Empty state message when no configs exist",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Audited import.js. Found one hardcoded string in importAllData append mode (line 273: raw dataType + counts). Replaced with existing i18n keys editor.import.resultSuccess and editor.import.resultErrors with translated type labels."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-109",
-      "title": "模拟次数默认视图 — 默认单次模拟，按钮展开多次",
-      "description": "As a simulation user, I want to see a single-simulation interface by default with an option to switch to batch mode.",
+      "id": "US-009",
+      "title": "上场角色配置 — 编辑表单：角色与音擎选择区",
+      "description": "As a user, I want to select a character and w-engine for my loadout, with their base stats loaded from zsim.db, and configure level/ascension/cinema/potential.",
       "acceptanceCriteria": [
-        "sim-count input (#sim-count-label) hidden by default",
-        "Batch Mode button (#btn-toggle-batch) toggles sim-count visibility",
-        "Button text switches between t('panel.config.batchMode') and t('panel.config.batchModeHide')",
-        "When hidden, sim_count sent to backend defaults to 1",
-        "When visible, sim_count value from input is sent to backend",
+        "Edit form in deployed.js: config name text input at top",
+        "Character section: dropdown to select from all characters in zsim.db (loaded via getCharacters API)",
+        "On character select: auto-load base stats, populate level (1-60) and ascension (0-6) number inputs",
+        "Cinema toggles (C1-C6) and Potential toggles (P1-P6) with cascade-enable behavior (reuse pattern from US-004)",
+        "Wengine section: dropdown to select from all w-engines in zsim.db (loaded via API), with 'Unequip' option",
+        "On wengine select: auto-load base stats, populate level (1-60) and ascension (0-6) number inputs",
+        "Form has Back button returning to list page and Save button (save logic in later story)",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "HTML already had sim-count-label hidden by default and batch toggle working. Fixed getConfig() to return sim_count=1 when batch view is hidden (was always reading input value 100000)."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-110",
-      "title": "驱动盘套装列表界面 — 卡片网格展示所有套装",
-      "description": "As a data editor, I want to see all drive disc sets displayed as cards in a grid layout so I can browse and manage them.",
+      "id": "US-010",
+      "title": "上场角色配置 — 编辑表单：驱动盘 6 槽位配置区",
+      "description": "As a user, I want to configure 6 drive disc slots for my loadout, each with a disc set selection, main stat, and up to 4 sub-stats with name and value.",
       "acceptanceCriteria": [
-        "Navigate to #/disc-sets shows card grid of all disc_sets from database",
-        "Each card shows: set name (or set_id fallback), set_id, 2-piece description, 4-piece description",
-        "Each card has Edit and Delete action buttons",
-        "Empty state message shown when no disc sets exist",
-        "Cards use existing editor-card styling with hover effects",
-        "Clicking a card (not buttons) navigates to #/disc-sets/{set_id}",
-        "Back button on detail page returns to disc sets list",
+        "Drive disc section with 6 vertically stacked slot panels (Slot 1-6)",
+        "Each slot: disc set dropdown (loaded from getDiscSets API), main stat name dropdown (STAT_OPTIONS), main stat value number input",
+        "Each slot: up to 4 sub-stat rows, each with a stat name dropdown and value number input",
+        "Disc set dropdown shows set name; changing set updates the displayed 2pc/4pc effect hints",
+        "Empty slots show default placeholder values",
+        "Slot panels are collapsible/expandable to reduce scrolling",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Card grid already existed in renderDiscSets(). Fixed routing: getRoute() in app.js now returns 'disc-sets' for #/disc-sets/{id}, and renderPage/renderCurrentTab in equipment.js use parts[0] check instead of parts.length > 2 for sub-route detection."
+      "passes": false,
+      "notes": ""
     },
     {
-      "id": "US-111",
-      "title": "驱动盘套装手动添加 — 创建新套装表单",
-      "description": "As a data editor, I want to manually add a new drive disc set with a custom name so I can enter data not available in CSV imports.",
+      "id": "US-011",
+      "title": "上场角色配置 — 编辑表单：面板属性汇总、保存流程与 i18n",
+      "description": "As a user, I want to see a real-time summary of my total panel stats, save my loadout configuration, and load saved configs later. As a multilingual user, I want all deployed config UI text in my language.",
       "acceptanceCriteria": [
-        "Add button at top of disc sets list page",
-        "Clicking opens inline edit form with fields: set_id (text), name (text), two_piece_description (text), two_piece_buff_id (text), four_piece_description (text), four_piece_buff_id (text)",
-        "Form validates set_id is required and unique",
-        "Save calls saveDiscSet API and refreshes the card grid",
-        "Cancel button discards the form",
-        "Form styling consistent with existing inline edit panels",
+        "Stat summary panel at bottom of edit form: displays summed ATK, HP, DEF, Crit Rate, Crit DMG, PEN Ratio, Anomaly Mastery, Anomaly Proficiency, Energy Regen",
+        "Summary values update reactively when character/wengine/disc fields change (recalculate on input event)",
+        "Save button serializes all form data to deployed_config record and calls saveDeployedConfig API",
+        "Save shows success notification with t() message; errors show error notification",
+        "Loading an existing config (edit mode) populates all form fields from the saved record",
+        "Add all needed i18n keys to zh-CN.json, en-US.json, ja-JP.json (page title, section labels, button text, field labels, stat labels, notification messages — estimated ~25-35 keys)",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": "Add form was already implemented with all 6 fields, save/cancel flow, and card grid refresh. Added client-side validation: set_id required check (pre-existing) and uniqueness check against existing disc sets. Added i18n validation keys (editor.equipment.validation.setIdRequired, editor.equipment.validation.setIdDuplicate) to all 3 locales. Fixed innerHTML += bug in empty state of renderDiscSets."
-    },
-    {
-      "id": "US-112",
-      "title": "驱动盘套装详情 — 1-6号位驱动盘编辑界面",
-      "description": "As a data editor, I want to click into a disc set and edit all 6 slot positions' drive discs in one unified view.",
-      "acceptanceCriteria": [
-        "Detail page (#/disc-sets/{set_id}) shows set name as title and back button to list",
-        "Displays 6 slot sections (slot 1-6), each showing current drive disc data or placeholder for empty slots",
-        "Each slot shows: main stat name dropdown (STAT_OPTIONS), main stat value input, up to 4 sub-stat rows (name dropdown + value input)",
-        "Empty slots show default values (main_stat_name='ATK', level=15, all sub_stats null)",
-        "Each slot has a Save button that calls saveDriveDisc API",
-        "Saving a slot refreshes that slot's display without page reload",
-        "Layout: vertical stack of 6 collapsible/scrollable slot sections",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Detail view was largely implemented. Fixed title to look up set name from getDiscSets() (falling back to setId). Added slot refresh after save: reloads discs via getDriveDiscsBySetId and updates form values in-place. Back button, 6 slots, main stat dropdown, sub-stat rows, defaults, and save button were already implemented."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

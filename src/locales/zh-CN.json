@@ -192,6 +192,7 @@
   "editor.characters.editTitle": "编辑角色",
   "editor.characters.saved": "{name} 已保存",
   "editor.characters.saveError": "保存失败",
+  "editor.characters.selectPlaceholder": "请选择",
   "editor.characters.filterAll": "全部",
   "editor.characters.filterFaction": "阵营",
   "editor.characters.filterSpecialty": "专精",

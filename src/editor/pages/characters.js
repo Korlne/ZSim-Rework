@@ -276,12 +276,19 @@ function buildFormContent(editContainer, data, charId, constellations, potential
     if (type === "select") {
       input = document.createElement("select");
       input.className = "form-input form-select";
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.disabled = true;
+      placeholder.hidden = true;
+      placeholder.textContent = t("editor.characters.selectPlaceholder");
+      if (data[key] === "") placeholder.selected = true;
+      input.appendChild(placeholder);
       if (extra.options) {
         for (const opt of extra.options) {
           const el = document.createElement("option");
           el.value = opt;
           el.textContent = extra.mapObj ? t(extra.mapObj[opt]) : opt;
-          if (opt === data[key] || opt === data[key]) el.selected = true;
+          if (opt === data[key]) el.selected = true;
           input.appendChild(el);
         }
       }

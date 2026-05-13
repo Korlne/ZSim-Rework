@@ -169,6 +169,7 @@
   "editor.characters.field.energyGenRate": "エネルギー獲得率",
   "editor.characters.field.cinemas": " cinema",
   "editor.characters.field.actionList": "アクションリスト",
+  "editor.characters.selectPlaceholder": "選択",
   "editor.characters.filterAll": "すべて",
   "editor.characters.filterFaction": "派閥絞り込み",
   "editor.characters.filterSpecialty": "スペシャリティ絞り込み",

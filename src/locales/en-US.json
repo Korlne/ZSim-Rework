@@ -192,6 +192,7 @@
   "editor.characters.editTitle": "Edit Character",
   "editor.characters.saved": "{name} saved",
   "editor.characters.saveError": "Save failed",
+  "editor.characters.selectPlaceholder": "Select",
   "editor.characters.filterAll": "All",
   "editor.characters.filterFaction": "Faction",
   "editor.characters.filterSpecialty": "Specialty",
