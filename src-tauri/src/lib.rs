@@ -833,6 +833,14 @@ fn auto_import_on_first_startup(data_dir: &std::path::PathBuf) {
         return;
     }
 
+    // Ensure parent directory exists before opening the database
+    if let Some(parent) = db_path.parent() {
+        if let Err(e) = std::fs::create_dir_all(parent) {
+            eprintln!("[auto-import] Failed to create data directory: {e}");
+            return;
+        }
+    }
+
     let conn = match Connection::open(&db_path) {
         Ok(c) => c,
         Err(e) => {
@@ -901,9 +909,11 @@ fn auto_import_on_first_startup(data_dir: &std::path::PathBuf) {
 }
 
 pub fn run() {
-    // 数据目录：开发环境下为项目根目录下的 data/，生产环境使用应用资源目录
+    // Data directory: canonicalize CWD first, then join "data" for consistent path resolution
     let data_dir = std::env::current_dir()
         .unwrap_or_default()
+        .canonicalize()
+        .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default())
         .join("data");
     let data_dir_for_setup = data_dir.clone();
 
