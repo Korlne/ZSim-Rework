@@ -410,5 +410,16 @@
   "editor.deployed.loadError": "加载配置失败",
   "editor.deployed.duplicated": "配置已复制",
   "editor.deployed.duplicateError": "复制失败",
-  "editor.deployed.createError": "创建配置失败"
+  "editor.deployed.createError": "创建配置失败",
+  "editor.deployed.configName": "配置名称",
+  "editor.deployed.sectionCharacter": "角色",
+  "editor.deployed.sectionWengine": "音擎",
+  "editor.deployed.selectCharacter": "选择一个角色",
+  "editor.deployed.charLevel": "等级",
+  "editor.deployed.charAscension": "突破",
+  "editor.deployed.wengineLevel": "等级",
+  "editor.deployed.wengineAscension": "突破",
+  "editor.deployed.unequip": "卸下",
+  "editor.deployed.saveSuccess": "配置已保存",
+  "editor.deployed.saveError": "保存失败"
 }

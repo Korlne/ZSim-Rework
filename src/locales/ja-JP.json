@@ -437,5 +437,16 @@
   "editor.deployed.loadError": "設定の読み込みに失敗しました",
   "editor.deployed.duplicated": "設定を複製しました",
   "editor.deployed.duplicateError": "複製に失敗しました",
-  "editor.deployed.createError": "設定の作成に失敗しました"
+  "editor.deployed.createError": "設定の作成に失敗しました",
+  "editor.deployed.configName": "設定名",
+  "editor.deployed.sectionCharacter": "キャラクター",
+  "editor.deployed.sectionWengine": "音動機",
+  "editor.deployed.selectCharacter": "キャラクターを選択",
+  "editor.deployed.charLevel": "レベル",
+  "editor.deployed.charAscension": "突破",
+  "editor.deployed.wengineLevel": "レベル",
+  "editor.deployed.wengineAscension": "突破",
+  "editor.deployed.unequip": "装備解除",
+  "editor.deployed.saveSuccess": "設定を保存しました",
+  "editor.deployed.saveError": "保存に失敗しました"
 }

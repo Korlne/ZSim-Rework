@@ -410,5 +410,16 @@
   "editor.deployed.loadError": "Failed to load configs",
   "editor.deployed.duplicated": "Config duplicated",
   "editor.deployed.duplicateError": "Duplicate failed",
-  "editor.deployed.createError": "Failed to create config"
+  "editor.deployed.createError": "Failed to create config",
+  "editor.deployed.configName": "Config Name",
+  "editor.deployed.sectionCharacter": "Character",
+  "editor.deployed.sectionWengine": "W-Engine",
+  "editor.deployed.selectCharacter": "Select a character",
+  "editor.deployed.charLevel": "Level",
+  "editor.deployed.charAscension": "Ascension",
+  "editor.deployed.wengineLevel": "Level",
+  "editor.deployed.wengineAscension": "Ascension",
+  "editor.deployed.unequip": "Unequip",
+  "editor.deployed.saveSuccess": "Config saved",
+  "editor.deployed.saveError": "Save failed"
 }
