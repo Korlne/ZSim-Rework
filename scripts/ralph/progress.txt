@@ -78,3 +78,14 @@ Started: Wed May 13 21:38:42     2026
   - Gotchas encountered: The duplicated config must have `created_at` set to `None` so SQLite's DEFAULT (datetime('now')) kicks in. NULL integer columns in SQLite require `Option<i32>` in Rust structs. The generate_config_id uses `SystemTime::now().duration_since(UNIX_EPOCH).as_millis()` for uniqueness.
   - Useful context: The deployed_configs table schema was already created by US-006. The FK constraints (ON DELETE CASCADE to characters, ON DELETE SET NULL to w_engines) are already tested in db.rs tests. 13 unit tests cover empty list, get not found, save new (auto-id), save update, validation, delete, delete not found, duplicate, and duplicate not found.
 ---
+
+## 2026-05-13 23:55 - US-008
+- What was implemented: Completed the Deployed Configs frontend infrastructure — API wrapper functions in api.js (getDeployedConfigs, getDeployedConfig, saveDeployedConfig, deleteDeployedConfig, duplicateDeployedConfig), route registration in app.js (deployed → pages/deployed.js), sidebar nav item with deployed icon, and the full list page renderer. The list page features a responsive card grid showing config name, character name, wengine name, level/ascension/cinema stats summary, and created date. Each card has Edit (navigates to edit form), Duplicate (calls duplicate API), and Delete (with confirmation dialog) action buttons. The '+ New Config' button auto-creates a default config with the first available character and navigates to the edit form. Empty state message shown when no configs exist. All i18n keys added to zh-CN, en-US, ja-JP locale files. CSS grid + card styles for deployed cards.
+- Files changed: `src/editor/pages/deployed.js` (new, +298 lines), `src/editor/utils/api.js` (already had API wrappers from US-007), `src/editor/app.js` (route + routeTitle already added), `src/editor/components/sidebar.js` (nav item already added), `src/editor/styles.css` (card styles already added), `src/locales/zh-CN.json`, `src/locales/en-US.json`, `src/locales/ja-JP.json` (already had deployed keys)
+- **Learnings for future iterations:**
+  - The `getWEngines()` API returns items with `id` field (not `wengine_id`) — the card renderer handles both `w.id || w.wengine_id`
+  - `saveDeployedConfig` auto-generates `config_id` when passed `""` — the new config flow relies on this to get the ID back from the API response
+  - Deployed configs page uses hash routing: `#/deployed` for list, `#/deployed/{configId}` for edit — the renderPage function parses `window.location.hash` to decide mode
+  - Card actions use event delegation via `querySelectorAll` + `addEventListener` on individual buttons (not one global listener on the grid)
+  - Notification helper (`showNotification`) and confirmation dialog (`showConfirmDialog`) are defined locally in deployed.js — not shared utilities yet, so US-009 and US-011 should reuse/extract them
+---

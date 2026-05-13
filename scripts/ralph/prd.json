@@ -140,8 +140,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "2026-05-13: Added API wrappers in api.js, route in app.js, sidebar nav item, deployed.js with card-grid list page, + New Config button, Edit/Duplicate/Delete actions with confirmation, empty state, i18n keys in all 3 locales, and CSS styles."
     },
     {
       "id": "US-009",

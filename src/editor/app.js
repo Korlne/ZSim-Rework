@@ -41,6 +41,7 @@ const routes = {
   "disc-sets": () => import("./pages/equipment.js"),
   enemies: () => import("./pages/enemies.js"),
   import: () => import("./pages/import.js"),
+  deployed: () => import("./pages/deployed.js"),
 };
 
 const routeTitles = {
@@ -51,6 +52,7 @@ const routeTitles = {
   "disc-sets": "editor.nav.discSets",
   enemies: "editor.nav.enemies",
   import: "editor.nav.import",
+  deployed: "editor.nav.deployedConfigs",
 };
 
 // ── Router ─────────────────────────────────────────────────
@@ -62,6 +64,7 @@ function getRoute() {
   const parts = hash.split("/");
   // For disc-sets/{id}, return "disc-sets" so the page renders the detail
   if (parts[0] === "disc-sets") return "disc-sets";
+  if (parts[0] === "deployed") return "deployed";
   // Support nested routes: #/equipment/w-engines -> "w-engines"
   return parts[parts.length - 1];
 }

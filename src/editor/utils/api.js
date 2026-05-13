@@ -161,6 +161,33 @@ export async function exportToJson() {
   return JSON.parse(raw);
 }
 
+// ── Deployed Configs ────────────────────────────────────
+
+export async function getDeployedConfigs() {
+  const raw = await invoke("list_deployed_configs");
+  return JSON.parse(raw);
+}
+
+export async function getDeployedConfig(configId) {
+  const raw = await invoke("get_deployed_config", { configId });
+  return JSON.parse(raw);
+}
+
+export async function saveDeployedConfig(data) {
+  const raw = await invoke("save_deployed_config", { data: JSON.stringify(data) });
+  return JSON.parse(raw);
+}
+
+export async function deleteDeployedConfig(configId) {
+  const raw = await invoke("delete_deployed_config", { configId });
+  return JSON.parse(raw);
+}
+
+export async function duplicateDeployedConfig(configId) {
+  const raw = await invoke("duplicate_deployed_config", { configId });
+  return JSON.parse(raw);
+}
+
 // ── Data Queries ───────────────────────────────────────
 
 export async function getDataSummary() {

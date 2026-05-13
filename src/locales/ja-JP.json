@@ -97,6 +97,7 @@
   "editor.nav.discSets": "ディスクセット",
   "editor.nav.enemies": "敵",
   "editor.nav.import": "インポート",
+  "editor.nav.deployedConfigs": "出場キャラ設定",
 
   "editor.loading": "読み込み中...",
   "editor.notFound": "ページが見つかりません",
@@ -413,5 +414,28 @@
 
   "enum.enemy_type.normal": "通常",
   "enum.enemy_type.elite": "エリート",
-  "enum.enemy_type.boss": "ボス"
+  "enum.enemy_type.boss": "ボス",
+
+  "editor.deployed.title": "出場キャラ設定",
+  "editor.deployed.newConfig": "新規設定",
+  "editor.deployed.editConfig": "設定を編集",
+  "editor.deployed.defaultName": "新規設定",
+  "editor.deployed.empty": "まだ設定がありません。「+ 新規設定」をクリックして作成してください。",
+  "editor.deployed.noCharacters": "データベースにキャラクターがありません。先にキャラクターデータをインポートしてください。",
+  "editor.deployed.charLabel": "キャラ",
+  "editor.deployed.wengineLabel": "音動機",
+  "editor.deployed.statsLabel": "ステータス",
+  "editor.deployed.createdLabel": "作成日",
+  "editor.deployed.noWengine": "なし",
+  "editor.deployed.edit": "編集",
+  "editor.deployed.duplicate": "複製",
+  "editor.deployed.back": "戻る",
+  "editor.deployed.editComingSoon": "編集フォームは近日公開予定です。",
+  "editor.deployed.confirmDelete": "「{name}」を削除しますか？この操作は元に戻せません。",
+  "editor.deployed.deleted": "設定を削除しました",
+  "editor.deployed.deleteError": "削除に失敗しました",
+  "editor.deployed.loadError": "設定の読み込みに失敗しました",
+  "editor.deployed.duplicated": "設定を複製しました",
+  "editor.deployed.duplicateError": "複製に失敗しました",
+  "editor.deployed.createError": "設定の作成に失敗しました"
 }

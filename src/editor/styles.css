@@ -753,3 +753,74 @@
   color: var(--text-muted);
   margin-bottom: 10px;
 }
+
+/* ── Deployed Configs ─────────────────────────────────── */
+
+.deployed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.deployed-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.deployed-card:hover {
+  border-color: var(--primary);
+}
+
+.deployed-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.deployed-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.deployed-card-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.deployed-card-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.deployed-card-value {
+  color: var(--text);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deployed-card-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.deployed-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-style: italic;
+}

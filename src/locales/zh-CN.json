@@ -97,6 +97,7 @@
   "editor.nav.discSets": "驱动套装",
   "editor.nav.enemies": "敌人管理",
   "editor.nav.import": "数据导入",
+  "editor.nav.deployedConfigs": "上场角色配置",
 
   "editor.loading": "加载中...",
   "editor.notFound": "页面未找到",
@@ -386,5 +387,28 @@
 
   "enum.enemy_type.normal": "普通",
   "enum.enemy_type.elite": "精英",
-  "enum.enemy_type.boss": "首领"
+  "enum.enemy_type.boss": "首领",
+
+  "editor.deployed.title": "上场角色配置",
+  "editor.deployed.newConfig": "新建配置",
+  "editor.deployed.editConfig": "编辑配置",
+  "editor.deployed.defaultName": "新配置",
+  "editor.deployed.empty": "暂无上场角色配置，点击「+ 新建配置」创建。",
+  "editor.deployed.noCharacters": "数据库中没有角色数据，请先导入角色数据。",
+  "editor.deployed.charLabel": "角色",
+  "editor.deployed.wengineLabel": "音擎",
+  "editor.deployed.statsLabel": "属性",
+  "editor.deployed.createdLabel": "创建时间",
+  "editor.deployed.noWengine": "无",
+  "editor.deployed.edit": "编辑",
+  "editor.deployed.duplicate": "复制",
+  "editor.deployed.back": "返回",
+  "editor.deployed.editComingSoon": "编辑表单即将推出。",
+  "editor.deployed.confirmDelete": "确定删除「{name}」？此操作不可撤销。",
+  "editor.deployed.deleted": "配置已删除",
+  "editor.deployed.deleteError": "删除失败",
+  "editor.deployed.loadError": "加载配置失败",
+  "editor.deployed.duplicated": "配置已复制",
+  "editor.deployed.duplicateError": "复制失败",
+  "editor.deployed.createError": "创建配置失败"
 }

@@ -22,6 +22,7 @@ export function createSidebar(activeRoute) {
     },
     { id: "enemies", icon: "👾", label: "editor.nav.enemies" },
     { id: "import", icon: "📥", label: "editor.nav.import" },
+    { id: "deployed", icon: "🎯", label: "editor.nav.deployedConfigs" },
   ];
 
   const ul = document.createElement("ul");

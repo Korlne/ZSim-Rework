@@ -97,6 +97,7 @@
   "editor.nav.discSets": "Disc Sets",
   "editor.nav.enemies": "Enemies",
   "editor.nav.import": "Import",
+  "editor.nav.deployedConfigs": "Deployed Configs",
 
   "editor.loading": "Loading...",
   "editor.notFound": "Page not found",
@@ -386,5 +387,28 @@
 
   "enum.enemy_type.normal": "Normal",
   "enum.enemy_type.elite": "Elite",
-  "enum.enemy_type.boss": "Boss"
+  "enum.enemy_type.boss": "Boss",
+
+  "editor.deployed.title": "Deployed Configs",
+  "editor.deployed.newConfig": "New Config",
+  "editor.deployed.editConfig": "Edit Config",
+  "editor.deployed.defaultName": "New Config",
+  "editor.deployed.empty": "No deployed configs yet. Click '+ New Config' to create one.",
+  "editor.deployed.noCharacters": "No characters in database. Please import character data first.",
+  "editor.deployed.charLabel": "Character",
+  "editor.deployed.wengineLabel": "W-Engine",
+  "editor.deployed.statsLabel": "Stats",
+  "editor.deployed.createdLabel": "Created",
+  "editor.deployed.noWengine": "None",
+  "editor.deployed.edit": "Edit",
+  "editor.deployed.duplicate": "Duplicate",
+  "editor.deployed.back": "Back",
+  "editor.deployed.editComingSoon": "Edit form coming soon.",
+  "editor.deployed.confirmDelete": "Delete \"{name}\"? This action cannot be undone.",
+  "editor.deployed.deleted": "Config deleted",
+  "editor.deployed.deleteError": "Delete failed",
+  "editor.deployed.loadError": "Failed to load configs",
+  "editor.deployed.duplicated": "Config duplicated",
+  "editor.deployed.duplicateError": "Duplicate failed",
+  "editor.deployed.createError": "Failed to create config"
 }
