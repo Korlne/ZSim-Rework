@@ -1,6 +1,7 @@
 pub mod characters;
 pub mod csv_import;
 pub mod db;
+pub mod deployed;
 pub mod enemies;
 pub mod equipment;
 pub mod export;

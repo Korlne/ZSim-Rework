@@ -827,6 +827,66 @@ fn export_to_json(state: tauri::State<'_, DataDirState>) -> Result<String, Strin
     data_entry::export::export_all(&conn, &state.data_dir)
 }
 
+/// List all deployed configs as a JSON array.
+#[tauri::command]
+fn list_deployed_configs(state: tauri::State<'_, DataDirState>) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::deployed::cmd_list_deployed_configs(&conn)
+}
+
+/// Get a single deployed config by config_id as a JSON object.
+#[tauri::command]
+fn get_deployed_config(state: tauri::State<'_, DataDirState>, config_id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::deployed::cmd_get_deployed_config(&conn, config_id)
+}
+
+/// Create or update a deployed config from JSON string.
+#[tauri::command]
+fn save_deployed_config(state: tauri::State<'_, DataDirState>, data: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::deployed::cmd_save_deployed_config(&conn, data)
+}
+
+/// Delete a deployed config by config_id.
+#[tauri::command]
+fn delete_deployed_config(state: tauri::State<'_, DataDirState>, config_id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::deployed::cmd_delete_deployed_config(&conn, config_id)
+}
+
+/// Duplicate an existing deployed config.
+#[tauri::command]
+fn duplicate_deployed_config(state: tauri::State<'_, DataDirState>, config_id: String) -> Result<String, String> {
+    let db_path = state.data_dir.join("zsim.db");
+    let conn =
+        Connection::open(&db_path).map_err(|e| format!("Failed to open database: {e}"))?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .map_err(|e| format!("Failed to set pragma: {e}"))?;
+
+    data_entry::deployed::cmd_duplicate_deployed_config(&conn, config_id)
+}
+
 fn auto_import_on_first_startup(data_dir: &std::path::PathBuf) {
     let db_path = data_dir.join("zsim.db");
     if db_path.exists() {
@@ -971,6 +1031,11 @@ pub fn run() {
             scan_data_files,
             clear_data_type,
             export_to_json,
+            list_deployed_configs,
+            get_deployed_config,
+            save_deployed_config,
+            delete_deployed_config,
+            duplicate_deployed_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

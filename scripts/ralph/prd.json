@@ -120,8 +120,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "2026-05-13: Created deployed.rs with CRUD functions, 13 unit tests, registered in mod.rs and Tauri generate_handler."
     },
     {
       "id": "US-008",

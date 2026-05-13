@@ -69,3 +69,12 @@ Started: Wed May 13 21:38:42     2026
   - `deployed_configs` table uses JSON TEXT columns for cinemas, potentials, and disc_configs — consistent with the existing pattern (constellations, resistances, tracks)
   - FK cascade tests require `PRAGMA foreign_keys = ON` to have been set on the connection — the in-memory test connection gets it from init_db() now
 ---
+
+## 2026-05-13 23:50 - US-007
+- What was implemented: Created `src-tauri/src/data_entry/deployed.rs` with full CRUD for deployed_configs table: list_deployed_configs, get_deployed_config, save_deployed_config, delete_deployed_config, duplicate_deployed_config. save_deployed_config auto-generates config_id via timestamp. duplicate_deployed_config appends "(Copy)" to name. Registered `pub mod deployed;` in data_entry/mod.rs. Added 5 Tauri commands in lib.rs (list_deployed_configs, get_deployed_config, save_deployed_config, delete_deployed_config, duplicate_deployed_config) and registered them in generate_handler![].
+- Files changed: `src-tauri/src/data_entry/deployed.rs` (new, +296 lines), `src-tauri/src/data_entry/mod.rs` (+1), `src-tauri/src/lib.rs` (+77)
+- **Learnings for future iterations:**
+  - Patterns discovered: Deployed configs CRUD follows the exact same flat-struct + per-command Connection pattern as characters/equipment/enemies modules. Each function deserializes JSON → validates → uses parameterized SQL with ON CONFLICT DO UPDATE. Tauri command wrappers follow the consistent state/call pattern: get DataDirState → open Connection → set PRAGMA foreign_keys → delegate to cmd_* function.
+  - Gotchas encountered: The duplicated config must have `created_at` set to `None` so SQLite's DEFAULT (datetime('now')) kicks in. NULL integer columns in SQLite require `Option<i32>` in Rust structs. The generate_config_id uses `SystemTime::now().duration_since(UNIX_EPOCH).as_millis()` for uniqueness.
+  - Useful context: The deployed_configs table schema was already created by US-006. The FK constraints (ON DELETE CASCADE to characters, ON DELETE SET NULL to w_engines) are already tested in db.rs tests. 13 unit tests cover empty list, get not found, save new (auto-id), save update, validation, delete, delete not found, duplicate, and duplicate not found.
+---
