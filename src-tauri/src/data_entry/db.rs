@@ -3,6 +3,7 @@ use rusqlite::{Connection, Result};
 /// 初始化数据库：创建所有表（如果不存在）并记录 schema 版本。
 pub fn init_db(conn: &Connection) -> Result<()> {
     conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
 
     // ---- schema_version 元数据表 ----
     conn.execute_batch(
@@ -178,6 +179,25 @@ pub fn init_db(conn: &Connection) -> Result<()> {
         );",
     )?;
 
+    // ---- deployed_configs ----
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS deployed_configs (
+            config_id        TEXT PRIMARY KEY,
+            name             TEXT NOT NULL,
+            char_id          TEXT NOT NULL REFERENCES characters(char_id) ON DELETE CASCADE,
+            char_level       INTEGER,
+            char_ascension   INTEGER,
+            cinemas          TEXT,
+            potentials       TEXT,
+            wengine_id       TEXT REFERENCES w_engines(id) ON DELETE SET NULL,
+            wengine_level    INTEGER,
+            wengine_ascension INTEGER,
+            disc_configs     TEXT,
+            created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+        );",
+    )?;
+
     Ok(())
 }
 
@@ -207,6 +227,7 @@ mod tests {
         assert!(tables.contains(&"disc_sets".to_string()), "disc_sets table");
         assert!(tables.contains(&"enemies".to_string()), "enemies table");
         assert!(tables.contains(&"apl".to_string()), "apl table");
+        assert!(tables.contains(&"deployed_configs".to_string()), "deployed_configs table");
         assert!(tables.contains(&"schema_version".to_string()), "schema_version table");
     }
 
@@ -371,5 +392,68 @@ mod tests {
             )
             .unwrap();
         assert_eq!(mult_count, 0);
+    }
+
+    #[test]
+    fn test_deployed_configs_cascade() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_db(&conn).unwrap();
+
+        // Insert character and wengine
+        conn.execute(
+            "INSERT INTO characters (char_id, name, faction, specialty, element)
+             VALUES ('c1', 'Char1', 'Gentle_House', 'Attack', 'Fire')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO w_engines (id, name) VALUES ('w1', 'Engine1')",
+            [],
+        ).unwrap();
+
+        // Insert deployed config
+        conn.execute(
+            "INSERT INTO deployed_configs (config_id, name, char_id, wengine_id)
+             VALUES ('cfg1', 'Test Config', 'c1', 'w1')",
+            [],
+        ).unwrap();
+
+        // Delete character — config should cascade-delete
+        conn.execute("DELETE FROM characters WHERE char_id = 'c1'", []).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM deployed_configs WHERE config_id = 'cfg1'", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "deployed_config should be cascade-deleted with character");
+    }
+
+    #[test]
+    fn test_deployed_configs_wengine_set_null() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_db(&conn).unwrap();
+
+        conn.execute(
+            "INSERT INTO characters (char_id, name, faction, specialty, element)
+             VALUES ('c1', 'Char1', 'Gentle_House', 'Attack', 'Fire')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO w_engines (id, name) VALUES ('w1', 'Engine1')",
+            [],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO deployed_configs (config_id, name, char_id, wengine_id)
+             VALUES ('cfg1', 'Test Config', 'c1', 'w1')",
+            [],
+        ).unwrap();
+
+        // Delete wengine — wengine_id should be set to NULL
+        conn.execute("DELETE FROM w_engines WHERE id = 'w1'", []).unwrap();
+        let wengine_id: Option<String> = conn
+            .query_row(
+                "SELECT wengine_id FROM deployed_configs WHERE config_id = 'cfg1'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(wengine_id, None, "wengine_id should be SET NULL on wengine delete");
     }
 }

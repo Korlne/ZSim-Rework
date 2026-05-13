@@ -3,6 +3,7 @@ Started: Wed May 13 21:38:42     2026
 
 ## Codebase Patterns
 - Frontend pages: each page module exports `renderPage(route)` returning a DOM element; pages use inline edit panels (not modals) appended to the root container with `scrollIntoView`
+- Locale files (src/locales/{lang}.json) use flat key-value JSON with dot notation keys like `editor.<page>.<camelCaseKey>`
 - Tauri v2 `.setup()` hook takes `|app| Ok(())` closure and runs before any commands
 - rusqlite: always use `bundled` feature to avoid requiring system SQLite install
 - Always use `PRAGMA foreign_keys = ON;` after opening each rusqlite Connection
@@ -51,3 +52,20 @@ Started: Wed May 13 21:38:42     2026
   - US-009 (Edited Deployed Config) may need to reuse this cascade-enable pattern for its own cinema/potential toggles
 ---
 
+## 2026-05-13 23:20 - US-005
+- What was implemented: Added ` (%)` suffix to `editor.characters.fieldCritRate` and `editor.characters.fieldExtraCritDmg` translation values in all three locale files (zh-CN, en-US, ja-JP). No code logic changes — translation value changes only.
+- Files changed: `src/locales/zh-CN.json`, `src/locales/en-US.json`, `src/locales/ja-JP.json` (+3/-3 lines each)
+- **Learnings for future iterations:**
+  - When adding unit hints like `(%)`, suffix the translation value directly (e.g. `"暴击率 (%)"`) rather than modifying the code that displays it — this keeps labels consistent across all uses (table headers, form fields, error messages)
+  - The same i18n key is reused in multiple places (e.g. `editor.characters.fieldCritRate` appears in form headers, table columns, and validation error messages) so a single translation change covers all display contexts
+---
+
+
+## 2026-05-13 23:40 - US-006
+- What was implemented: Added `deployed_configs` table to `init_db()` in db.rs with foreign keys to characters (ON DELETE CASCADE) and w_engines (ON DELETE SET NULL). Enabled `PRAGMA foreign_keys = ON` at the top of init_db(). Added 2 cascade behavior tests + table existence assertion to existing test suite.
+- Files changed: `src-tauri/src/data_entry/db.rs` (+44/-1 lines)
+- **Learnings for future iterations:**
+  - `init_db()` now enables `PRAGMA foreign_keys = ON` at the top — this ensures FK constraints are enforced for all DDL and DML operations within the same connection
+  - `deployed_configs` table uses JSON TEXT columns for cinemas, potentials, and disc_configs — consistent with the existing pattern (constellations, resistances, tracks)
+  - FK cascade tests require `PRAGMA foreign_keys = ON` to have been set on the connection — the in-memory test connection gets it from init_db() now
+---
