@@ -51,8 +51,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "2026-05-13: Changed reapplyEditorText() to call navigate() instead of only replacing the sidebar. navigate() already handles sidebar rebuild and page re-render."
     },
     {
       "id": "US-004",

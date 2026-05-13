@@ -34,3 +34,12 @@ Started: Wed May 13 21:38:42     2026
   - Editor module conventions (saved in `src/editor/AGENTS.md`): each page exports `renderPage()`, inline edit panels append to root container with `scrollIntoView`
 ---
 
+## 2026-05-13 22:40 - US-003
+- What was implemented: Changed `reapplyEditorText()` in app.js to call `navigate()` instead of only replacing the sidebar. `navigate()` already handles sidebar rebuild AND re-renders the current page via `renderPage()`, so all editor pages now update their text immediately on language switch.
+- Files changed: `src/editor/app.js` (+1/-6 lines)
+- **Learnings for future iterations:**
+  - The `_langHandler` pattern (used in characters.js, skills.js, equipment.js) attaches a langchange listener to re-render edit forms in-place. These fire after `reapplyEditorText`'s `navigate()` call, so forms are destroyed during language switch — this is intentional and preserves the clean re-render approach.
+  - `navigate()` is async (dynamic imports) but its sync portions handle sidebar + loading state immediately.
+  - `ensureLayout()` creates the editor-layout/view-panel structure if missing; `navigate()` always calls it first.
+---
+

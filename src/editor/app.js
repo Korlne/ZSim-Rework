@@ -101,12 +101,7 @@ async function navigate() {
 // ── Re-translate dynamic content ──────────────────────────
 
 function reapplyEditorText() {
-  const titleEl = document.querySelector(".editor-sidebar");
-  if (titleEl) {
-    const oldSidebar = titleEl;
-    const newSidebar = createSidebar(getRoute());
-    oldSidebar.replaceWith(newSidebar);
-  }
+  navigate();
 }
 
 // ── Init ───────────────────────────────────────────────────
