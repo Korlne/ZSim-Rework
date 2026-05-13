@@ -387,13 +387,12 @@ function buildFormContent(editContainer, data, charId, constellations, potential
       btn.addEventListener("click", () => {
         const wasActive = stateArray[i];
         if (!wasActive) {
-          // Enforce sequential: can only enable if all previous are enabled
-          if (i > 0 && !stateArray[i - 1]) return;
+          // Cascade-enable: turn on all from 0 to i
+          for (let j = 0; j <= i; j++) stateArray[j] = true;
         } else {
           // Cascade disable: turn off this and all subsequent
           for (let j = i; j < 6; j++) stateArray[j] = false;
         }
-        if (!wasActive) stateArray[i] = true;
         // Refresh button states
         for (let k = 0; k < 6; k++) {
           btnRefsArray[k].style.background = stateArray[k] ? "var(--primary)" : "var(--surface)";
