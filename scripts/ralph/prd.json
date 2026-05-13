@@ -69,8 +69,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "2026-05-13: Changed createToggleSection() enable logic from 'block if previous is off' to 'cascade-enable all from 0 to i'. Disable logic unchanged."
     },
     {
       "id": "US-005",

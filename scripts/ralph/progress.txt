@@ -43,3 +43,11 @@ Started: Wed May 13 21:38:42     2026
   - `ensureLayout()` creates the editor-layout/view-panel structure if missing; `navigate()` always calls it first.
 ---
 
+## 2026-05-13 23:00 - US-004
+- What was implemented: Changed `createToggleSection()` enable logic from "block if previous is off" to "cascade-enable all from 0 to i". Clicking C6 now enables C1-C6, clicking C3 with C1,C2 on enables only C3. Disable logic unchanged (cascade-disables from i to 5).
+- Files changed: `src/editor/pages/characters.js` (+2/-3 lines)
+- **Learnings for future iterations:**
+  - `createToggleSection()` in characters.js is used for both Cinema (C1-C6) and Potential (P1-P6) toggles — any change affects both immediately
+  - US-009 (Edited Deployed Config) may need to reuse this cascade-enable pattern for its own cinema/potential toggles
+---
+
